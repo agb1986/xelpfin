@@ -1,0 +1,10 @@
+{
+  "//": "Node-side test helpers and the integration suite, which run under plain Node rather than React Native.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["es2022", "dom"],
+    "types": ["jest", "node"]
+  },
+  "include": ["integration/**/*.ts", "test-utils/**/*.ts"],
+  "exclude": ["**/node_modules"]
+}

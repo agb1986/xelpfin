@@ -34,15 +34,27 @@ const token = auth.AccessToken;
 
 // Quick Connect on (default in recent servers, but make sure).
 const cfg = await call('/System/Configuration', { token });
-if (!cfg.QuickConnectAvailable) {
+// The sample clips are under a minute, so lower the resume threshold (default 300 s) to make
+// Continue Watching testable.
+if (!cfg.QuickConnectAvailable || cfg.ServerName !== 'xelpfin-test' || cfg.MinResumeDurationSeconds !== 5) {
   cfg.QuickConnectAvailable = true;
+  cfg.ServerName = 'xelpfin-test';
+  cfg.MinResumeDurationSeconds = 5;
   await call('/System/Configuration', { method: 'POST', body: cfg, token });
 }
 
-const users = await call('/Users', { token });
+let users = await call('/Users', { token });
 if (!users.some(u => u.Name === 'guest')) {
   const guest = await call('/Users/New', { method: 'POST', body: { Name: 'guest' }, token });
   console.log('created user guest', guest.Id);
+  users = await call('/Users', { token });
+}
+// Recent servers hide users from the login screen by default; show both so the user picker has something to list.
+for (const u of users) {
+  if (u.Policy.IsHidden) {
+    await call(`/Users/${u.Id}/Policy`, { method: 'POST', body: { ...u.Policy, IsHidden: false }, token });
+    console.log('unhid user', u.Name);
+  }
 }
 
 const folders = await call('/Library/VirtualFolders', { token });
@@ -53,16 +65,39 @@ const libOptions = path => ({
   SaveLocalMetadata: false,
   MetadataSavers: [],
   DisabledLocalMetadataReaders: [],
-  TypeOptions: [],
+  // No remote metadata or image fetchers: titles come from the NFO files next to the media,
+  // and the server never looks anything up on the internet.
+  TypeOptions: ['Movie', 'Series', 'Season', 'Episode'].map(Type => ({
+    Type, MetadataFetchers: [], MetadataFetcherOrder: [], ImageFetchers: [], ImageFetcherOrder: [],
+  })),
 });
+let replaceAll = false;
 for (const [name, type, path] of [['Movies', 'movies', '/media/movies'], ['Shows', 'tvshows', '/media/shows']]) {
-  if (folders.some(f => f.Name === name)) continue;
+  const existing = folders.find(f => f.Name === name);
+  if (existing) {
+    const opts = existing.LibraryOptions;
+    if (opts.TypeOptions.some(t => t.MetadataFetchers.length || t.ImageFetchers.length) || !opts.TypeOptions.length) {
+      await call('/Library/VirtualFolders/LibraryOptions', { method: 'POST', body: { Id: existing.ItemId, LibraryOptions: { ...opts, ...libOptions(path) } }, token });
+      console.log('disabled remote metadata for', name);
+      replaceAll = true;
+    }
+    continue;
+  }
   const q = new URLSearchParams({ name, collectionType: type, refreshLibrary: 'false' });
   await call(`/Library/VirtualFolders?${q}`, { method: 'POST', body: { LibraryOptions: libOptions(path) }, token });
   console.log('created library', name);
 }
 
 await call('/Library/Refresh', { method: 'POST', token });
+if (replaceAll) {
+  // Re-read metadata from the NFO files, dropping anything fetched earlier.
+  await sleep(3000);
+  const q = new URLSearchParams({ Recursive: 'true', IncludeItemTypes: 'Movie,Series,Season,Episode' });
+  for (const item of (await call(`/Items?${q}`, { token })).Items) {
+    const r = new URLSearchParams({ metadataRefreshMode: 'FullRefresh', imageRefreshMode: 'FullRefresh', replaceAllMetadata: 'true', replaceAllImages: 'false' });
+    await call(`/Items/${item.Id}/Refresh?${r}`, { method: 'POST', token });
+  }
+}
 // Wait for the scan task to go idle and the expected items to show up.
 for (let i = 0; i < 180; i++) {
   await sleep(1000);

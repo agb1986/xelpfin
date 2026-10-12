@@ -1,0 +1,227 @@
+/**
+ * Runs the real JellyfinConnector/JellyfinBackend against the local test container
+ * (npm run jellyfin:up). Only talks to 127.0.0.1.
+ */
+import { JellyfinConnector } from '../src/backend/jellyfin/JellyfinBackend';
+import type { Backend } from '../src/backend/Backend';
+import type { MediaItem, ServerInfo } from '../src/backend/types';
+import { BASELINE_CAPABILITIES, type DeviceCapabilities } from '../src/player/capabilities';
+import { nodeUdp } from '../test-utils/nodeUdp';
+
+const HOST = process.env.JF_HOST ?? '127.0.0.1';
+const URL_ = `http://${HOST}:8096`;
+const CLIENT = { client: 'xelpfin', device: 'xelpfin-integration', deviceId: 'xelpfin-integration-1', version: '0.1.0' };
+const connector = new JellyfinConnector({ client: CLIENT, udp: nodeUdp() });
+// Jellyfin keeps one session per device id and revokes the previous token on a new login,
+// so each signed-in user in this suite pretends to be a separate device.
+const as = (n: number) => new JellyfinConnector({ client: { ...CLIENT, deviceId: `${CLIENT.deviceId}-${n}` }, udp: nodeUdp() });
+
+let server: ServerInfo;
+let admin: Backend;
+let guest: Backend;
+let movies: MediaItem[];
+const byName = (name: string) => movies.find(m => m.name === name)!;
+
+beforeAll(async () => {
+  server = await connector.probe(`${HOST}:8096`);
+  admin = as(1).open(await as(1).login(server, 'xelpfin', 'xelpfin-pass'));
+  guest = as(2).open(await as(2).login(server, 'guest', ''));
+  const libs = await admin.libraries();
+  const page = await admin.items({ libraryId: libs.find(l => l.collectionType === 'movies')!.id, sort: 'name' });
+  movies = page.items;
+});
+
+describe('connect', () => {
+  it('discovers the server over UDP (unicast to localhost)', async () => {
+    const found = await connector.discover(1000, [HOST]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ id: server.id, name: 'xelpfin-test', url: URL_ });
+    // The container advertises its Docker bridge address; the source-IP candidate is what works.
+    expect(found[0].candidates[0]).toBe(URL_);
+  });
+
+  it('probes a typed address', () => {
+    expect(server).toMatchObject({ name: 'xelpfin-test', url: URL_ });
+    expect(server.version).toMatch(/^\d+\.\d+/);
+  });
+
+  it('lists public users', async () => {
+    const users = await connector.publicUsers(server);
+    expect(users.map(u => u.name).sort()).toEqual(['guest', 'xelpfin']);
+    expect(users.find(u => u.name === 'xelpfin')!.hasPassword).toBe(true);
+    // Recent servers report HasPassword=true for everyone so the public list leaks nothing;
+    // the login screen therefore always offers an (optional) password field.
+  });
+
+  it('rejects a wrong password', async () => {
+    await expect(as(3).login(server, 'xelpfin', 'wrong')).rejects.toMatchObject({ kind: 'auth' });
+  });
+
+  it('signs in with Quick Connect once an admin approves the code', async () => {
+    const qc = as(4);
+    const start = await qc.quickConnectStart(server);
+    expect(start.status).toBe('pending');
+    if (start.status !== 'pending') {
+      return;
+    }
+    expect(start.code).toMatch(/^\d{6}$/);
+    expect((await qc.quickConnectPoll(server, start.secret)).status).toBe('pending');
+    // Approve as the admin, as a user would on another device.
+    const res = await fetch(`${URL_}/QuickConnect/Authorize?code=${start.code}`, {
+      method: 'POST',
+      headers: { Authorization: `MediaBrowser Client="xelpfin", Device="t", DeviceId="t", Version="0", Token="${admin.session.accessToken}"` },
+    });
+    expect(res.ok).toBe(true);
+    expect((await qc.quickConnectPoll(server, start.secret)).status).toBe('authorized');
+    const session = await qc.quickConnectLogin(server, start.secret);
+    expect(session.userName).toBe('xelpfin');
+    await qc.open(session).validate();
+  });
+});
+
+describe('browse', () => {
+  it('lists the two video libraries', async () => {
+    const libs = await admin.libraries();
+    expect(libs.map(l => [l.name, l.collectionType]).sort()).toEqual([
+      ['Movies', 'movies'],
+      ['Shows', 'tvshows'],
+    ]);
+  });
+
+  it('pages movies sorted by name', async () => {
+    expect(movies.map(m => m.name)).toEqual(['Big Purple Test', 'Night Grid', 'Old Codec']);
+    const libId = (await admin.libraries()).find(l => l.name === 'Movies')!.id;
+    const p1 = await admin.items({ libraryId: libId, limit: 2 });
+    const p2 = await admin.items({ libraryId: libId, limit: 2, startIndex: 2 });
+    expect(p1.totalCount).toBe(3);
+    expect(p1.items).toHaveLength(2);
+    expect(p2.items.map(i => i.name)).toEqual(['Old Codec']);
+    const n = await admin.items({ libraryId: libId, nameStartsWith: 'N' });
+    expect(n.items.map(i => i.name)).toEqual(['Night Grid']);
+  });
+
+  it('loads detail with tracks and images', async () => {
+    const d = await admin.item(byName('Night Grid').id);
+    expect(d.kind).toBe('movie');
+    expect(d.year).toBe(2023);
+    const src = d.mediaSources![0];
+    expect(src.videoCodec).toBe('hevc');
+    expect(src.audioTracks.map(a => a.language)).toEqual(['eng', expect.stringMatching(/^(ger|deu)$/)]);
+    expect(src.subtitleTracks.map(s => s.language)).toEqual(['eng', expect.stringMatching(/^(fre|fra)$/)]);
+    expect(d.posterUrl).toBeDefined();
+    const img = await fetch(d.posterUrl!);
+    expect(img.status).toBe(200);
+    expect(img.headers.get('content-type')).toMatch(/^image\//);
+  });
+
+  it('walks series, seasons and episodes', async () => {
+    const shows = (await admin.libraries()).find(l => l.name === 'Shows')!;
+    const series = (await admin.items({ libraryId: shows.id })).items;
+    expect(series.map(s => s.name)).toEqual(['Test Show']);
+    const seasons = await admin.seasons(series[0].id);
+    expect(seasons.map(s => s.indexNumber)).toEqual([1, 2]);
+    const s1 = await admin.episodes(series[0].id, seasons[0].id);
+    expect(s1.map(e => e.indexNumber)).toEqual([1, 2, 3]);
+    expect((await admin.episodes(series[0].id)).length).toBe(4);
+    expect((await admin.latest(shows.id)).length).toBeGreaterThan(0);
+  });
+
+  it('searches across libraries', async () => {
+    expect((await admin.search('purple')).map(i => i.name)).toEqual(['Big Purple Test']);
+    expect((await admin.search('test show')).map(i => i.kind)).toContain('series');
+    expect(await admin.search('zzzz-nothing')).toEqual([]);
+  });
+});
+
+describe('playback', () => {
+  it('direct plays h264/aac mp4 and serves the file', async () => {
+    const plan = await admin.playback({ itemId: byName('Big Purple Test').id }, BASELINE_CAPABILITIES);
+    expect(plan.method).toBe('DirectPlay');
+    expect(plan.durationMs).toBeGreaterThan(30_000);
+    const res = await fetch(plan.url, { headers: { Range: 'bytes=0-1023' } });
+    expect([200, 206]).toContain(res.status);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    expect(new TextDecoder().decode(buf.slice(4, 8))).toBe('ftyp');
+    // The sidecar .srt is offered as server-converted WebVTT.
+    const sub = plan.subtitleTracks.find(s => s.delivery === 'external')!;
+    const vtt = await (await fetch(sub.url!)).text();
+    expect(vtt.startsWith('WEBVTT')).toBe(true);
+  });
+
+  it('direct plays HEVC mkv with two audio tracks on a capable device', async () => {
+    const plan = await admin.playback({ itemId: byName('Night Grid').id, audioStreamIndex: 2 }, BASELINE_CAPABILITIES);
+    expect(plan.method).toBe('DirectPlay');
+    expect(plan.audioTracks).toHaveLength(2);
+    expect(plan.selectedAudioIndex).toBe(2);
+    const embedded = plan.subtitleTracks[0];
+    const vtt = await (await fetch(embedded.url!)).text();
+    expect(vtt.startsWith('WEBVTT')).toBe(true);
+  });
+
+  it('transcodes HEVC to HLS for an h264-only device', async () => {
+    const h264Only: DeviceCapabilities = { ...BASELINE_CAPABILITIES, video: [BASELINE_CAPABILITIES.video[0]] };
+    const plan = await admin.playback({ itemId: byName('Night Grid').id }, h264Only);
+    expect(plan.method).toBe('Transcode');
+    expect(plan.streamType).toBe('hls');
+    expect(plan.reasons).toContain('VideoCodecNotSupported:hevc');
+    const m3u8 = await (await fetch(plan.url)).text();
+    expect(m3u8).toContain('#EXTM3U');
+    await admin.reportStop({ plan, positionMs: 0, isPaused: false });
+  });
+
+  it('transcodes the msmpeg4 avi', async () => {
+    const plan = await admin.playback({ itemId: byName('Old Codec').id }, BASELINE_CAPABILITIES);
+    expect(plan.method).toBe('Transcode');
+    expect(plan.reasons).toContain('VideoCodecNotSupported:msmpeg4v3');
+    const m3u8 = await (await fetch(plan.url)).text();
+    expect(m3u8).toContain('#EXTM3U');
+    await admin.reportStop({ plan, positionMs: 0, isPaused: false });
+  });
+});
+
+describe('watch state (guest user)', () => {
+  const movie = () => byName('Big Purple Test');
+
+  afterAll(async () => {
+    await guest.setPlayed(movie().id, false).catch(() => undefined);
+  });
+
+  it('reports progress and shows the item in continue watching', async () => {
+    const plan = await guest.playback({ itemId: movie().id }, BASELINE_CAPABILITIES);
+    await guest.reportStart({ plan, positionMs: 0, isPaused: false });
+    await guest.reportProgress({ plan, positionMs: 10_000, isPaused: false });
+    await guest.reportStop({ plan, positionMs: 12_000, isPaused: false });
+    const resume = await guest.resume();
+    const hit = resume.find(i => i.id === movie().id);
+    expect(hit).toBeDefined();
+    expect(hit!.userData!.playbackPositionMs).toBeGreaterThanOrEqual(11_000);
+  });
+
+  it('marks watched and unwatched', async () => {
+    await guest.setPlayed(movie().id, true);
+    expect((await guest.item(movie().id)).userData!.played).toBe(true);
+    expect((await guest.resume()).find(i => i.id === movie().id)).toBeUndefined();
+    await guest.setPlayed(movie().id, false);
+    expect((await guest.item(movie().id)).userData!.played).toBe(false);
+  });
+
+  it('computes next up after an episode is watched', async () => {
+    const show = (await guest.search('test show')).find(i => i.kind === 'series')!;
+    const eps = await guest.episodes(show.id);
+    await guest.setPlayed(eps[0].id, true);
+    try {
+      const next = await guest.nextUp(10);
+      expect(next.map(e => e.id)).toContain(eps[1].id);
+      const detail = await guest.item(show.id);
+      expect(detail.nextUp?.id).toBe(eps[1].id);
+    } finally {
+      await guest.setPlayed(eps[0].id, false);
+    }
+  });
+
+  it('toggles favourite', async () => {
+    await guest.setFavorite(movie().id, true);
+    expect((await guest.item(movie().id)).userData!.favorite).toBe(true);
+    await guest.setFavorite(movie().id, false);
+  });
+});

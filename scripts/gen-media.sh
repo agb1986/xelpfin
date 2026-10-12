@@ -69,5 +69,21 @@ if [ ! -f "$f" ]; then
      -vf "$(label 'Test Show S02E01' 48)" -c:v libvpx-vp9 -deadline realtime -cpu-used 8 -b:v 800k -c:a libvorbis "$f"
 fi
 
+# NFO files give deterministic titles and plots without any internet metadata lookups.
+nfo_movie() { # nfo_movie <dir> <title> <year> <plot>
+  printf '<?xml version="1.0" encoding="utf-8"?>\n<movie><title>%s</title><year>%s</year><plot>%s</plot><genre>Test</genre></movie>\n' "$2" "$3" "$4" > "$1/movie.nfo"
+}
+nfo_movie "$OUT/movies/Big Purple Test (2024)" "Big Purple Test" 2024 "An H.264 and AAC MP4 with a sidecar English subtitle. Direct plays everywhere."
+nfo_movie "$OUT/movies/Night Grid (2023)" "Night Grid" 2023 "HEVC in Matroska with English AAC and German AC3 audio and two embedded subtitle tracks."
+nfo_movie "$OUT/movies/Old Codec (2001)" "Old Codec" 2001 "MS-MPEG4v3 video in AVI. No Android decoder exists, so the server has to transcode."
+printf '<?xml version="1.0" encoding="utf-8"?>\n<tvshow><title>Test Show</title><year>2024</year><plot>A synthetic two-season show for testing seasons, episodes and next up.</plot><genre>Test</genre></tvshow>\n' \
+  > "$OUT/shows/Test Show/tvshow.nfo"
+nfo_ep() { # nfo_ep <media-file> <season> <episode> <title>
+  printf '<?xml version="1.0" encoding="utf-8"?>\n<episodedetails><title>%s</title><season>%s</season><episode>%s</episode><plot>Synthetic episode %s of season %s.</plot></episodedetails>\n' \
+    "$4" "$2" "$3" "$3" "$2" > "${1%.*}.nfo"
+}
+for e in 1 2 3; do nfo_ep "$OUT/shows/Test Show/Season 01/Test Show - S01E0$e - Episode $e.mkv" 1 $e "Episode $e"; done
+nfo_ep "$OUT/shows/Test Show/Season 02/Test Show - S02E01 - Season Two.webm" 2 1 "Season Two"
+
 python3 "$HERE/gen-posters.py" "$OUT"
 echo "media ready in $OUT"

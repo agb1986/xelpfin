@@ -6,7 +6,7 @@
     "android": "react-native run-android",
     "start": "react-native start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
     "test": "jest",
     "test:integration": "jest -c jest.integration.config.js --runInBand",
     "jellyfin:up": "bash scripts/jellyfin-up.sh",
