@@ -8,3 +8,4 @@ export * from './StatusViews';
 export * from './TextField';
 export * from './TopBar';
 export * from './SubtitleText';
+export * from './ScreenBoundary';

@@ -6,7 +6,7 @@ import { BackendError } from './src/backend/types';
 import { getPlatform, getOrCreateDeviceId, type PlatformServices } from './src/platform';
 import { AppStateProvider, loadBoot, useApp, type Boot } from './src/state/AppState';
 import { NavigationStack, useNavigation, type Route } from './src/state/navigation';
-import { LoadingView } from './src/ui/components';
+import { LoadingView, ScreenBoundary } from './src/ui/components';
 import {
   DetailScreen,
   HomeScreen,
@@ -70,6 +70,10 @@ async function bootstrap(platform: PlatformServices, connectorOverride?: ServerC
 }
 
 function renderRoute(route: Route): React.ReactNode {
+  return <ScreenBoundary>{screenFor(route)}</ScreenBoundary>;
+}
+
+function screenFor(route: Route): React.ReactNode {
   switch (route.name) {
     case 'servers':
       return <ServerSelectScreen />;
