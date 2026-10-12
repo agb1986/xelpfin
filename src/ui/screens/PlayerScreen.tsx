@@ -42,6 +42,16 @@ function subtitleOptions(plan: PlaybackPlan): Option<number>[] {
   ];
 }
 
+/** Track labels carry codec and flags; buttons keep the first part so the row stays on screen. */
+const SHORT_LABEL_CHARS = 22;
+function shortLabel(label: string | undefined): string | undefined {
+  if (!label || label.length <= SHORT_LABEL_CHARS) {
+    return label;
+  }
+  const first = label.split(' - ')[0];
+  return first.length <= SHORT_LABEL_CHARS ? first : `${first.slice(0, SHORT_LABEL_CHARS - 1)}…`;
+}
+
 /**
  * Full-screen playback: negotiates a plan with the backend, renders the engine view, reports
  * progress, and offers seek, audio and subtitle selection with the remote.
@@ -458,10 +468,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
               <Button label="−10 s" onPress={() => { seekBy(-SEEK_STEP_MS); showOverlay('controls'); }} testID="player-rew" />
               <Button label="+30 s" onPress={() => { seekBy(SKIP_STEP_MS); showOverlay('controls'); }} testID="player-ffwd" />
               {plan && plan.audioTracks.length > 1 ? (
-                <Button label={`Audio: ${audioLabel ?? 'default'}`} onPress={() => setPicker('audio')} testID="player-audio" />
+                <Button label={`Audio: ${shortLabel(audioLabel) ?? 'default'}`} onPress={() => setPicker('audio')} testID="player-audio" />
               ) : null}
               {plan && plan.subtitleTracks.length > 0 ? (
-                <Button label={`Subtitles: ${subLabel ?? 'Off'}`} onPress={() => setPicker('subtitles')} testID="player-subtitles" />
+                <Button label={`Subtitles: ${shortLabel(subLabel) ?? 'Off'}`} onPress={() => setPicker('subtitles')} testID="player-subtitles" />
               ) : null}
             </View>
           ) : null}

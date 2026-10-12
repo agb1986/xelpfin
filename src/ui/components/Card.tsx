@@ -19,7 +19,8 @@ export function itemSubtitle(item: MediaItem): string | undefined {
 
 export function progressOf(item: MediaItem): number {
   const ud = item.userData;
-  if (!ud || ud.played) {
+  // Only things you can resume have progress; collections and series report a watched share instead.
+  if (!ud || ud.played || (item.kind !== 'movie' && item.kind !== 'episode' && item.kind !== 'video')) {
     return 0;
   }
   if (ud.playedPercentage) {
