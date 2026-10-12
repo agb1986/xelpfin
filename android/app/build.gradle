@@ -61,7 +61,25 @@ react {
 /**
  * Set this to true to Run Proguard on Release builds to minify the Java bytecode.
  */
-def enableProguardInReleaseBuilds = false
+def enableProguardInReleaseBuilds = true
+
+/**
+ * Release signing. The keystore and its passwords live in app/signing, which git ignores
+ * (scripts/release.sh creates them on first use). Without them the release build falls back to
+ * the debug key and says so, which is fine for local testing and nothing else.
+ */
+def releaseProps = new Properties()
+def releasePropsFile = rootProject.file("../signing/keystore.properties")
+if (releasePropsFile.exists()) {
+    releasePropsFile.withInputStream { releaseProps.load(it) }
+}
+
+/**
+ * The native ABIs packaged into the APK. The default comes from gradle.properties; pass
+ * -PreactNativeArchitectures=armeabi-v7a,arm64-v8a for the Fire TV release and
+ * -PreactNativeArchitectures=x86_64 for the emulator build.
+ */
+def packagedAbis = (findProperty("reactNativeArchitectures") ?: "armeabi-v7a,x86_64").split(",").collect { it.trim() }
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -89,6 +107,9 @@ android {
         versionCode 1
         versionName "0.1.0"
         buildConfigField "boolean", "XELPFIN_DEV_SUPPORT", project.hasProperty("xelpfinDev") ? "true" : "false"
+        ndk {
+            abiFilters(*packagedAbis)
+        }
     }
     buildFeatures {
         buildConfig true
@@ -100,16 +121,28 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (releaseProps.getProperty("storeFile")) {
+            release {
+                storeFile rootProject.file("../signing/" + releaseProps.getProperty("storeFile"))
+                storePassword releaseProps.getProperty("storePassword")
+                keyAlias releaseProps.getProperty("keyAlias")
+                keyPassword releaseProps.getProperty("keyPassword")
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (releaseProps.getProperty("storeFile")) {
+                signingConfig signingConfigs.release
+            } else {
+                logger.warn("xelpfin: signing/keystore.properties not found, signing the release with the debug key")
+                signingConfig signingConfigs.debug
+            }
             minifyEnabled enableProguardInReleaseBuilds
+            shrinkResources enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }

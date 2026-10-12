@@ -12,6 +12,7 @@
     "jellyfin:up": "bash scripts/jellyfin-up.sh",
     "jellyfin:down": "bash scripts/jellyfin-down.sh",
     "apk:debug": "cd android && ./gradlew assembleDebug",
+    "apk:release": "bash scripts/release.sh",
     "emu:start": "bash scripts/emulator.sh start",
     "smoke": "bash scripts/smoke.sh",
     "e2e": "bash scripts/e2e.sh",

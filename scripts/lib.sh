@@ -67,12 +67,14 @@ launch() { # launch [--clear]
 install_apk() {
   [ -f "$APK" ] || fail "missing $APK (npm run apk:debug or npm run apk:release)"
   local out
-  out="$("${ADB[@]}" install -r "$APK" 2>&1 | tail -1)"
+  # adb exits non-zero on a failed install; keep going so the reason can be acted on.
+  out="$("${ADB[@]}" install -r "$APK" 2>&1 || true)"
   if [[ "$out" == *INSTALL_FAILED_UPDATE_INCOMPATIBLE* ]]; then
     echo "  signed with another key: uninstalling the old build first"
-    "${ADB[@]}" uninstall "$PKG" >/dev/null
-    out="$("${ADB[@]}" install "$APK" 2>&1 | tail -1)"
+    "${ADB[@]}" uninstall "$PKG" >/dev/null || true
+    out="$("${ADB[@]}" install "$APK" 2>&1 || true)"
   fi
+  out="$(printf '%s\n' "$out" | grep -v '^$' | tail -1)"
   echo "  $out"
   [[ "$out" == Success* ]] || fail "install failed"
 }
