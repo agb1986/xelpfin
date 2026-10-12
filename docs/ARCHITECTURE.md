@@ -96,6 +96,12 @@ Nothing outside `src/platform` imports `NativeModules`.
 
 - `AppState.tsx` holds the connector, the current `Backend`, settings and the known servers. It
   restores the last session at startup and validates it with the server.
+  - `signOut(leave)` clears the session and leaves for the server or login screen in a single
+    state update. Two separate updates rendered the signed-in screens for one frame without a
+    backend, which crashed.
+  - `authGuard.ts` wraps the backend so that the first call rejected with HTTP 401 (a revoked or
+    expired token) sets `authExpired`. The app then returns to the login screen for that server
+    and says why. A 403 is not treated as an expiry.
 - `settings.ts` and `servers.ts` persist through `PlatformServices.storage`.
 - `trackDefaults.ts` picks the initial audio and subtitle tracks from the settings: the preferred
   language, and a subtitle mode of off, forced only, or always.
@@ -126,6 +132,16 @@ Nothing outside `src/platform` imports `NativeModules`.
   - `PlayerScreen`.
   - `SettingsScreen`.
   - Every screen has loading, error (with retry) and empty states.
+  - `App.tsx` wraps each route in `ScreenBoundary`, an error boundary. A render error shows
+    `ErrorView` with Retry for that screen, and BACK still works. The error is logged with
+    `console.warn` and does not take down the app.
+- Grids (`LibraryScreen` and `SearchScreen`) and rows (`MediaRow`) pass `getItemLayout`, so the
+  list never measures cells. Every card has the same height, because its label area has a fixed
+  height (`cardHeight`).
+  - With `numColumns`, FlatList virtualizes rows, so the index that `getItemLayout` receives is a
+    row index.
+  - Card images are requested from the server at about twice the card size, and decoded with
+    `resizeMethod="resize"`.
 
 ### Remote input on the player
 
@@ -145,6 +161,32 @@ reach the screen. Media keys (play/pause, rewind, fast forward) work in every ov
   watched, Next Up and favourites.
 - `scripts/smoke.sh` is the end-to-end test on the emulator. It drives the APK with key events,
   checks the server's view of the session (item, pause state, play method), and saves screenshots.
+- `scripts/e2e.sh` runs the scenarios that need setup or checks on the server:
+  - Quick Connect, and audio and subtitle switching (text, ASS, PGS and burn-in).
+  - Subtitle styling and position, resume, watched and favourite, and autoplay on and off.
+  - BACK on every screen.
+  - Switching user, changing server and signing out.
+  - An empty library and a 2000-item one.
+  - A revoked token, and the server stopping before and during playback.
+
+  It reads the UI with `uiautomator dump` (`scripts/ui.py`). It compares the result with the
+  server's sessions and user data, and samples subtitle pixels (`scripts/pixels.py`).
+- Both scripts only talk to `emulator-*` serials and 127.0.0.1. `XELPFIN_APK` selects the APK, so
+  they run unchanged against the release build.
+
+## Release build
+
+`scripts/release.sh` builds the `release` variant:
+
+- R8 minification and resource shrinking, with keep rules in `proguard-rules.pro`.
+- Hermes bytecode.
+- The ABIs are selected with `-PreactNativeArchitectures`. armeabi-v7a and arm64-v8a go to the
+  Fire TV APK, and x86_64 to the emulator APK.
+- It is signed with a local keystore in `signing/` (git-ignored).
+
+The debug build embeds the JS bundle too (`debuggableVariants` is empty), so the debug and
+release APKs differ in minification, the native libraries they include, and the signing key, but
+not in how the JS is loaded. Pass `-PxelpfinDev=true` for a Metro-backed debug build.
 
 ## Privacy
 

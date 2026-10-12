@@ -21,7 +21,9 @@ platform-specific parts sit behind small interfaces (see `docs/ARCHITECTURE.md`)
   report. It reports progress to the server, supports seek with the D-pad, and lets you choose
   audio and subtitle tracks. When autoplay is on, the next episode plays automatically.
 - Settings cover the maximum streaming quality, the subtitle mode, the preferred language,
-  autoplay, the playback info overlay, switching user and changing server.
+  subtitle size, colour and background, autoplay, the playback info overlay, signing out,
+  switching user and changing server.
+- A screen that throws while rendering shows an error with Retry instead of taking down the app.
 
 ## Requirements
 
@@ -59,7 +61,62 @@ npm run emu:start
 # 5. End-to-end smoke test on the emulator. It installs the APK and drives the app
 #    with D-pad key events. Screenshots go to docs/screens.
 npm run smoke               # or: scripts/smoke.sh --no-install
+
+# 6. Scenario tests on the emulator (Quick Connect, audio and subtitle switching, burn-in,
+#    subtitle styling, resume, watched/favourite, autoplay, BACK, switch user/server, empty
+#    library, token expiry, server going away). "offline" restarts the Jellyfin container.
+npm run e2e                 # or: scripts/e2e.sh [--install] [scenario ...]
+scripts/e2e.sh perf         # cold start, 2000-item grid scrolling and memory (not in the default run)
+
+# All of typecheck, lint and unit tests in one go:
+npm run verify
 ```
+
+`smoke.sh` and `e2e.sh` install `XELPFIN_APK` when it is set, so the same tests run against a
+release build: `XELPFIN_APK=dist/xelpfin-0.1.0-x86_64.apk scripts/smoke.sh`. If the installed build is
+signed with another key, the scripts uninstall it first (on the emulator only).
+
+## Release build
+
+```sh
+npm run apk:release         # or: scripts/release.sh [arm|x86_64]
+```
+
+This writes two APKs to `dist/`. Both are minified with R8 and resource shrinking, use Hermes
+bytecode, and are signed with the release key:
+
+- `xelpfin-<version>-arm.apk` contains armeabi-v7a and arm64-v8a. Install this one on the Fire TV.
+- `xelpfin-<version>-x86_64.apk` is the same build for the x86_64 emulator.
+- `*-mapping.txt` is the R8 mapping that turns obfuscated stack traces back into readable ones.
+
+On first use the script creates `signing/xelpfin-release.keystore` and
+`signing/keystore.properties`, with a random password. git ignores `signing/` and `dist/`.
+**Back up `signing/`.** Android only accepts an update signed with the same key as the installed
+app. If the key is lost, you have to uninstall the app (losing its settings and sign-in) before
+installing a build signed with a new key. Without `keystore.properties` the release build is
+signed with the debug key and Gradle prints a warning.
+
+The keep rules for R8 are in `android/app/proguard-rules.pro`. If you add a native module, add
+its package there too, and check `adb logcat` for `ClassNotFoundException` on a release build.
+
+### Changing the app id
+
+The app id is `com.xelpfin.app`. The stripped reference APK built in an earlier phase uses the same
+id, so only one of the two can be installed on a device at a time. Uninstalling the other one first
+also removes its data. To give xelpfin its own id (for example `com.xelpfin.tv`):
+
+1. In `android/app/build.gradle`, change `applicationId`. This is the only change Android needs.
+   You can leave `namespace` as `com.xelpfin.app`, because it only names the generated `R` and
+   `BuildConfig` classes.
+2. In `scripts/lib.sh`, change `PKG`, which the emulator scripts use for `am start`,
+   `force-stop` and `uninstall`.
+3. Optionally, to keep everything consistent, also rename `namespace` and the Kotlin package.
+   - The Kotlin package is the `package` line in the four files under
+     `android/app/src/main/java/com/xelpfin/app/`, and their directory.
+   - Also update the `com.xelpfin.app.**` keep rule in `proguard-rules.pro`.
+
+The launcher activity then becomes `<new id>/com.xelpfin.app.MainActivity`. It is still the same
+class, so `adb shell am start -n <new id>/com.xelpfin.app.MainActivity` works.
 
 Inside the emulator, the host's Jellyfin is reachable at `http://10.0.2.2:8096`. UDP broadcasts
 do not leave the emulator's virtual network, so on the emulator only, discovery also asks
@@ -88,11 +145,12 @@ src/platform   PlatformServices interface, Fire TV adapter (Kotlin module + Asyn
 src/state      app state (session, servers, settings), stack navigator, track defaults
 src/ui         theme, focus-aware components, screens
 __tests__      unit tests            integration/   tests against local Jellyfin
-scripts        Jellyfin, media, emulator and smoke test scripts
-docs           ARCHITECTURE.md, screens/ (smoke test screenshots)
+scripts        Jellyfin, media, emulator, smoke/e2e test and release scripts
+docs           ARCHITECTURE.md, screens/ (smoke and e2e screenshots)
+signing, dist  release keystore and release APKs (git-ignored, created by scripts/release.sh)
 ```
 
-## Smoke test screenshots
+## Screenshots
 
 `docs/screens/01-servers.png` through `12-settings.png` come from `scripts/smoke.sh`. The test
 covers server discovery, login, home, detail, playback (with the server confirming direct play),
@@ -100,3 +158,18 @@ the controls, the subtitle picker, subtitles on screen, Continue Watching, searc
 library and settings. `13-transcode-old-codec.png` shows an msmpeg4 AVI that the server
 transcodes to HLS. `14-hevc10-embedded-subs.png` shows a direct-played HEVC 10-bit MKV with
 embedded subtitles.
+
+The `e2e-*.png` files come from `scripts/e2e.sh`, one or more per scenario:
+
+- Quick Connect code: `e2e-quickconnect`.
+- Audio track switch: `e2e-audio`.
+- PGS, ASS and burned-in subtitles: `e2e-subtitles-pgs`, `-ass` and `-burnin`.
+- Subtitle style settings and the result: `e2e-substyle-settings` and `e2e-substyle`.
+- Resume offer: `e2e-resume-detail`.
+- Watched and favourite: `e2e-watched`.
+- Next episode autoplay: `e2e-autoplay`.
+- Switch user and change server: `e2e-switch-user` and `e2e-change-server`.
+- A 2000-item library and an empty one: `e2e-bulk` and `e2e-empty`.
+- Revoked token: `e2e-token-expired`.
+- Server stopped before and during playback: `e2e-offline-error` and `e2e-offline-midplay`.
+- The 2000-item grid after fast scrolling, still focused (`scripts/e2e.sh perf`): `e2e-perf-scrolled`.
