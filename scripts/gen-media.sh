@@ -9,16 +9,13 @@ mkdir -p "$OUT/movies" "$OUT/shows"
 ff() { ffmpeg -hide_banner -loglevel error -y "$@"; }
 label() { echo "drawtext=fontfile=$FONT:text='$1':fontcolor=white:fontsize=$2:x=(w-tw)/2:y=h*0.4,drawtext=fontfile=$FONT:text='%{pts\\:hms}':fontcolor=white:fontsize=$(( $2 / 2 )):x=(w-tw)/2:y=h*0.6"; }
 
-srt() { # srt <file> <lang-word>
-  cat > "$1" <<SRT
-1
-00:00:01,000 --> 00:00:06,000
-[$2] xelpfin subtitle line one
-
-2
-00:00:07,000 --> 00:00:14,000
-[$2] second line, still purple
-SRT
+srt() { # srt <file> <lang-word>: one cue every 4 seconds for the whole 40 s clip
+  local i n=1
+  : > "$1"
+  for i in $(seq 1 4 37); do
+    printf '%d\n00:00:%02d,000 --> 00:00:%02d,500\n[%s] xelpfin subtitle line %d\n\n' "$n" "$i" $((i + 3)) "$2" "$n" >> "$1"
+    n=$((n + 1))
+  done
 }
 
 # 1. H.264/AAC MP4 with a sidecar English SRT: direct play everywhere.

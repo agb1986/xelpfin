@@ -2,13 +2,12 @@ import React, { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import Video, {
   SelectedTrackType,
-  TextTrackType,
   type ReactVideoSource,
   type SelectedTrack,
   type VideoRef,
 } from 'react-native-video';
 import type { PlayerEngine, PlayerViewHandle, PlayerViewProps } from '../PlayerEngine';
-import { audioSelection, canSwitchInStream, sideLoadedTitle, subtitleSelection, type TrackSelection } from './trackSelection';
+import { audioSelection, canSwitchInStream, subtitleSelection, type TrackSelection } from './trackSelection';
 
 function toSelectedTrack(s: TrackSelection): SelectedTrack {
   switch (s.type) {
@@ -38,15 +37,7 @@ const VideoView = forwardRef<PlayerViewHandle, PlayerViewProps>(function VideoVi
       type: plan.streamType === 'hls' ? 'm3u8' : undefined,
       headers: plan.headers,
       startPosition: plan.startPositionMs,
-      textTracks: plan.subtitleTracks
-        .filter(s => s.delivery === 'external' && s.url)
-        .map(s => ({
-          title: sideLoadedTitle(s.index),
-          // ExoPlayer only uses the language for display; Jellyfin's ISO 639-2 codes pass through.
-          language: (s.language ?? 'und') as never,
-          type: TextTrackType.VTT,
-          uri: s.url!,
-        })),
+      // Side-loaded (external) subtitles are drawn by the app, see useSubtitleCues.
       bufferConfig: { minBufferMs: 15_000, maxBufferMs: 50_000, bufferForPlaybackMs: 2_500, bufferForPlaybackAfterRebufferMs: 5_000 },
     }),
     [plan],
@@ -61,7 +52,7 @@ const VideoView = forwardRef<PlayerViewHandle, PlayerViewProps>(function VideoVi
       resizeMode="contain"
       controls={false}
       focusable={false}
-      progressUpdateInterval={500}
+      progressUpdateInterval={250}
       selectedAudioTrack={toSelectedTrack(audioSelection(plan, props.audioStreamIndex))}
       selectedTextTrack={toSelectedTrack(subtitleSelection(plan, props.subtitleStreamIndex))}
       subtitleStyle={SUBTITLE_STYLE}

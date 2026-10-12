@@ -1,4 +1,5 @@
 import React, { forwardRef, useState } from 'react';
+import { useIsActive } from '../../state/navigation';
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 import { colors, font, radius, space } from '../theme';
 
@@ -9,6 +10,7 @@ interface TextFieldProps extends TextInputProps {
 /** Labelled text input with the purple focus ring. SELECT opens the on-screen keyboard. */
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField({ label, style, onFocus, onBlur, ...rest }, ref) {
   const [focused, setFocused] = useState(false);
+  const active = useIsActive(); // see Focusable: hidden screens must not hold focus
   return (
     <View style={styles.wrap}>
       <Text style={[styles.label, focused && styles.labelFocused]}>{label}</Text>
@@ -17,6 +19,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         placeholderTextColor={colors.textDim}
         autoCapitalize="none"
         autoCorrect={false}
+        focusable={active}
         {...rest}
         onFocus={e => {
           setFocused(true);

@@ -123,6 +123,8 @@ describe('browse', () => {
     const s1 = await admin.episodes(series[0].id, seasons[0].id);
     expect(s1.map(e => e.indexNumber)).toEqual([1, 2, 3]);
     expect((await admin.episodes(series[0].id)).length).toBe(4);
+    // Latest hides played items by default, so start from an unwatched series.
+    await admin.setPlayed(series[0].id, false);
     expect((await admin.latest(shows.id)).length).toBeGreaterThan(0);
   });
 

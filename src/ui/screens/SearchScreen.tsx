@@ -30,7 +30,7 @@ export function SearchScreen() {
         <EmptyView title="No results" message={`Nothing matches “${term}”.`} />
       ) : (
         <View style={styles.flex}>
-          <Text style={styles.hint}>{results.status === 'loading' ? 'Searching…' : `${results.data?.length ?? 0} results`}</Text>
+          <Text style={styles.hint}>{results.status === 'loading' ? 'Searching…' : `${results.data?.length ?? 0} ${results.data?.length === 1 ? 'result' : 'results'}`}</Text>
           <FlatList
             key={columns}
             data={results.data ?? []}

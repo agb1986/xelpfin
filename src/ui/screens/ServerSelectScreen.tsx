@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoveredServer, ServerInfo } from '../../backend/types';
 import { useApp } from '../../state/AppState';
 import { useNavigation } from '../../state/navigation';
-import { Button, describeError, Focusable, Screen, TextField } from '../components';
+import { Button, describeError, Focusable, Screen, TextField, bleed } from '../components';
 import { colors, font, radius, space } from '../theme';
 
 function ServerTile({ server, note, onPress, preferred }: { server: ServerInfo; note: string; onPress(): void; preferred?: boolean }) {
@@ -78,7 +78,7 @@ export function ServerSelectScreen() {
 
   return (
     <Screen title="Choose a Jellyfin server" testID="servers">
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
         <View style={styles.tiles}>
           {list.map((s, i) => (
             <ServerTile key={s.server.id} server={s.server} note={s.note} onPress={() => choose(s.server)} preferred={i === 0} />

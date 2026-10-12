@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, TVFocusGuideView, Text, View } from 'react-native';
 import type { Library } from '../../backend/types';
 import { useNavigation } from '../../state/navigation';
 import { colors, font, radius, space } from '../theme';
@@ -16,8 +16,9 @@ function Tab({ label, onPress, testID, active }: { label: string; onPress(): voi
 /** Wordmark plus the main destinations. Shown on home; other screens are reached from it. */
 export function TopBar({ libraries, current }: { libraries: Library[]; current?: string }) {
   const nav = useNavigation();
+  // Trap left/right so the ends of the bar do not jump focus down into the rows below.
   return (
-    <View style={styles.bar}>
+    <TVFocusGuideView style={styles.bar} trapFocusLeft trapFocusRight>
       <Text style={styles.logo}>xelpfin</Text>
       <Tab label="Home" testID="tab-home" active={current === 'home'} onPress={() => nav.reset([{ name: 'home' }])} />
       {libraries.map(lib => (
@@ -32,7 +33,7 @@ export function TopBar({ libraries, current }: { libraries: Library[]; current?:
       <View style={styles.spacer} />
       <Tab label="Search" testID="tab-search" onPress={() => nav.push({ name: 'search' })} />
       <Tab label="Settings" testID="tab-settings" onPress={() => nav.push({ name: 'settings' })} />
-    </View>
+    </TVFocusGuideView>
   );
 }
 

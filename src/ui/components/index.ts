@@ -7,3 +7,4 @@ export * from './Screen';
 export * from './StatusViews';
 export * from './TextField';
 export * from './TopBar';
+export * from './SubtitleText';

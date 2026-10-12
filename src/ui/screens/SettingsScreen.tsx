@@ -4,7 +4,7 @@ import { useApp } from '../../state/AppState';
 import { useNavigation } from '../../state/navigation';
 import { BITRATE_CHOICES, LANGUAGE_CHOICES, SUBTITLE_CHOICES } from '../../state/settings';
 import { APP_NAME, APP_VERSION } from '../../version';
-import { Focusable, OptionPicker, Screen, type Option } from '../components';
+import { Focusable, OptionPicker, Screen, bleed, type Option } from '../components';
 import { useAsync } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 
@@ -47,7 +47,7 @@ export function SettingsScreen() {
 
   return (
     <Screen title="Settings" testID="settings">
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
         <Text style={styles.section}>Playback</Text>
         <Row first testID="set-bitrate" label="Maximum streaming quality" value={labelOf(BITRATE_CHOICES, settings.maxBitrate)} onPress={() => setPicker('bitrate')} />
         <Row testID="set-subtitles" label="Subtitles" value={labelOf(SUBTITLE_CHOICES, settings.subtitleMode)} onPress={() => setPicker('subtitles')} />

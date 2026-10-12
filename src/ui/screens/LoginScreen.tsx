@@ -3,13 +3,17 @@ import { Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import type { PublicUser, ServerInfo, Session } from '../../backend/types';
 import { useApp } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
-import { Button, describeError, Focusable, Screen, TextField } from '../components';
+import { Button, describeError, Focusable, Screen, TextField, bleed } from '../components';
 import { useAsync } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 
-function UserTile({ user, onPress, preferred }: { user: PublicUser; onPress(): void; preferred?: boolean }) {
+const UserTile = React.forwardRef<View, { user: PublicUser; onPress(): void; preferred?: boolean }>(function UserTile(
+  { user, onPress, preferred },
+  ref,
+) {
   return (
     <Focusable
+      ref={ref}
       testID={`user-${user.name}`}
       hasTVPreferredFocus={preferred}
       onPress={onPress}
@@ -31,7 +35,7 @@ function UserTile({ user, onPress, preferred }: { user: PublicUser; onPress(): v
       )}
     </Focusable>
   );
-}
+});
 
 /** User picker, password sign-in and Quick Connect for one server. */
 export function LoginScreen({ server }: { server: ServerInfo }) {
@@ -45,6 +49,16 @@ export function LoginScreen({ server }: { server: ServerInfo }) {
   const [error, setError] = useState<string>();
   const [qcCode, setQcCode] = useState<string>();
   const passwordRef = useRef<TextInput>(null);
+  const firstUser = useRef<View>(null);
+  // The user list arrives after the screen has mounted and focus has already settled on a
+  // button, so preferred focus alone is not enough: move focus to the first user explicitly.
+  const userCount = users.data?.length ?? 0;
+  useEffect(() => {
+    if (active && userCount > 0) {
+      const t = setTimeout(() => firstUser.current?.requestTVFocus?.(), 0);
+      return () => clearTimeout(t);
+    }
+  }, [active, userCount]);
 
   const done = (session: Session) => {
     signIn(session);
@@ -121,10 +135,10 @@ export function LoginScreen({ server }: { server: ServerInfo }) {
 
   return (
     <Screen title={`Sign in to ${server.name}`} testID="login">
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
         <View style={styles.users}>
           {users.data?.map((u, i) => (
-            <UserTile key={u.id} user={u} onPress={() => pickUser(u)} preferred={i === 0} />
+            <UserTile key={u.id} ref={i === 0 ? firstUser : undefined} user={u} onPress={() => pickUser(u)} preferred={i === 0} />
           ))}
           {users.status === 'error' ? <Text style={styles.dim}>Could not load the user list: {describeError(users.error)}</Text> : null}
         </View>

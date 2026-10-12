@@ -89,7 +89,7 @@ export function LibraryScreen({ library }: { library: Library }) {
     <View style={styles.root} testID="library">
       <View style={styles.header}>
         <Text style={styles.title}>{library.name}</Text>
-        <Text style={styles.count}>{list.total ? `${list.total} items` : ''}</Text>
+        <Text style={styles.count}>{list.total ? `${list.total} ${list.total === 1 ? 'item' : 'items'}` : ''}</Text>
         <View style={styles.spacer} />
         <Button compact label={`Sort: ${sortLabel}`} onPress={() => setPicker('sort')} testID="sort" />
         <Button compact label={`Letter: ${letter || 'All'}`} onPress={() => setPicker('letter')} testID="letter" />

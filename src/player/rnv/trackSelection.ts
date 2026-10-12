@@ -1,8 +1,5 @@
 import type { PlaybackPlan } from '../../backend/types';
 
-/** Title used for side-loaded subtitle tracks so they can be selected unambiguously. */
-export const sideLoadedTitle = (index: number) => `xelpfin-sub-${index}`;
-
 export type TrackSelection =
   | { type: 'index'; value: number }
   | { type: 'title'; value: string }
@@ -20,7 +17,10 @@ export function audioSelection(plan: PlaybackPlan, streamIndex?: number): TrackS
   return pos < 0 ? { type: 'system' } : { type: 'index', value: pos };
 }
 
-/** Maps a backend subtitle stream index onto the player's text tracks. */
+/**
+ * Maps a backend subtitle stream index onto the player's own text tracks. Side-loaded
+ * (external) tracks are drawn by the app, so the native renderer is turned off for them.
+ */
 export function subtitleSelection(plan: PlaybackPlan, streamIndex?: number): TrackSelection {
   if (streamIndex === undefined || streamIndex < 0) {
     return { type: 'disabled' };
@@ -28,9 +28,6 @@ export function subtitleSelection(plan: PlaybackPlan, streamIndex?: number): Tra
   const track = plan.subtitleTracks.find(s => s.index === streamIndex);
   if (!track) {
     return { type: 'disabled' };
-  }
-  if (track.delivery === 'external' && track.url) {
-    return { type: 'title', value: sideLoadedTitle(track.index) };
   }
   if (track.delivery === 'embedded' && track.language) {
     return { type: 'language', value: track.language };

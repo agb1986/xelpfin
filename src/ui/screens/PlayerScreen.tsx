@@ -2,11 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, StyleSheet, Text, useTVEventHandler, View, type HWEvent } from 'react-native';
 import type { ItemDetail, PlaybackPlan } from '../../backend/types';
 import { getEngine } from '../../player';
+import { useSubtitleCues } from '../../player/useSubtitleCues';
 import type { PlayerViewHandle } from '../../player/PlayerEngine';
 import { useApp, useBackend } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
 import { pickAudio, pickSubtitle } from '../../state/trackDefaults';
-import { Button, ErrorView, Focusable, LoadingView, OptionPicker, type Option } from '../components';
+import { Button, ErrorView, Focusable, LoadingView, OptionPicker, SubtitleText, type Option } from '../components';
 import { formatDuration } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 
@@ -64,6 +65,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const [picker, setPicker] = useState<'audio' | 'subtitles'>();
 
   const view = useRef<PlayerViewHandle>(null);
+  const surface = useRef<View>(null);
   const planRef = useRef<PlaybackPlan>(undefined);
   const positionRef = useRef(startPositionMs);
   const pausedRef = useRef(false);
@@ -73,6 +75,8 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   planRef.current = plan;
   pausedRef.current = paused;
   tracksRef.current = { audio, subtitle };
+  // Side-loaded subtitles are drawn by the app (see useSubtitleCues).
+  const cues = useSubtitleCues(plan?.subtitleTracks.find(t => t.index === subtitle), plan?.headers);
 
   const report = useCallback(
     (kind: 'start' | 'progress' | 'stop', p = planRef.current) => {
@@ -206,10 +210,20 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
 
   const onKey = useCallback(
     (evt: HWEvent) => {
-      if (!active || !planRef.current || picker || evt.eventKeyAction !== 0) {
+      if (!active || !planRef.current || picker) {
         return;
       }
-      switch (evt.eventType) {
+      // Android TV delivers remote keys on key-up only (key-down events are off by default);
+      // a held key arrives as repeated "longX" key-down events, which seek repeatedly.
+      const held = evt.eventKeyAction === 0 && evt.eventType.startsWith('long');
+      if (evt.eventKeyAction !== 1 && !held) {
+        return;
+      }
+      if (evt.eventKeyAction === 1 && evt.eventType.startsWith('long')) {
+        return; // The key-up that ends a long press; the press itself was already handled.
+      }
+      const type = held ? evt.eventType.charAt(4).toLowerCase() + evt.eventType.slice(5) : evt.eventType;
+      switch (type) {
         case 'playPause':
           togglePause();
           break;
@@ -226,17 +240,34 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           if (overlay === 'controls') {
             showOverlay('controls'); // D-pad moves between buttons; just keep the overlay up.
           } else {
-            seekBy(evt.eventType === 'left' ? -SEEK_STEP_MS : SEEK_STEP_MS);
+            seekBy(type === 'left' ? -SEEK_STEP_MS : SEEK_STEP_MS);
             showOverlay('seek');
           }
           break;
-        default:
+        case 'select':
+        case 'up':
+        case 'down':
+        case 'info':
+        case 'menu':
           showOverlay('controls');
+          break;
+        default:
+          break;
       }
     },
     [active, picker, overlay, seekBy, showOverlay, togglePause],
   );
   useTVEventHandler(onKey);
+
+  // Remote keys only reach the app while some view has focus. When the controls (and the
+  // button that had focus) go away, hand focus to the full-screen surface explicitly.
+  useEffect(() => {
+    if (!active || picker || overlay === 'controls' || error) {
+      return;
+    }
+    const t = setTimeout(() => surface.current?.requestTVFocus?.(), 0);
+    return () => clearTimeout(t);
+  }, [active, picker, overlay, error, plan]);
 
   // BACK hides the controls first; a second BACK leaves the player.
   useEffect(() => {
@@ -336,10 +367,11 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           onError={msg => setError(new Error(msg))}
         />
       ) : null}
+      <SubtitleText cues={cues} positionMs={position} raised={overlay !== 'hidden'} />
 
       {/* Holds focus while the controls are hidden so remote keys still reach the player. */}
       {overlay !== 'controls' ? (
-        <Focusable testID="player-surface" hasTVPreferredFocus style={StyleSheet.absoluteFill} onPress={() => showOverlay('controls')}>
+        <Focusable ref={surface} testID="player-surface" hasTVPreferredFocus style={StyleSheet.absoluteFill} onPress={() => showOverlay('controls')}>
           <View />
         </Focusable>
       ) : null}

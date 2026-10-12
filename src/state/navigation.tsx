@@ -27,7 +27,13 @@ export interface Navigation {
 }
 
 const NavContext = createContext<Navigation | null>(null);
-const ScreenContext = createContext<{ active: boolean }>({ active: true });
+/** Per-screen state shared with the focusable elements on that screen. */
+export interface ScreenState {
+  active: boolean;
+  /** The element that last had focus on this screen, restored when the screen is shown again. */
+  lastFocused: { current: unknown };
+}
+const ScreenContext = createContext<ScreenState>({ active: true, lastFocused: { current: null } });
 
 export function useNavigation(): Navigation {
   const nav = useContext(NavContext);
@@ -40,6 +46,10 @@ export function useNavigation(): Navigation {
 /** True while this screen is the visible top of the stack. */
 export function useIsActive(): boolean {
   return useContext(ScreenContext).active;
+}
+
+export function useScreenState(): ScreenState {
+  return useContext(ScreenContext);
 }
 
 /**
@@ -85,6 +95,25 @@ export function NavigationStack({
     [back],
   );
 
+  // Stable context values per entry, so screens only re-render when they become (in)active.
+  // Hidden screens stay mounted, and Android keeps their views focusable, so Focusable turns
+  // itself off on inactive screens and puts focus back on the remembered element on return.
+  const states = useRef(new Map<number, { focus: { current: unknown }; on: ScreenState; off: ScreenState }>());
+  const screenState = (key: number, active: boolean): ScreenState => {
+    let s = states.current.get(key);
+    if (!s) {
+      const focus = { current: null as unknown };
+      s = { focus, on: { active: true, lastFocused: focus }, off: { active: false, lastFocused: focus } };
+      states.current.set(key, s);
+    }
+    for (const k of states.current.keys()) {
+      if (!stack.some(e => e.key === k)) {
+        states.current.delete(k);
+      }
+    }
+    return active ? s.on : s.off;
+  };
+
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => back() || (onBackAtRoot?.() ?? false));
     return () => sub.remove();
@@ -95,7 +124,7 @@ export function NavigationStack({
       {stack.map((e, i) => {
         const active = i === stack.length - 1;
         return (
-          <ScreenContext.Provider key={e.key} value={active ? ACTIVE : INACTIVE}>
+          <ScreenContext.Provider key={e.key} value={screenState(e.key, active)}>
             <View style={active ? styles.screen : styles.hidden} testID={active ? `screen-${e.route.name}` : undefined}>
               {render(e.route)}
             </View>
@@ -106,8 +135,6 @@ export function NavigationStack({
   );
 }
 
-const ACTIVE = { active: true };
-const INACTIVE = { active: false };
 
 const styles = StyleSheet.create({
   screen: { ...StyleSheet.absoluteFillObject },

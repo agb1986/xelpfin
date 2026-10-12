@@ -31,7 +31,7 @@ describe('track selection', () => {
   });
 
   it('maps subtitles by delivery', () => {
-    expect(subtitleSelection(plan, 3)).toEqual({ type: 'title', value: 'xelpfin-sub-3' });
+    expect(subtitleSelection(plan, 3)).toEqual({ type: 'disabled' }); // external: drawn by the app
     expect(subtitleSelection(plan, 4)).toEqual({ type: 'language', value: 'fra' });
     expect(subtitleSelection(plan, 5)).toEqual({ type: 'disabled' });
     expect(subtitleSelection(plan, -1)).toEqual({ type: 'disabled' });
