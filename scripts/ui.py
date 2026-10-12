@@ -4,7 +4,9 @@
   ui.py focused          resource-id of the focused node
   ui.py has ID           exit 0 if a node with that resource-id exists
   ui.py center ID        "x y" centre of that node
+  ui.py bounds ID        "x1,y1,x2,y2" bounds of that node
   ui.py text ID          concatenated text of the node and its descendants
+  ui.py find TEXT        "x y" centre of the first node whose own text contains TEXT
   ui.py ids              all resource-ids with focus marker
   ui.py focustext        text of the focused node and its descendants
 """
@@ -35,6 +37,12 @@ def main() -> int:
         x1, y1, x2, y2 = map(int, b)
         print((x1 + x2) // 2, (y1 + y2) // 2)
         return 0
+    if cmd == 'bounds':
+        n = find(arg)
+        if n is None:
+            return 1
+        print(n.get('bounds').replace('][', ',').strip('[]'))
+        return 0
     if cmd == 'text':
         n = find(arg)
         if n is None:
@@ -46,6 +54,13 @@ def main() -> int:
         if n is None:
             return 1
         print(' '.join(t for t in (m.get('text') or m.get('content-desc') for m in n.iter('node')) if t))
+        return 0
+    if cmd == 'find':
+        n = next((n for n in nodes if arg in (n.get('text') or '')), None)
+        if n is None:
+            return 1
+        x1, y1, x2, y2 = map(int, n.get('bounds').replace('][', ',').strip('[]').split(','))
+        print((x1 + x2) // 2, (y1 + y2) // 2)
         return 0
     if cmd == 'ids':
         for n in nodes:

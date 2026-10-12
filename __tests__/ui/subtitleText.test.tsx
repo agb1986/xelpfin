@@ -1,4 +1,5 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import { SubtitleText, subtitleTextStyle } from '../../src/ui/components/SubtitleText';
 
@@ -20,5 +21,17 @@ describe('SubtitleText', () => {
     expect(JSON.stringify(r.toJSON())).toContain('Hello');
     await act(async () => r.update(<SubtitleText cues={cues} positionMs={2500} />));
     expect(r.toJSON()).toBeNull();
+  });
+
+  it('sits above the player controls when they are showing', async () => {
+    const cues = [{ startMs: 0, endMs: 2000, text: 'Hello' }];
+    let r!: ReactTestRenderer.ReactTestRenderer;
+    await act(async () => {
+      r = ReactTestRenderer.create(<SubtitleText cues={cues} positionMs={500} />);
+    });
+    const bottom = () => StyleSheet.flatten(r.root.findByProps({ testID: 'player-subtitle-text' }).props.style).bottom;
+    expect(bottom()).toBe(36);
+    await act(async () => r.update(<SubtitleText cues={cues} positionMs={500} lift={200} />));
+    expect(bottom()).toBe(212);
   });
 });

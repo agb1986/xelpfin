@@ -64,6 +64,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const [buffering, setBuffering] = useState(true);
   const [position, setPosition] = useState(startPositionMs);
   const [buffered, setBuffered] = useState(0);
+  const [controlsHeight, setControlsHeight] = useState(0);
   const [duration, setDuration] = useState(0);
   const [audio, setAudio] = useState<number>();
   const [subtitle, setSubtitle] = useState<number>(-1);
@@ -374,7 +375,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           onError={msg => setError(playerError(msg))}
         />
       ) : null}
-      <SubtitleText cues={cues} positionMs={position} raised={overlay !== 'hidden'} look={look} />
+      <SubtitleText cues={cues} positionMs={position} lift={overlay !== 'hidden' ? controlsHeight : 0} look={look} />
 
       {/* Holds focus while the controls are hidden so remote keys still reach the player. */}
       {overlay !== 'controls' ? (
@@ -404,7 +405,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
       ) : null}
 
       {overlay !== 'hidden' ? (
-        <View style={styles.overlay} testID="player-overlay">
+        <View style={styles.overlay} testID="player-overlay" onLayout={e => setControlsHeight(e.nativeEvent.layout.height)}>
           <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>

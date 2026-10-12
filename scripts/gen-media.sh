@@ -102,7 +102,7 @@ d="$OUT/movies/Burned Pixels (2020)"; mkdir -p "$d"
 if [ ! -f "$d/Burned Pixels (2020).mkv" ]; then
   tmp=$(mktemp -d)
   python3 "$HERE/make-pgs.py" "$tmp/pgs.sup" 640 360 30 VOBSUB
-  ff -f lavfi -i "mandelbrot=size=640x360:rate=25" -f lavfi -i "sine=frequency=720:duration=30" -i "$tmp/pgs.sup" -t 30 \
+  ff -f lavfi -i "mandelbrot=size=640x360:rate=25" -f lavfi -i "sine=frequency=720:duration=30" -fix_sub_duration -i "$tmp/pgs.sup" -t 30 \
      -map 0:v -map 1:a -map 2 -vf "$(label 'Burned Pixels' 40)" -c:v msmpeg4 -q:v 5 -c:a libmp3lame -b:a 96k -c:s dvdsub \
      -metadata:s:s:0 language=eng -metadata:s:s:0 title="VOBSUB bitmap" "$d/Burned Pixels (2020).mkv"
   rm -rf "$tmp"

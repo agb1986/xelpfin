@@ -24,16 +24,19 @@ export function subtitleTextStyle(look: SubtitleLook): TextStyle {
   }
 }
 
-/** Draws the current subtitle cue over the video, lifted above the controls when they show. */
+/**
+ * Draws the current subtitle cue over the video. `lift` is the height of whatever covers the
+ * bottom of the screen (the player controls); the cue is drawn just above it.
+ */
 export function SubtitleText({
   cues,
   positionMs,
-  raised,
+  lift = 0,
   look = DEFAULT_LOOK,
 }: {
   cues: Cue[];
   positionMs: number;
-  raised?: boolean;
+  lift?: number;
   look?: SubtitleLook;
 }) {
   const text = cues.length ? cueTextAt(cues, positionMs) : '';
@@ -41,7 +44,7 @@ export function SubtitleText({
     return null;
   }
   return (
-    <View style={[styles.wrap, raised && styles.raised]} pointerEvents="none" testID="player-subtitle-text">
+    <View style={[styles.wrap, lift > 0 && { bottom: lift + 12 }]} pointerEvents="none" testID="player-subtitle-text">
       <Text style={[styles.text, subtitleTextStyle(look)]}>{text}</Text>
     </View>
   );
@@ -49,7 +52,6 @@ export function SubtitleText({
 
 const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: 0, right: 0, bottom: 36, alignItems: 'center', paddingHorizontal: 48 },
-  raised: { bottom: 180 },
   text: {
     fontWeight: '600',
     textAlign: 'center',
