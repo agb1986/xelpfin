@@ -1,97 +1,102 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# xelpfin
 
-# Getting Started
+A 10-foot media client for Fire TV, written in React Native (react-native-tvos) and TypeScript,
+with Jellyfin as its only backend. The shared code is meant to carry over to Vega OS later; the
+platform-specific parts sit behind small interfaces (see `docs/ARCHITECTURE.md`).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+- App id `com.xelpfin.app`, label `xelpfin`, purple accent `#8E5CF7`.
+- Talks only to the Jellyfin server the user picks. There is no telemetry, no account service and
+  no other network traffic.
+- Personal, local-network use.
 
-## Step 1: Start Metro
+## What it does
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+- Finds Jellyfin servers on the LAN through UDP discovery on port 7359, or connects to a typed address.
+- Signs in with a user name and password, or with Quick Connect.
+- Home shows Continue Watching, Next Up and the latest items of each library. There are tabs for
+  each library, search and settings.
+- Library browse uses paged grids with sorting. Detail pages cover movies, series, seasons and
+  episodes, and support play, resume, mark watched and favourite.
+- Playback chooses between direct play and an HLS transcode based on what the device's decoders
+  report. It reports progress to the server, supports seek with the D-pad, and lets you choose
+  audio and subtitle tracks. When autoplay is on, the next episode plays automatically.
+- Settings cover the maximum streaming quality, the subtitle mode, the preferred language,
+  autoplay, the playback info overlay, switching user and changing server.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Requirements
 
-```sh
-# Using npm
-npm start
+- Node 22 and npm 10. Dependencies are pinned in `package-lock.json`, so `npm ci` works from a
+  warm npm cache.
+- JDK 17 or newer (built with 21) and the Android SDK in `~/Android/Sdk`, or set `ANDROID_HOME`.
+  You need platform 36, build-tools 36 and an x86_64 system image for the emulator.
+- Docker, for the local Jellyfin test server.
+- ffmpeg and Python 3 with Pillow, to generate the sample media and poster art.
 
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+## Everything runs locally
 
 ```sh
-bundle install
+npm ci
+
+# 1. Local Jellyfin 12.1 in Docker, bound to 127.0.0.1 only (8096/tcp, 7359/udp).
+#    The first run generates sample media with ffmpeg and stores its data in
+#    ../work/jellyfin-test. It also completes the setup wizard and creates the
+#    libraries and users: admin "xelpfin" / "xelpfin-pass" and "guest" with no password.
+npm run jellyfin:up
+
+# 2. Checks.
+npm run typecheck
+npm run lint
+npm test                    # unit tests (mocked fetch and UDP)
+npm run test:integration    # against the local Jellyfin container
+
+# 3. Debug APK. The JS bundle is embedded, so Metro is not needed.
+#    Output: android/app/build/outputs/apk/debug/app-debug.apk
+npm run apk:debug
+
+# 4. Android TV-style emulator (AVD "xelpfin_tv": 1080p, D-pad, x86_64, headless).
+npm run emu:start
+
+# 5. End-to-end smoke test on the emulator. It installs the APK and drives the app
+#    with D-pad key events. Screenshots go to docs/screens.
+npm run smoke               # or: scripts/smoke.sh --no-install
 ```
 
-Then, and every time you update your native dependencies, run:
+Inside the emulator, the host's Jellyfin is reachable at `http://10.0.2.2:8096`. UDP broadcasts
+do not leave the emulator's virtual network, so on the emulator only, discovery also asks
+10.0.2.2 directly.
 
-```sh
-bundle exec pod install
+Tear down with `npm run jellyfin:down` (this keeps the data directory) and
+`scripts/emulator.sh stop`.
+
+### adb safety
+
+Every script passes an explicit emulator serial (`-s emulator-5554` by default; override it with
+`XELPFIN_SERIAL`). `smoke.sh` refuses to run against any serial that does not start with
+`emulator-`. A physical Fire TV can be connected to the same adb server without being touched.
+
+### Development with Metro
+
+`npm start` and `npm run android` work as in any React Native project. For TV work, the embedded
+bundle plus `npm run apk:debug` (about 10 s incremental) is usually simpler.
+
+## Layout
+
+```
+src/backend    Backend + ServerConnector interfaces, Jellyfin implementation, mock backend
+src/player     PlayerEngine interface, react-native-video engine, codec capabilities, WebVTT subtitles
+src/platform   PlatformServices interface, Fire TV adapter (Kotlin module + AsyncStorage), Vega stub
+src/state      app state (session, servers, settings), stack navigator, track defaults
+src/ui         theme, focus-aware components, screens
+__tests__      unit tests            integration/   tests against local Jellyfin
+scripts        Jellyfin, media, emulator and smoke test scripts
+docs           ARCHITECTURE.md, screens/ (smoke test screenshots)
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## Smoke test screenshots
 
-```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
-
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
-
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+`docs/screens/01-servers.png` through `12-settings.png` come from `scripts/smoke.sh`. The test
+covers server discovery, login, home, detail, playback (with the server confirming direct play),
+the controls, the subtitle picker, subtitles on screen, Continue Watching, search, the Shows
+library and settings. `13-transcode-old-codec.png` shows an msmpeg4 AVI that the server
+transcodes to HLS. `14-hevc10-embedded-subs.png` shows a direct-played HEVC 10-bit MKV with
+embedded subtitles.

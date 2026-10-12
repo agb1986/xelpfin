@@ -63,7 +63,7 @@ export function cueTextAt(cues: Cue[], positionMs: number): string {
   let hi = cues.length - 1;
   let last = -1;
   while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
+    const mid = Math.floor((lo + hi) / 2);
     if (cues[mid].startMs <= positionMs) {
       last = mid;
       lo = mid + 1;
