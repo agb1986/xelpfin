@@ -16,6 +16,7 @@ import { colors, font, radius, space } from '../theme';
 const HIDE_AFTER_MS = 5000;
 const REPORT_EVERY_MS = 10_000;
 const SEEK_STEP_MS = 10_000;
+const PROGRESS_RENDER_MS = 250;
 const SKIP_STEP_MS = 30_000;
 
 type Overlay = 'hidden' | 'seek' | 'controls';
@@ -63,6 +64,9 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const [paused, setPaused] = useState(false);
   const [buffering, setBuffering] = useState(true);
   const [position, setPosition] = useState(startPositionMs);
+  const lastRender = useRef(0);
+  // Preferred focus is only claimed when the controls first appear, so progress re-renders cannot pull focus back to Pause.
+  const claimFocus = useRef(true);
   const [buffered, setBuffered] = useState(0);
   const [controlsHeight, setControlsHeight] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -206,6 +210,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
     // Start the auto-hide timer once a plan is playing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan]);
+
+  useEffect(() => {
+    claimFocus.current = overlay !== 'controls';
+  }, [overlay]);
 
   const seekBy = useCallback(
     (delta: number) => {
@@ -386,8 +394,13 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           }}
           onProgress={e => {
             positionRef.current = e.positionMs;
-            setPosition(e.positionMs);
-            setBuffered(e.bufferedMs);
+            // Re-render at ~4 Hz at most: every tick re-lays out the overlay, which janks the stick.
+            const now = Date.now();
+            if (now - lastRender.current >= PROGRESS_RENDER_MS) {
+              lastRender.current = now;
+              setPosition(e.positionMs);
+              setBuffered(e.bufferedMs);
+            }
           }}
           onBuffering={setBuffering}
           onEnd={onEnd}
@@ -441,7 +454,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           </View>
           {overlay === 'controls' ? (
             <View style={styles.buttons}>
-              <Button variant="primary" hasTVPreferredFocus label={paused ? '▶ Play' : '❚❚ Pause'} onPress={togglePause} testID="player-playpause" />
+              <Button variant="primary" hasTVPreferredFocus={claimFocus.current} label={paused ? '▶ Play' : '❚❚ Pause'} onPress={togglePause} testID="player-playpause" />
               <Button label="−10 s" onPress={() => { seekBy(-SEEK_STEP_MS); showOverlay('controls'); }} testID="player-rew" />
               <Button label="+30 s" onPress={() => { seekBy(SKIP_STEP_MS); showOverlay('controls'); }} testID="player-ffwd" />
               {plan && plan.audioTracks.length > 1 ? (
