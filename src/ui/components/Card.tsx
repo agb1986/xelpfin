@@ -8,7 +8,10 @@ export type CardVariant = 'poster' | 'thumb';
 
 export function itemSubtitle(item: MediaItem): string | undefined {
   if (item.kind === 'episode') {
-    const se = item.parentIndexNumber !== undefined && item.indexNumber !== undefined ? `S${item.parentIndexNumber}:E${item.indexNumber}` : undefined;
+    const se =
+      item.parentIndexNumber !== undefined && item.indexNumber !== undefined
+        ? `S${item.parentIndexNumber}:E${item.indexNumber}`
+        : undefined;
     return [item.seriesName, se].filter(Boolean).join(' · ') || undefined;
   }
   if (item.kind === 'season') {
@@ -20,26 +23,39 @@ export function itemSubtitle(item: MediaItem): string | undefined {
 export function progressOf(item: MediaItem): number {
   const ud = item.userData;
   // Only things you can resume have progress; collections and series report a watched share instead.
-  if (!ud || ud.played || (item.kind !== 'movie' && item.kind !== 'episode' && item.kind !== 'video')) {
+  if (
+    !ud ||
+    ud.played ||
+    (item.kind !== 'movie' && item.kind !== 'episode' && item.kind !== 'video')
+  ) {
     return 0;
   }
   if (ud.playedPercentage) {
     return ud.playedPercentage / 100;
   }
-  return item.runtimeMs && ud.playbackPositionMs ? Math.min(1, ud.playbackPositionMs / item.runtimeMs) : 0;
+  return item.runtimeMs && ud.playbackPositionMs
+    ? Math.min(1, ud.playbackPositionMs / item.runtimeMs)
+    : 0;
 }
 
-export function imageFor(item: MediaItem, variant: CardVariant): string | undefined {
-  return variant === 'poster' ? item.posterUrl ?? item.thumbUrl : item.thumbUrl ?? item.backdropUrl ?? item.posterUrl;
+export function imageFor(
+  item: MediaItem,
+  variant: CardVariant,
+): string | undefined {
+  return variant === 'poster'
+    ? item.posterUrl ?? item.thumbUrl
+    : item.thumbUrl ?? item.backdropUrl ?? item.posterUrl;
 }
 
 export const cardSize = (variant: CardVariant) => card[variant];
 /** Full width a card takes in a row, for getItemLayout. */
-export const cardStride = (variant: CardVariant) => card[variant].width + card.gap;
+export const cardStride = (variant: CardVariant) =>
+  card[variant].width + card.gap;
 /** Room under the image for the title and subtitle; fixed so every card has the same height. */
 export const cardLabelHeight = 52;
 /** Full height of a card including its labels, for getItemLayout in grids. */
-export const cardHeight = (variant: CardVariant) => card[variant].height + cardLabelHeight;
+export const cardHeight = (variant: CardVariant) =>
+  card[variant].height + cardLabelHeight;
 
 interface CardProps {
   item: MediaItem;
@@ -52,12 +68,21 @@ interface CardProps {
   testID?: string;
 }
 
-export const Card = memo(function Card({ item, variant, onPress, onFocus, hasTVPreferredFocus, title, testID }: CardProps) {
+export const Card = memo(function Card({
+  item,
+  variant,
+  onPress,
+  onFocus,
+  hasTVPreferredFocus,
+  title,
+  testID,
+}: CardProps) {
   const size = card[variant];
   const uri = imageFor(item, variant);
   const progress = progressOf(item);
   const subtitle = itemSubtitle(item);
-  const unplayed = item.kind === 'series' ? item.userData?.unplayedItemCount : undefined;
+  const unplayed =
+    item.kind === 'series' ? item.userData?.unplayedItemCount : undefined;
   return (
     <Focusable
       testID={testID ?? `card-${item.id}`}
@@ -71,7 +96,13 @@ export const Card = memo(function Card({ item, variant, onPress, onFocus, hasTVP
         <>
           <View style={[styles.frame, size, focused && styles.frameFocused]}>
             {uri ? (
-              <Image source={{ uri }} style={styles.image} resizeMode="cover" resizeMethod="resize" fadeDuration={0} />
+              <Image
+                source={{ uri }}
+                style={styles.image}
+                resizeMode="cover"
+                resizeMethod="resize"
+                fadeDuration={0}
+              />
             ) : (
               <View style={[styles.image, styles.placeholder]}>
                 <Text style={styles.placeholderText} numberOfLines={3}>
@@ -90,12 +121,20 @@ export const Card = memo(function Card({ item, variant, onPress, onFocus, hasTVP
             ) : null}
             {progress > 0 ? (
               <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${Math.max(4, progress * 100)}%` }]} />
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${Math.max(4, progress * 100)}%` },
+                  ]}
+                />
               </View>
             ) : null}
           </View>
           <View style={styles.labels}>
-            <Text style={[styles.title, focused && styles.titleFocused]} numberOfLines={1}>
+            <Text
+              style={[styles.title, focused && styles.titleFocused]}
+              numberOfLines={1}
+            >
               {title ?? item.name}
             </Text>
             {subtitle ? (
@@ -119,10 +158,22 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  frameFocused: { borderColor: colors.accent, transform: [{ scale: focusScale }] },
+  frameFocused: {
+    borderColor: colors.accent,
+    transform: [{ scale: focusScale }],
+  },
   image: { width: '100%', height: '100%' },
-  placeholder: { alignItems: 'center', justifyContent: 'center', padding: space.sm, backgroundColor: colors.surfaceHi },
-  placeholderText: { color: colors.textDim, fontSize: font.body, textAlign: 'center' },
+  placeholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: space.sm,
+    backgroundColor: colors.surfaceHi,
+  },
+  placeholderText: {
+    color: colors.textDim,
+    fontSize: font.body,
+    textAlign: 'center',
+  },
   badge: {
     position: 'absolute',
     top: space.xs,
@@ -136,10 +187,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: { color: colors.accentText, fontSize: 12, fontWeight: '700' },
-  progressTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(0,0,0,0.6)' },
+  progressTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
   progressFill: { height: 4, backgroundColor: colors.accent },
   labels: { height: cardLabelHeight },
-  title: { color: colors.textDim, fontSize: font.small, marginTop: space.sm, fontWeight: '600' },
+  title: {
+    color: colors.textDim,
+    fontSize: font.small,
+    marginTop: space.sm,
+    fontWeight: '600',
+  },
   titleFocused: { color: colors.text },
   subtitle: { color: colors.textDim, fontSize: 12, opacity: 0.8 },
 });
