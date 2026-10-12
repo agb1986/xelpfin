@@ -6,6 +6,7 @@
 #
 # Scenarios: quickconnect audio subtitles burnin substyle resume watched autoplay back
 #            switch empty expiry offline
+# Extra, run only when named: perf (cold start, grid scrolling, memory)
 #
 # Each scenario checks the result on the server (session state, user data) where there is one
 # and leaves a screenshot in docs/screens/e2e-*.png. "offline" stops and restarts the
@@ -482,6 +483,51 @@ s_offline() {
   for _ in $(seq 4); do dump; ui has home && break; key BACK; done
   dump; tap tab-lib-Movies; wait_for library 30
   echo "  browsing works again after the restart"
+  key BACK
+}
+
+# Not part of the default run (scripts/e2e.sh perf): measures cold start, scrolling through the
+# 2000-item library and memory on the emulator. Emulator numbers are only comparable with each
+# other, not with a Fire TV.
+pss_mb() { "${ADB[@]}" shell dumpsys meminfo "$PKG" | awk '/TOTAL PSS:/ {printf "%.0f", $3/1024; exit} /^ *TOTAL / {printf "%.0f", $2/1024; exit}'; }
+gfx_summary() {
+  "${ADB[@]}" shell dumpsys gfxinfo "$PKG" | awk '
+    /Total frames rendered/ {f=$4} /Janky frames:/ && !j {j=$3" "$4} /50th percentile/ && !p50 {p50=$3}
+    /90th percentile/ && !p90 {p90=$3} /99th percentile/ && !p99 {p99=$3}
+    END {printf "frames %s, janky %s, p50 %s, p90 %s, p99 %s", f, j, p50, p90, p99}'
+}
+s_perf() {
+  home bulk
+  local i t0 t1 total ms=()
+  for i in 1 2 3 4 5; do
+    stop_app
+    sleep 2
+    t0=$(date +%s%N)
+    total="$("${ADB[@]}" shell am start -W -n "$PKG/.MainActivity" | sed -n 's/TotalTime: //p' | tr -d '\r')"
+    for _ in $(seq 60); do dump; ui has tab-search && break; done
+    t1=$(date +%s%N)
+    ms+=("$total/$(( (t1 - t0) / 1000000 ))")
+  done
+  echo "  cold start, first frame / home with data (ms): ${ms[*]}"
+  SIGNED_IN=bulk
+  sleep 3
+  echo "  memory on home: $(pss_mb) MB PSS"
+  dump
+  tap tab-lib-Bulk
+  wait_for library
+  sleep 3
+  dump
+  ui find "2000 items" >/dev/null || fail "bulk library does not show 2000 items"
+  "${ADB[@]}" shell dumpsys gfxinfo "$PKG" reset >/dev/null
+  local codes
+  codes="$(printf '20 %.0s' $(seq 40))"
+  for _ in 1 2 3; do "${ADB[@]}" shell input keyevent $codes; done
+  sleep 2
+  echo "  120 x DOWN through the grid: $(gfx_summary)"
+  dump
+  echo "  focused after scrolling: $(ui focustext)"
+  shot e2e-perf-scrolled
+  echo "  memory after scrolling: $(pss_mb) MB PSS"
   key BACK
 }
 

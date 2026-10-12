@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-nat
 import type { MediaItem } from '../../backend/types';
 import { useBackend } from '../../state/AppState';
 import { useNavigation } from '../../state/navigation';
-import { Card, cardStride, EmptyView, ErrorView, Screen, TextField } from '../components';
+import { Card, cardHeight, cardStride, EmptyView, ErrorView, Screen, TextField } from '../components';
 import { useAsync, useDebounced } from '../hooks';
 import { card, colors, font, space } from '../theme';
 import { openItem } from './navigate';
@@ -18,6 +18,10 @@ export function SearchScreen() {
   const results = useAsync(async () => (term.length >= 2 ? backend.search(term, 48) : []), [backend, term]);
   const open = useCallback((item: MediaItem) => openItem(nav, item), [nav]);
   const columns = Math.max(3, Math.floor((width - space.safeX * 2) / cardStride('poster')));
+  const renderItem = useCallback(({ item }: { item: MediaItem }) => <Card item={item} variant="poster" onPress={open} />, [open]);
+  // Rows are virtualised, so `index` is a row index.
+  const rowHeight = cardHeight('poster') + card.gap;
+  const getItemLayout = useCallback((_: unknown, index: number) => ({ length: rowHeight, offset: rowHeight * index, index }), [rowHeight]);
 
   return (
     <Screen title="Search" testID="search">
@@ -36,7 +40,8 @@ export function SearchScreen() {
             data={results.data ?? []}
             numColumns={columns}
             keyExtractor={i => i.id}
-            renderItem={({ item }) => <Card item={item} variant="poster" onPress={open} />}
+            renderItem={renderItem}
+            getItemLayout={getItemLayout}
             contentContainerStyle={styles.grid}
             columnWrapperStyle={styles.row}
           />

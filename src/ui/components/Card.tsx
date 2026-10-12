@@ -35,6 +35,10 @@ export function imageFor(item: MediaItem, variant: CardVariant): string | undefi
 export const cardSize = (variant: CardVariant) => card[variant];
 /** Full width a card takes in a row, for getItemLayout. */
 export const cardStride = (variant: CardVariant) => card[variant].width + card.gap;
+/** Room under the image for the title and subtitle; fixed so every card has the same height. */
+export const cardLabelHeight = 52;
+/** Full height of a card including its labels, for getItemLayout in grids. */
+export const cardHeight = (variant: CardVariant) => card[variant].height + cardLabelHeight;
 
 interface CardProps {
   item: MediaItem;
@@ -66,7 +70,7 @@ export const Card = memo(function Card({ item, variant, onPress, onFocus, hasTVP
         <>
           <View style={[styles.frame, size, focused && styles.frameFocused]}>
             {uri ? (
-              <Image source={{ uri }} style={styles.image} resizeMode="cover" fadeDuration={0} />
+              <Image source={{ uri }} style={styles.image} resizeMode="cover" resizeMethod="resize" fadeDuration={0} />
             ) : (
               <View style={[styles.image, styles.placeholder]}>
                 <Text style={styles.placeholderText} numberOfLines={3}>
@@ -89,14 +93,16 @@ export const Card = memo(function Card({ item, variant, onPress, onFocus, hasTVP
               </View>
             ) : null}
           </View>
-          <Text style={[styles.title, focused && styles.titleFocused]} numberOfLines={1}>
-            {title ?? item.name}
-          </Text>
-          {subtitle ? (
-            <Text style={styles.subtitle} numberOfLines={1}>
-              {subtitle}
+          <View style={styles.labels}>
+            <Text style={[styles.title, focused && styles.titleFocused]} numberOfLines={1}>
+              {title ?? item.name}
             </Text>
-          ) : null}
+            {subtitle ? (
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
         </>
       )}
     </Focusable>
@@ -131,6 +137,7 @@ const styles = StyleSheet.create({
   badgeText: { color: colors.accentText, fontSize: 12, fontWeight: '700' },
   progressTrack: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: 'rgba(0,0,0,0.6)' },
   progressFill: { height: 4, backgroundColor: colors.accent },
+  labels: { height: cardLabelHeight },
   title: { color: colors.textDim, fontSize: font.small, marginTop: space.sm, fontWeight: '600' },
   titleFocused: { color: colors.text },
   subtitle: { color: colors.textDim, fontSize: 12, opacity: 0.8 },

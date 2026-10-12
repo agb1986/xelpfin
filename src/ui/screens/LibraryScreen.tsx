@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-nat
 import type { Library, MediaItem, SortField } from '../../backend/types';
 import { useBackend } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
-import { Button, Card, cardStride, describeError, EmptyView, ErrorView, LoadingView, OptionPicker, type Option } from '../components';
+import { Button, Card, cardHeight, cardStride, describeError, EmptyView, ErrorView, LoadingView, OptionPicker, type Option } from '../components';
 import { card, colors, font, space } from '../theme';
 import { openItem } from './navigate';
 
@@ -82,15 +82,13 @@ export function LibraryScreen({ library }: { library: Library }) {
   };
 
   const open = useCallback((item: MediaItem) => openItem(nav, item), [nav]);
-  const rowHeight = card.poster.height + 52 + card.gap;
+  const rowHeight = cardHeight('poster') + card.gap;
   const renderItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => <Card item={item} variant="poster" onPress={open} hasTVPreferredFocus={index === 0} />,
     [open],
   );
-  const getItemLayout = useCallback(
-    (_: unknown, index: number) => ({ length: rowHeight, offset: rowHeight * Math.floor(index / columns), index }),
-    [rowHeight, columns],
-  );
+  // With numColumns the list virtualises rows, so `index` here is a row index, not an item index.
+  const getItemLayout = useCallback((_: unknown, index: number) => ({ length: rowHeight, offset: rowHeight * index, index }), [rowHeight]);
   const sortLabel = SORTS.find(s => s.value === sort)!.label;
 
   return (
