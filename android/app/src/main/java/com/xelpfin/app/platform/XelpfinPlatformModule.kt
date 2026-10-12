@@ -33,7 +33,17 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
           "model" to Build.MODEL,
           "sdkInt" to Build.VERSION.SDK_INT,
           "abis" to Build.SUPPORTED_ABIS.joinToString(","),
+          "isEmulator" to isEmulator(),
+          "isFireTv" to reactApplicationContext.packageManager.hasSystemFeature("amazon.hardware.fire_tv"),
       )
+
+  private fun isEmulator(): Boolean =
+      Build.FINGERPRINT.startsWith("generic") ||
+          Build.FINGERPRINT.contains("emulator") ||
+          Build.MODEL.contains("sdk_gphone") ||
+          Build.MODEL.contains("Android SDK built for") ||
+          Build.HARDWARE.contains("ranchu") ||
+          Build.HARDWARE.contains("goldfish")
 
   /**
    * Sends [message] to [port] on the limited broadcast address, every IPv4 interface broadcast
