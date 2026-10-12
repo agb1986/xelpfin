@@ -56,9 +56,25 @@ tap() {
   "${ADB[@]}" shell input tap $xy
   sleep 0.6
 }
+# clear_field: empty the focused text field (cursor to the end, then delete).
+clear_field() { "${ADB[@]}" shell input keyevent MOVE_END $(printf 'DEL %.0s' $(seq 40)); }
 launch() { # launch [--clear]
   [ "${1:-}" = --clear ] && "${ADB[@]}" shell pm clear "$PKG" >/dev/null
   "${ADB[@]}" shell am start -n "$PKG/.MainActivity" >/dev/null
+}
+# Installs $APK. A build signed with another key (debug versus release) cannot replace the
+# installed one, so on the emulator the old one is removed first, together with its data.
+install_apk() {
+  [ -f "$APK" ] || fail "missing $APK (npm run apk:debug or npm run apk:release)"
+  local out
+  out="$("${ADB[@]}" install -r "$APK" 2>&1 | tail -1)"
+  if [[ "$out" == *INSTALL_FAILED_UPDATE_INCOMPATIBLE* ]]; then
+    echo "  signed with another key: uninstalling the old build first"
+    "${ADB[@]}" uninstall "$PKG" >/dev/null
+    out="$("${ADB[@]}" install "$APK" 2>&1 | tail -1)"
+  fi
+  echo "  $out"
+  [[ "$out" == Success* ]] || fail "install failed"
 }
 stop_app() { "${ADB[@]}" shell am force-stop "$PKG"; }
 resumed_pkg() { "${ADB[@]}" shell dumpsys activity activities | sed -n 's/.*mResumedActivity.*u0 \([^/ ]*\)\/.*/\1/p;s/.*topResumedActivity.*u0 \([^/ ]*\)\/.*/\1/p' | head -1; }
@@ -88,12 +104,16 @@ set_user_data() { # set_user_data ITEM_ID JSON
 }
 # session FIELD...: prints fields of the app's (Client "xelpfin") playing session, "|"-separated.
 # Fields: name, paused, method, audio, subtitle, position (s), transcode (video codec or "").
+# Only the app's current device counts: "pm clear" gives the app a new device id, and the server
+# can keep the old device's session (with a stale NowPlayingItem) around for a while.
 session() {
+  local dev
+  dev="$(app_device_id)"
   api /Sessions | python3 -c '
 import json, sys
-fields = sys.argv[1:]
+dev, fields = sys.argv[1], sys.argv[2:]
 for s in json.load(sys.stdin):
-    if s.get("Client") == "xelpfin" and s.get("NowPlayingItem"):
+    if s.get("Client") == "xelpfin" and s.get("DeviceId") == dev and s.get("NowPlayingItem"):
         p = s.get("PlayState", {})
         t = s.get("TranscodingInfo") or {}
         v = {"name": s["NowPlayingItem"]["Name"], "paused": p.get("IsPaused"), "method": p.get("PlayMethod"),
@@ -101,14 +121,15 @@ for s in json.load(sys.stdin):
              "position": (p.get("PositionTicks") or 0) // 10_000_000, "transcode": t.get("VideoCodec", ""),
              "device": s.get("DeviceId")}
         print("|".join(str(v[f]) for f in fields))
-        break' "$@"
+        break' "$dev" "$@"
 }
+# app_device_id: the device id of the most recently active xelpfin session.
 app_device_id() {
   api /Sessions | python3 -c '
 import json, sys
-for s in json.load(sys.stdin):
-    if s.get("Client") == "xelpfin":
-        print(s["DeviceId"]); break'
+xs = [s for s in json.load(sys.stdin) if s.get("Client") == "xelpfin"]
+xs.sort(key=lambda s: s.get("LastActivityDate") or "", reverse=True)
+print(xs[0]["DeviceId"] if xs else "")'
 }
 # wait_session PATTERN SECONDS FIELD...: wait until session output matches the extended regex.
 wait_session() {

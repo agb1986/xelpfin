@@ -4,6 +4,7 @@
 import React from 'react';
 import ReactTestRenderer, { act, type ReactTestInstance, type ReactTestRenderer as Renderer } from 'react-test-renderer';
 import App from '../App';
+import { BackHandler } from 'react-native';
 import { MockBackend, MockConnector } from '../src/backend/mock/MockBackend';
 import { BackendError, type Session } from '../src/backend/types';
 import { MemoryStore } from '../src/platform/types';
@@ -152,6 +153,53 @@ test('the end of an episode plays the next one in series order', async () => {
   await act(async () => root.unmount());
 });
 
+test('BACK while the next episode is being looked up leaves the player and does not replace the page below', async () => {
+  // A hardware BACK stand-in: the newest live listener gets the press first, as on Android.
+  const listeners: (() => boolean)[] = [];
+  const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, fn) => {
+    listeners.push(fn as () => boolean);
+    return { remove: () => listeners.splice(listeners.indexOf(fn as () => boolean), 1) };
+  });
+  const pressBack = () => [...listeners].reverse().some(fn => fn());
+  let release!: () => void;
+  const gate = new Promise<void>(r => (release = r));
+  class SlowBackend extends MockBackend {
+    async episodes(seriesId: string) {
+      await gate;
+      return super.episodes(seriesId);
+    }
+  }
+  class SlowConnector extends RecordingConnector {
+    open(session: Session) {
+      const b = new SlowBackend(session);
+      this.backends.push(b);
+      return b;
+    }
+  }
+  const { root, connector } = await signedIn(new SlowConnector());
+  await press(root, 'card-e2');
+  await act(async () => video(root).props.onLoad({ duration: 20 }));
+  await act(async () => {
+    video(root).props.onEnd();
+    video(root).props.onEnd();
+  });
+  await act(async () => {
+    pressBack();
+  });
+  expect(has(root, 'screen-player')).toBe(false);
+  expect(has(root, 'screen-home')).toBe(true);
+  await act(async () => release());
+  await flush(10);
+  expect(has(root, 'screen-player')).toBe(false);
+  expect(has(root, 'screen-home')).toBe(true);
+  // One start and exactly one stop: the second end event and the unmount add nothing.
+  const types = connector.backends[connector.backends.length - 1].reports.map(r => r.type);
+  expect(types.filter(t => t === 'start')).toHaveLength(1);
+  expect(types.filter(t => t === 'stop')).toHaveLength(1);
+  spy.mockRestore();
+  await act(async () => root.unmount());
+});
+
 test('with autoplay off the end of an episode returns to where playback started', async () => {
   const { root } = await signedIn(undefined, { autoplayNext: false });
   await press(root, 'card-e2');
@@ -200,5 +248,25 @@ test('subtitle style settings are offered, saved and applied', async () => {
     subtitleColor: '#ffe14d',
     subtitleBackground: 'shadow',
   });
+  await act(async () => root.unmount());
+});
+
+test('switch user and change server leave the signed-in screens without a render that has no backend', async () => {
+  const { root, store } = await signedIn();
+  await press(root, 'tab-settings');
+  await press(root, 'set-switch-user');
+  await flush(10);
+  expect(has(root, 'screen-login')).toBe(true);
+  expect(has(root, 'screen-home')).toBe(false);
+  expect(await store.get('xelpfin.session')).toBeFalsy();
+  await press(root, 'user-guest');
+  await press(root, 'signin');
+  await flush(10);
+  expect(has(root, 'screen-home')).toBe(true);
+  await press(root, 'tab-settings');
+  await press(root, 'set-change-server');
+  await flush(10);
+  expect(has(root, 'screen-servers')).toBe(true);
+  expect(has(root, 'screen-home')).toBe(false);
   await act(async () => root.unmount());
 });

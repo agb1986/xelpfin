@@ -40,14 +40,8 @@ export function SettingsScreen() {
   const caps = useAsync(() => app.capabilities(), [app.capabilities]);
   const server = backend?.session.server;
 
-  const signOut = async () => {
-    await app.signOut();
-    nav.reset(server ? [{ name: 'servers' }, { name: 'login', server }] : [{ name: 'servers' }]);
-  };
-  const changeServer = async () => {
-    await app.signOut();
-    nav.reset([{ name: 'servers' }]);
-  };
+  const signOut = () => app.signOut(() => nav.reset(server ? [{ name: 'servers' }, { name: 'login', server }] : [{ name: 'servers' }]));
+  const changeServer = () => app.signOut(() => nav.reset([{ name: 'servers' }]));
 
   const device = platform.device;
   const decoders = caps.data?.video.map(v => `${v.codec.toUpperCase()} ${v.maxBitDepth}-bit${v.hardware ? '' : ' (sw)'}`).join(', ');

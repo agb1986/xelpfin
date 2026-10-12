@@ -17,8 +17,12 @@ export interface AppStateValue {
   forgetServer(id: string): void;
   backend?: Backend;
   signIn(session: Session): void;
-  /** Forgets the token. `server` stays in the saved list. */
-  signOut(): Promise<void>;
+  /**
+   * Logs out on the server and forgets the token; the server stays in the saved list.
+   * `leave` must move the navigator off the signed-in screens. It runs in the same render as the
+   * session going away, because a signed-in screen that renders without a backend throws.
+   */
+  signOut(leave: () => void): Promise<void>;
   /**
    * Set when the server rejected the session token (revoked or expired). The navigator sends
    * the user to the sign-in screen of that server and then calls {@link finishExpiry}.
@@ -105,11 +109,16 @@ export function AppStateProvider({
     [platform],
   );
 
-  const signOut = useCallback(async () => {
-    await backend?.logout().catch(() => undefined);
-    setSession(undefined);
-    await saveSession(platform.storage, undefined);
-  }, [backend, platform]);
+  const signOut = useCallback(
+    async (leave: () => void) => {
+      await backend?.logout().catch(() => undefined);
+      await saveSession(platform.storage, undefined);
+      // Synchronous, so React applies both updates in one render.
+      leave();
+      setSession(undefined);
+    },
+    [backend, platform],
+  );
 
   const finishExpiry = useCallback(() => {
     // The token is already dead on the server, so there is nothing to log out of.

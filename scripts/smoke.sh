@@ -24,8 +24,7 @@ now_playing() { session name paused method; } # "<item name>|<paused>|<play meth
 step "install and launch"
 "${ADB[@]}" get-state >/dev/null || fail "emulator $SERIAL not running (scripts/emulator.sh start)"
 if [ "${1:-}" != "--no-install" ]; then
-  [ -f "$APK" ] || fail "missing $APK (npm run apk:debug)"
-  "${ADB[@]}" install -r "$APK" | tail -1
+  install_apk
 fi
 launch --clear
 

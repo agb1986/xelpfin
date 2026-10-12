@@ -16,8 +16,7 @@ CONTAINER="${JF_CONTAINER:-xelpfin-jellyfin}"
 
 if [ "${1:-}" = --install ]; then
   shift
-  [ -f "$APK" ] || fail "missing $APK (npm run apk:debug)"
-  "${ADB[@]}" install -r "$APK" | tail -1
+  install_apk
 fi
 ALL=(quickconnect audio subtitles burnin substyle resume watched autoplay back switch empty expiry offline)
 SCENARIOS=("${@:-${ALL[@]}}")
@@ -63,6 +62,7 @@ search_open() { # search_open WORD TITLE: open the detail page of TITLE found by
   wait_for search
   dump
   tap search-input
+  clear_field
   "${ADB[@]}" shell input text "$1"
   key ENTER
   for _ in $(seq 10); do dump; ui find "$2" >/dev/null && break; sleep 1; done
@@ -323,13 +323,15 @@ s_watched() {
   key BACK
 }
 
-autoplay_once() { # autoplay_once: play the last seconds of episode 1 from its resume point
+autoplay_once() { # autoplay_once E1: play the last 10 s of the 25 s episode 1 from a resume point
   local e1="$1"
-  set_user_data "$e1" '{"PlaybackPositionTicks":200000000,"Played":false}'
+  set_user_data "$e1" '{"PlaybackPositionTicks":150000000,"Played":false}'
   search_open episode "Episode 1"
   wait_for resume 10
-  play resume
-  wait_session '^Episode 1\|False' 30 name paused
+  dump
+  tap resume
+  # uiautomator stalls for seconds while video plays, so do not wait for the player view here.
+  wait_session '^Episode [12]\|False' 20 name paused
 }
 s_autoplay() {
   home xelpfin xelpfin-pass
@@ -339,6 +341,7 @@ s_autoplay() {
   set_user_data "$e2" '{"PlaybackPositionTicks":0,"Played":false}'
   autoplay_once "$e1"
   wait_session '^Episode 2\|False' 30 name paused
+  [ "$(ticks "$e1" Played)" = True ] || fail "episode 1 was not marked played when it ended"
   shot e2e-autoplay
   leave_player
   for _ in $(seq 4); do dump; ui has home && break; key BACK; done
@@ -354,7 +357,7 @@ s_autoplay() {
   sleep 3
   [ -z "$(session name)" ] || fail "something is still playing with autoplay off: $(session name)"
   echo "  autoplay off: back on the detail page, nothing playing"
-  key BACK
+  for _ in $(seq 4); do key BACK; dump; ui has home && break; done
   setting set-autoplay
   key BACK
   set_user_data "$e1" '{"PlaybackPositionTicks":0,"Played":false}'
@@ -396,6 +399,7 @@ s_switch() {
   wait_for login 10
   login guest
   dump; tap tab-settings; wait_for settings; dump
+  for _ in $(seq 8); do ui has set-switch-user && break; key DPAD_DOWN DPAD_DOWN; dump; done
   [[ "$(ui text set-switch-user)" == *guest* ]] || fail "settings do not show the guest user"
   shot e2e-switch-user
   setting set-change-server
@@ -411,7 +415,7 @@ s_empty() {
   wait_for library
   sleep 2
   dump
-  [[ "$(ui text library)" == *"2000 items"* ]] || fail "bulk library does not show 2000 items"
+  ui find "2000 items" >/dev/null || fail "bulk library does not show 2000 items"
   shot e2e-bulk
   key BACK
   wait_for home
@@ -437,6 +441,20 @@ s_expiry() {
   login xelpfin xelpfin-pass
 }
 
+# Starts the container again and waits for Jellyfin. During start-up it answers 200 once and then
+# 503 for a few seconds, so it counts as back only after three good answers in a row.
+server_restart() {
+  local i ok=0
+  for i in $(seq 180); do
+    if server_up; then ok=$((ok + 1)); [ "$ok" -ge 3 ] && break; else ok=0; fi
+    [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER")" = true ] || docker start "$CONTAINER" >/dev/null
+    sleep 1
+  done
+  [ "$ok" -ge 3 ] || fail "server did not come back"
+  echo "  server back after ${i}s"
+  require_server
+}
+
 s_offline() {
   home xelpfin xelpfin-pass
   search_open purple "Big Purple Test"
@@ -446,10 +464,7 @@ s_offline() {
   wait_for error 40
   shot e2e-offline-error
   dump; echo "  error: $(ui text error)"
-  docker start "$CONTAINER" >/dev/null
-  for _ in $(seq 90); do server_up && break; sleep 1; done
-  server_up || fail "server did not come back"
-  require_server
+  server_restart
   dump; tap retry
   wait_session '^Big Purple Test\|False' 40 name paused
   echo "  retry after the server came back plays"
@@ -462,9 +477,7 @@ s_offline() {
   shot e2e-offline-midplay
   dump
   if ui has error; then echo "  mid-playback: error view: $(ui text error)"; elif ui has player; then echo "  mid-playback: still playing from buffer"; else echo "  mid-playback: player closed at the end"; fi
-  docker start "$CONTAINER" >/dev/null
-  for _ in $(seq 90); do server_up && break; sleep 1; done
-  require_server
+  server_restart
   leave_player
   for _ in $(seq 4); do dump; ui has home && break; key BACK; done
   dump; tap tab-lib-Movies; wait_for library 30

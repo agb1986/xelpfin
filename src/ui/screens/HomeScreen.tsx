@@ -57,10 +57,9 @@ export function HomeScreen() {
             <View style={styles.center}>
               <Button
                 label="Sign in again"
-                onPress={async () => {
+                onPress={() => {
                   const server = backend.session.server;
-                  await signOut();
-                  nav.reset([{ name: 'servers' }, { name: 'login', server }]);
+                  signOut(() => nav.reset([{ name: 'servers' }, { name: 'login', server }]));
                 }}
               />
             </View>

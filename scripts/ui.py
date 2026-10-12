@@ -47,7 +47,15 @@ def main() -> int:
         n = find(arg)
         if n is None:
             return 1
-        print(' '.join(t for t in (m.get('text') or m.get('content-desc') for m in n.iter('node')) if t))
+        texts = [t for t in (m.get('text') or m.get('content-desc') for m in n.iter('node')) if t]
+        if not texts:
+            # React Native can report a container without its children; fall back to the
+            # nodes drawn inside its bounds.
+            box = lambda m: tuple(map(int, m.get('bounds').replace('][', ',').strip('[]').split(',')))
+            x1, y1, x2, y2 = box(n)
+            texts = [m.get('text') for m in nodes if m.get('text')
+                     and (lambda b: b[0] >= x1 and b[1] >= y1 and b[2] <= x2 and b[3] <= y2)(box(m))]
+        print(' '.join(texts))
         return 0
     if cmd == 'focustext':
         n = next((n for n in nodes if n.get('focused') == 'true'), None)

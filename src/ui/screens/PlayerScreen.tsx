@@ -77,6 +77,11 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const positionRef = useRef(startPositionMs);
   const pausedRef = useRef(false);
   const started = useRef(false);
+  // False once the screen unmounts; true once the current plan has played to its end. Late
+  // native callbacks and the async next-episode lookup check these so they cannot act on a
+  // screen the user already left.
+  const alive = useRef(true);
+  const ended = useRef(false);
   const tracksRef = useRef<{ audio?: number; subtitle: number }>({ subtitle: -1 });
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   planRef.current = plan;
@@ -110,6 +115,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
         report('stop');
       }
       started.current = false;
+      ended.current = false;
       setError(undefined);
       setPlan(undefined);
       setBuffering(true);
@@ -161,7 +167,9 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   // Periodic progress and a final stop when the screen goes away.
   useEffect(() => {
     const t = setInterval(() => started.current && report('progress'), REPORT_EVERY_MS);
+    alive.current = true;
     return () => {
+      alive.current = false;
       clearInterval(t);
       if (started.current) {
         report('stop');
@@ -282,7 +290,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
       return;
     }
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (overlay === 'controls' && planRef.current && !pausedRef.current) {
+      if (overlay === 'controls' && planRef.current && !pausedRef.current && !ended.current) {
         setOverlay('hidden');
         return true;
       }
@@ -292,11 +300,22 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   }, [active, overlay]);
 
   const onEnd = useCallback(async () => {
+    if (ended.current || !alive.current) {
+      return;
+    }
+    ended.current = true;
     positionRef.current = duration || positionRef.current;
-    report('stop');
+    if (started.current) {
+      report('stop');
+    }
     started.current = false;
     if (settings.autoplayNext && item?.kind === 'episode' && item.seriesId) {
-      const next = await findNextEpisode(backend, item);
+      const next = await findNextEpisode(backend, item).catch(() => undefined);
+      // BACK during the lookup already popped this screen; replacing now would replace the page
+      // below it.
+      if (!alive.current) {
+        return;
+      }
       if (next) {
         nav.replace({ name: 'player', itemId: next.id, startPositionMs: 0 });
         return;
@@ -360,7 +379,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           onLoad={e => {
             setDuration(e.durationMs);
             setBuffering(false);
-            if (!started.current) {
+            if (!started.current && alive.current && !ended.current) {
               started.current = true;
               report('start');
             }
