@@ -13,7 +13,8 @@
     "jellyfin:down": "bash scripts/jellyfin-down.sh",
     "apk:debug": "cd android && ./gradlew assembleDebug",
     "emu:start": "bash scripts/emulator.sh start",
-    "smoke": "bash scripts/smoke.sh"
+    "smoke": "bash scripts/smoke.sh",
+    "verify": "bash scripts/verify.sh"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

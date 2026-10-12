@@ -38,7 +38,7 @@ const UserTile = React.forwardRef<View, { user: PublicUser; onPress(): void; pre
 });
 
 /** User picker, password sign-in and Quick Connect for one server. */
-export function LoginScreen({ server }: { server: ServerInfo }) {
+export function LoginScreen({ server, expired }: { server: ServerInfo; expired?: boolean }) {
   const { connector, signIn } = useApp();
   const nav = useNavigation();
   const active = useIsActive();
@@ -136,6 +136,11 @@ export function LoginScreen({ server }: { server: ServerInfo }) {
   return (
     <Screen title={`Sign in to ${server.name}`} testID="login">
       <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
+        {expired ? (
+          <Text style={styles.notice} testID="login-expired">
+            Your session on this server has ended. Sign in again to continue.
+          </Text>
+        ) : null}
         <View style={styles.users}>
           {users.data?.map((u, i) => (
             <UserTile key={u.id} ref={i === 0 ? firstUser : undefined} user={u} onPress={() => pickUser(u)} preferred={i === 0} />
@@ -193,4 +198,5 @@ const styles = StyleSheet.create({
   code: { color: colors.accent, fontSize: 40, fontWeight: '800', letterSpacing: 8, marginVertical: space.sm },
   dim: { color: colors.textDim, fontSize: font.body },
   error: { color: colors.danger, fontSize: font.body, marginTop: space.md },
+  notice: { color: colors.text, fontSize: font.body, marginBottom: space.md },
 });

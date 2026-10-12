@@ -4,6 +4,7 @@ import type { ServerInfo, Session } from '../backend/types';
 import type { DeviceCapabilities } from '../player/capabilities';
 import { withBitrateCap } from '../player/capabilities';
 import type { PlatformServices } from '../platform/types';
+import { guardBackend } from './authGuard';
 import { loadServers, loadSession, rememberServer, saveServers, saveSession } from './servers';
 import { DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings } from './settings';
 
@@ -18,6 +19,13 @@ export interface AppStateValue {
   signIn(session: Session): void;
   /** Forgets the token. `server` stays in the saved list. */
   signOut(): Promise<void>;
+  /**
+   * Set when the server rejected the session token (revoked or expired). The navigator sends
+   * the user to the sign-in screen of that server and then calls {@link finishExpiry}.
+   */
+  authExpired?: ServerInfo;
+  /** Drops the expired session; call after navigating away from signed-in screens. */
+  finishExpiry(): void;
   /** Device capabilities with the user's bitrate cap applied. */
   capabilities(): Promise<DeviceCapabilities>;
 }
@@ -71,7 +79,11 @@ export function AppStateProvider({
   const [settings, setSettings] = useState<Settings>(boot.settings ?? DEFAULT_SETTINGS);
   const [servers, setServers] = useState<ServerInfo[]>(boot.servers);
   const [session, setSession] = useState<Session | undefined>(boot.session);
-  const backend = useMemo(() => (session ? connector.open(session) : undefined), [connector, session]);
+  const [authExpired, setAuthExpired] = useState<ServerInfo>();
+  const backend = useMemo(
+    () => (session ? guardBackend(connector.open(session), () => setAuthExpired(session.server)) : undefined),
+    [connector, session],
+  );
 
   useEffect(() => {
     saveSettings(platform.storage, settings);
@@ -81,6 +93,7 @@ export function AppStateProvider({
 
   const signIn = useCallback(
     (s: Session) => {
+      setAuthExpired(undefined);
       setSession(s);
       saveSession(platform.storage, s);
       setServers(list => {
@@ -98,6 +111,13 @@ export function AppStateProvider({
     await saveSession(platform.storage, undefined);
   }, [backend, platform]);
 
+  const finishExpiry = useCallback(() => {
+    // The token is already dead on the server, so there is nothing to log out of.
+    setAuthExpired(undefined);
+    setSession(undefined);
+    saveSession(platform.storage, undefined);
+  }, [platform]);
+
   const forgetServer = useCallback(
     (id: string) =>
       setServers(list => {
@@ -114,8 +134,21 @@ export function AppStateProvider({
   );
 
   const value = useMemo<AppStateValue>(
-    () => ({ platform, connector, settings, updateSettings, servers, forgetServer, backend, signIn, signOut, capabilities }),
-    [platform, connector, settings, updateSettings, servers, forgetServer, backend, signIn, signOut, capabilities],
+    () => ({
+      platform,
+      connector,
+      settings,
+      updateSettings,
+      servers,
+      forgetServer,
+      backend,
+      signIn,
+      signOut,
+      authExpired,
+      finishExpiry,
+      capabilities,
+    }),
+    [platform, connector, settings, updateSettings, servers, forgetServer, backend, signIn, signOut, authExpired, finishExpiry, capabilities],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

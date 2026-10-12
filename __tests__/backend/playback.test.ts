@@ -1,4 +1,4 @@
-import { buildPlan, directPlayBlockers } from '../../src/backend/jellyfin/playback';
+import { buildPlan, directPlayBlockers, withQueryParams } from '../../src/backend/jellyfin/playback';
 import type { MediaSourceDto } from '../../src/backend/jellyfin/dto';
 import { BASELINE_CAPABILITIES, type DeviceCapabilities } from '../../src/player/capabilities';
 
@@ -137,5 +137,25 @@ describe('buildPlan', () => {
     const none = { ...aviOld, TranscodingUrl: undefined };
     expect(() => buildPlan({ itemId: 'i3' }, [none], 'p', BASELINE_CAPABILITIES, ctx)).toThrow(/cannot be played/);
     expect(() => buildPlan({ itemId: 'x' }, [], 'p', BASELINE_CAPABILITIES, ctx)).toThrow(/no playable/);
+  });
+  it('burns a bitmap subtitle into the picture once the server has to transcode anyway', () => {
+    const plan = buildPlan({ itemId: 'i2', subtitleStreamIndex: 4 }, [hevcMkv], 'ps2', noAc3HevcSdr, ctx);
+    expect(plan.method).toBe('Transcode');
+    expect(plan.streamType).toBe('hls');
+    expect(plan.url).toContain('SubtitleMethod=Encode');
+    expect(plan.url).toContain('SubtitleStreamIndex=4');
+    expect(plan.subtitleTracks.find(s => s.index === 4)?.delivery).toBe('burn-in');
+    // A text subtitle on the same transcode is not burned in.
+    const text = buildPlan({ itemId: 'i2', subtitleStreamIndex: 3 }, [hevcMkv], 'ps2', noAc3HevcSdr, ctx);
+    expect(text.url).not.toContain('SubtitleMethod=Encode');
+  });
+});
+
+describe('withQueryParams', () => {
+  it('adds new parameters and replaces existing ones case-insensitively', () => {
+    expect(withQueryParams('http://s/a', { A: '1' })).toBe('http://s/a?A=1');
+    expect(withQueryParams('http://s/a?x=1&subtitlemethod=Hls', { SubtitleMethod: 'Encode', y: 'a b' })).toBe(
+      'http://s/a?x=1&SubtitleMethod=Encode&y=a%20b',
+    );
   });
 });

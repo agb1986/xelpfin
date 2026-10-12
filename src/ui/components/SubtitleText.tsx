@@ -1,16 +1,48 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { cueTextAt, type Cue } from '../../player/webvtt';
+import type { SubtitleBackground } from '../../state/settings';
+
+export interface SubtitleLook {
+  size: number;
+  color: string;
+  background: SubtitleBackground;
+}
+
+const DEFAULT_LOOK: SubtitleLook = { size: 22, color: '#ffffff', background: 'box' };
+
+/** Text style for a subtitle look; exported for tests. */
+export function subtitleTextStyle(look: SubtitleLook): TextStyle {
+  const base: TextStyle = { color: look.color, fontSize: look.size, lineHeight: Math.round(look.size * 1.35) };
+  switch (look.background) {
+    case 'solid':
+      return { ...base, backgroundColor: '#000' };
+    case 'shadow':
+      return { ...base, textShadowColor: '#000', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 4 };
+    default:
+      return { ...base, backgroundColor: 'rgba(0,0,0,0.6)' };
+  }
+}
 
 /** Draws the current subtitle cue over the video, lifted above the controls when they show. */
-export function SubtitleText({ cues, positionMs, raised }: { cues: Cue[]; positionMs: number; raised?: boolean }) {
+export function SubtitleText({
+  cues,
+  positionMs,
+  raised,
+  look = DEFAULT_LOOK,
+}: {
+  cues: Cue[];
+  positionMs: number;
+  raised?: boolean;
+  look?: SubtitleLook;
+}) {
   const text = cues.length ? cueTextAt(cues, positionMs) : '';
   if (!text) {
     return null;
   }
   return (
     <View style={[styles.wrap, raised && styles.raised]} pointerEvents="none" testID="player-subtitle-text">
-      <Text style={styles.text}>{text}</Text>
+      <Text style={[styles.text, subtitleTextStyle(look)]}>{text}</Text>
     </View>
   );
 }
@@ -19,12 +51,8 @@ const styles = StyleSheet.create({
   wrap: { position: 'absolute', left: 0, right: 0, bottom: 36, alignItems: 'center', paddingHorizontal: 48 },
   raised: { bottom: 180 },
   text: {
-    color: '#fff',
-    fontSize: 22,
-    lineHeight: 30,
     fontWeight: '600',
     textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
     paddingHorizontal: 10,
     paddingVertical: 2,
     borderRadius: 6,

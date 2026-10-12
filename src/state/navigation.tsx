@@ -4,7 +4,7 @@ import type { Library, ServerInfo } from '../backend/types';
 
 export type Route =
   | { name: 'servers' }
-  | { name: 'login'; server: ServerInfo }
+  | { name: 'login'; server: ServerInfo; expired?: boolean }
   | { name: 'home' }
   | { name: 'library'; library: Library }
   | { name: 'detail'; itemId: string }
@@ -62,10 +62,13 @@ export function NavigationStack({
   initial,
   render,
   onBackAtRoot,
+  children,
 }: {
   initial: Route[];
   render: (route: Route) => React.ReactNode;
   onBackAtRoot?: () => boolean;
+  /** Rendered inside the navigation context, for components that navigate on app events. */
+  children?: React.ReactNode;
 }) {
   const nextKey = useRef(initial.length);
   const [stack, setStack] = useState<Entry[]>(() => initial.map((route, key) => ({ key, route })));
@@ -131,6 +134,7 @@ export function NavigationStack({
           </ScreenContext.Provider>
         );
       })}
+      {children}
     </NavContext.Provider>
   );
 }

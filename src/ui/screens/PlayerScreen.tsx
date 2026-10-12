@@ -1,11 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, StyleSheet, Text, useTVEventHandler, View, type HWEvent } from 'react-native';
 import type { ItemDetail, PlaybackPlan } from '../../backend/types';
 import { getEngine } from '../../player';
+import { playerError } from '../../player/errors';
 import { useSubtitleCues } from '../../player/useSubtitleCues';
 import type { PlayerViewHandle } from '../../player/PlayerEngine';
 import { useApp, useBackend } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
+import { findNextEpisode } from '../../state/nextEpisode';
 import { pickAudio, pickSubtitle } from '../../state/trackDefaults';
 import { Button, ErrorView, Focusable, LoadingView, OptionPicker, SubtitleText, type Option } from '../components';
 import { formatDuration } from '../hooks';
@@ -50,6 +52,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const active = useIsActive();
   const engine = getEngine();
   const { settings } = app;
+  const look = useMemo(
+    () => ({ size: settings.subtitleSize, color: settings.subtitleColor, background: settings.subtitleBackground }),
+    [settings.subtitleSize, settings.subtitleColor, settings.subtitleBackground],
+  );
 
   const [item, setItem] = useState<ItemDetail>();
   const [plan, setPlan] = useState<PlaybackPlan>();
@@ -289,8 +295,8 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
     report('stop');
     started.current = false;
     if (settings.autoplayNext && item?.kind === 'episode' && item.seriesId) {
-      const next = (await backend.nextUp(1, item.seriesId).catch(() => []))[0];
-      if (next && next.id !== item.id) {
+      const next = await findNextEpisode(backend, item);
+      if (next) {
         nav.replace({ name: 'player', itemId: next.id, startPositionMs: 0 });
         return;
       }
@@ -349,6 +355,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           paused={paused || !active}
           audioStreamIndex={audio}
           subtitleStreamIndex={subtitle}
+          subtitleSize={settings.subtitleSize}
           onLoad={e => {
             setDuration(e.durationMs);
             setBuffering(false);
@@ -364,10 +371,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           }}
           onBuffering={setBuffering}
           onEnd={onEnd}
-          onError={msg => setError(new Error(msg))}
+          onError={msg => setError(playerError(msg))}
         />
       ) : null}
-      <SubtitleText cues={cues} positionMs={position} raised={overlay !== 'hidden'} />
+      <SubtitleText cues={cues} positionMs={position} raised={overlay !== 'hidden'} look={look} />
 
       {/* Holds focus while the controls are hidden so remote keys still reach the player. */}
       {overlay !== 'controls' ? (

@@ -16,6 +16,19 @@ describe('settings', () => {
     });
   });
 
+  it('keeps only offered subtitle style choices', () => {
+    expect(sanitizeSettings({ subtitleSize: 28, subtitleColor: '#ffe14d', subtitleBackground: 'shadow' })).toMatchObject({
+      subtitleSize: 28,
+      subtitleColor: '#ffe14d',
+      subtitleBackground: 'shadow',
+    });
+    expect(sanitizeSettings({ subtitleSize: 99, subtitleColor: 'red', subtitleBackground: 'neon' })).toMatchObject({
+      subtitleSize: DEFAULT_SETTINGS.subtitleSize,
+      subtitleColor: DEFAULT_SETTINGS.subtitleColor,
+      subtitleBackground: DEFAULT_SETTINGS.subtitleBackground,
+    });
+  });
+
   it('round-trips through storage and survives corrupt JSON', async () => {
     const store = new MemoryStore();
     await saveSettings(store, { ...DEFAULT_SETTINGS, showDebugOverlay: true });

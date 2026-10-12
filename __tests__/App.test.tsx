@@ -5,7 +5,7 @@ import React from 'react';
 import ReactTestRenderer, { act, type ReactTestInstance, type ReactTestRenderer as Renderer } from 'react-test-renderer';
 import App from '../App';
 import { MockBackend, MockConnector } from '../src/backend/mock/MockBackend';
-import type { Session } from '../src/backend/types';
+import { BackendError, type Session } from '../src/backend/types';
 import { MemoryStore } from '../src/platform/types';
 import { testPlatform } from '../test-utils/testPlatform';
 
@@ -116,4 +116,89 @@ test('a stored session starts on home, opens detail and plays with progress repo
   expect(types[0]).toBe('start');
   expect(types[types.length - 1]).toBe('stop');
   expect(backend.reports[backend.reports.length - 1].report.positionMs).toBe(12_000);
+});
+
+const SESSION: Session = {
+  server: { id: 'mock-server', name: 'Mock Server', url: 'http://mock.local:8096' },
+  userId: 'u1',
+  userName: 'xelpfin',
+  accessToken: 'tok-u1',
+  isAdmin: true,
+};
+
+async function signedIn(connector = new RecordingConnector(), settings?: object) {
+  const store = new MemoryStore();
+  await store.set('xelpfin.session', JSON.stringify(SESSION));
+  if (settings) {
+    await store.set('xelpfin.settings', JSON.stringify(settings));
+  }
+  const out = await render(store, connector);
+  await flush();
+  expect(has(out.root, 'screen-home')).toBe(true);
+  return out;
+}
+
+const video = (root: Renderer) => root.root.findAll(n => n.props.testID === 'video')[0];
+
+test('the end of an episode plays the next one in series order', async () => {
+  const { root } = await signedIn();
+  await press(root, 'card-e2');
+  expect(video(root).props.source.uri).toBe('http://mock.local:8096/stream/e2');
+  await act(async () => video(root).props.onLoad({ duration: 20 }));
+  await act(async () => video(root).props.onEnd());
+  await flush();
+  expect(has(root, 'screen-player')).toBe(true);
+  expect(video(root).props.source.uri).toBe('http://mock.local:8096/stream/e3');
+  await act(async () => root.unmount());
+});
+
+test('with autoplay off the end of an episode returns to where playback started', async () => {
+  const { root } = await signedIn(undefined, { autoplayNext: false });
+  await press(root, 'card-e2');
+  await act(async () => video(root).props.onLoad({ duration: 20 }));
+  await act(async () => video(root).props.onEnd());
+  await flush();
+  expect(has(root, 'screen-home')).toBe(true);
+  await act(async () => root.unmount());
+});
+
+test('a revoked token sends the user to sign in again with an explanation', async () => {
+  class ExpiringBackend extends MockBackend {
+    async item(): Promise<never> {
+      throw new BackendError('Unauthorized', 'auth', 401);
+    }
+  }
+  class ExpiringConnector extends RecordingConnector {
+    open(session: Session) {
+      const b = new ExpiringBackend(session);
+      this.backends.push(b);
+      return b;
+    }
+  }
+  const { root, store } = await signedIn(new ExpiringConnector());
+  await press(root, 'card-m2');
+  await flush(10);
+  expect(has(root, 'screen-login')).toBe(true);
+  expect(has(root, 'login-expired')).toBe(true);
+  expect(await store.get('xelpfin.session')).toBeFalsy();
+  await act(async () => root.unmount());
+});
+
+test('subtitle style settings are offered, saved and applied', async () => {
+  const { root, store } = await signedIn();
+  await press(root, 'tab-settings');
+  expect(has(root, 'screen-settings')).toBe(true);
+  await press(root, 'set-subsize');
+  await press(root, 'pick-subsize-2');
+  await press(root, 'set-subcolor');
+  await press(root, 'pick-subcolor-1');
+  await press(root, 'set-subbg');
+  await press(root, 'pick-subbg-2');
+  await flush();
+  expect(JSON.parse((await store.get('xelpfin.settings'))!)).toMatchObject({
+    subtitleSize: 28,
+    subtitleColor: '#ffe14d',
+    subtitleBackground: 'shadow',
+  });
+  await act(async () => root.unmount());
 });

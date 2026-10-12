@@ -10,7 +10,13 @@ export interface Settings {
   preferredLanguage: string;
   autoplayNext: boolean;
   showDebugOverlay: boolean;
+  /** Font size of text subtitles drawn by the app, in dp. */
+  subtitleSize: number;
+  subtitleColor: string;
+  subtitleBackground: SubtitleBackground;
 }
+
+export type SubtitleBackground = 'box' | 'solid' | 'shadow';
 
 export const DEFAULT_SETTINGS: Settings = {
   maxBitrate: 0,
@@ -18,7 +24,30 @@ export const DEFAULT_SETTINGS: Settings = {
   preferredLanguage: '',
   autoplayNext: true,
   showDebugOverlay: false,
+  subtitleSize: 22,
+  subtitleColor: '#ffffff',
+  subtitleBackground: 'box',
 };
+
+export const SUBTITLE_SIZE_CHOICES: { label: string; value: number }[] = [
+  { label: 'Small', value: 18 },
+  { label: 'Medium', value: 22 },
+  { label: 'Large', value: 28 },
+  { label: 'Extra large', value: 36 },
+];
+
+export const SUBTITLE_COLOR_CHOICES: { label: string; value: string }[] = [
+  { label: 'White', value: '#ffffff' },
+  { label: 'Yellow', value: '#ffe14d' },
+  { label: 'Cyan', value: '#5ce1ff' },
+  { label: 'Green', value: '#7dff7a' },
+];
+
+export const SUBTITLE_BACKGROUND_CHOICES: { label: string; value: SubtitleBackground }[] = [
+  { label: 'Translucent box', value: 'box' },
+  { label: 'Solid box', value: 'solid' },
+  { label: 'Outline only', value: 'shadow' },
+];
 
 export const BITRATE_CHOICES: { label: string; value: number }[] = [
   { label: 'Auto (device maximum)', value: 0 },
@@ -67,6 +96,15 @@ export function sanitizeSettings(raw: unknown): Settings {
   }
   if (typeof r.showDebugOverlay === 'boolean') {
     s.showDebugOverlay = r.showDebugOverlay;
+  }
+  if (SUBTITLE_SIZE_CHOICES.some(c => c.value === r.subtitleSize)) {
+    s.subtitleSize = r.subtitleSize as number;
+  }
+  if (SUBTITLE_COLOR_CHOICES.some(c => c.value === r.subtitleColor)) {
+    s.subtitleColor = r.subtitleColor as string;
+  }
+  if (SUBTITLE_BACKGROUND_CHOICES.some(c => c.value === r.subtitleBackground)) {
+    s.subtitleBackground = r.subtitleBackground as SubtitleBackground;
   }
   return s;
 }

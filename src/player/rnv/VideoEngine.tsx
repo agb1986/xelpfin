@@ -24,12 +24,12 @@ function toSelectedTrack(s: TrackSelection): SelectedTrack {
   }
 }
 
-const SUBTITLE_STYLE = { fontSize: 22, paddingBottom: 24 };
-
 const VideoView = forwardRef<PlayerViewHandle, PlayerViewProps>(function VideoView(props, ref) {
   const { plan } = props;
   const video = useRef<VideoRef>(null);
   useImperativeHandle(ref, () => ({ seek: ms => video.current?.seek(ms / 1000) }), []);
+
+  const subtitleStyle = useMemo(() => ({ fontSize: props.subtitleSize ?? 22, paddingBottom: 24 }), [props.subtitleSize]);
 
   const source = useMemo<ReactVideoSource>(
     () => ({
@@ -55,7 +55,7 @@ const VideoView = forwardRef<PlayerViewHandle, PlayerViewProps>(function VideoVi
       progressUpdateInterval={250}
       selectedAudioTrack={toSelectedTrack(audioSelection(plan, props.audioStreamIndex))}
       selectedTextTrack={toSelectedTrack(subtitleSelection(plan, props.subtitleStreamIndex))}
-      subtitleStyle={SUBTITLE_STYLE}
+      subtitleStyle={subtitleStyle}
       onLoad={e => props.onLoad?.({ durationMs: e.duration * 1000 })}
       onProgress={e => props.onProgress?.({ positionMs: e.currentTime * 1000, bufferedMs: e.playableDuration * 1000 })}
       onBuffer={e => props.onBuffering?.(e.isBuffering)}
@@ -68,7 +68,9 @@ const VideoView = forwardRef<PlayerViewHandle, PlayerViewProps>(function VideoVi
 function describeError(err: unknown): string {
   if (err && typeof err === 'object') {
     const e = err as Record<string, unknown>;
-    return String(e.errorString ?? e.localizedDescription ?? e.errorException ?? e.code ?? 'Playback failed');
+    const text = String(e.errorString ?? e.localizedDescription ?? e.errorException ?? 'Playback failed');
+    const code = e.errorCode ?? e.code;
+    return code !== undefined && !text.includes(String(code)) ? `${text} (${String(code)})` : text;
   }
   return 'Playback failed';
 }

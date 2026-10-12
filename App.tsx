@@ -4,8 +4,8 @@ import type { ServerConnector } from './src/backend/Backend';
 import { JellyfinConnector } from './src/backend/jellyfin/JellyfinBackend';
 import { BackendError } from './src/backend/types';
 import { getPlatform, getOrCreateDeviceId, type PlatformServices } from './src/platform';
-import { AppStateProvider, loadBoot, type Boot } from './src/state/AppState';
-import { NavigationStack, type Route } from './src/state/navigation';
+import { AppStateProvider, loadBoot, useApp, type Boot } from './src/state/AppState';
+import { NavigationStack, useNavigation, type Route } from './src/state/navigation';
 import { LoadingView } from './src/ui/components';
 import {
   DetailScreen,
@@ -62,7 +62,7 @@ async function bootstrap(platform: PlatformServices, connectorOverride?: ServerC
     if (e instanceof BackendError && e.kind === 'auth') {
       // Token revoked: go straight to the user picker of the same server.
       const server = boot.session.server;
-      return { connector, boot: { ...boot, session: undefined }, initial: [{ name: 'servers' }, { name: 'login', server }] };
+      return { connector, boot: { ...boot, session: undefined }, initial: [{ name: 'servers' }, { name: 'login', server, expired: true }] };
     }
     // Server offline or slow: start on home anyway; it shows its own error with retry.
   }
@@ -74,7 +74,7 @@ function renderRoute(route: Route): React.ReactNode {
     case 'servers':
       return <ServerSelectScreen />;
     case 'login':
-      return <LoginScreen server={route.server} />;
+      return <LoginScreen server={route.server} expired={route.expired} />;
     case 'home':
       return <HomeScreen />;
     case 'library':
@@ -88,6 +88,20 @@ function renderRoute(route: Route): React.ReactNode {
     case 'player':
       return <PlayerScreen itemId={route.itemId} startPositionMs={route.startPositionMs} />;
   }
+}
+
+/** Sends the user to sign in again when the server rejects the session token mid-use. */
+function AuthExpiryWatcher() {
+  const { authExpired, finishExpiry } = useApp();
+  const nav = useNavigation();
+  useEffect(() => {
+    if (authExpired) {
+      // Both updates land in one render, so no signed-in screen renders without a backend.
+      nav.reset([{ name: 'servers' }, { name: 'login', server: authExpired, expired: true }]);
+      finishExpiry();
+    }
+  }, [authExpired, finishExpiry, nav]);
+  return null;
 }
 
 export default function App({ platform, connector }: { platform?: PlatformServices; connector?: ServerConnector } = {}) {
@@ -111,7 +125,9 @@ export default function App({ platform, connector }: { platform?: PlatformServic
       <StatusBar hidden />
       {ready ? (
         <AppStateProvider platform={services} connector={ready.connector} boot={ready.boot}>
-          <NavigationStack initial={ready.initial} render={renderRoute} onBackAtRoot={exitApp} />
+          <NavigationStack initial={ready.initial} render={renderRoute} onBackAtRoot={exitApp}>
+            <AuthExpiryWatcher />
+          </NavigationStack>
         </AppStateProvider>
       ) : (
         <View style={styles.splash} testID="splash">

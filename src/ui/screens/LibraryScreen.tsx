@@ -83,6 +83,14 @@ export function LibraryScreen({ library }: { library: Library }) {
 
   const open = useCallback((item: MediaItem) => openItem(nav, item), [nav]);
   const rowHeight = card.poster.height + 52 + card.gap;
+  const renderItem = useCallback(
+    ({ item, index }: { item: MediaItem; index: number }) => <Card item={item} variant="poster" onPress={open} hasTVPreferredFocus={index === 0} />,
+    [open],
+  );
+  const getItemLayout = useCallback(
+    (_: unknown, index: number) => ({ length: rowHeight, offset: rowHeight * Math.floor(index / columns), index }),
+    [rowHeight, columns],
+  );
   const sortLabel = SORTS.find(s => s.value === sort)!.label;
 
   return (
@@ -107,8 +115,8 @@ export function LibraryScreen({ library }: { library: Library }) {
           data={list.items}
           numColumns={columns}
           keyExtractor={i => i.id}
-          renderItem={({ item, index }) => <Card item={item} variant="poster" onPress={open} hasTVPreferredFocus={index === 0} />}
-          getItemLayout={(_, index) => ({ length: rowHeight, offset: rowHeight * Math.floor(index / columns), index })}
+          renderItem={renderItem}
+          getItemLayout={getItemLayout}
           onEndReached={onEnd}
           onEndReachedThreshold={1.5}
           initialNumToRender={columns * 3}

@@ -2,7 +2,14 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../state/AppState';
 import { useNavigation } from '../../state/navigation';
-import { BITRATE_CHOICES, LANGUAGE_CHOICES, SUBTITLE_CHOICES } from '../../state/settings';
+import {
+  BITRATE_CHOICES,
+  LANGUAGE_CHOICES,
+  SUBTITLE_BACKGROUND_CHOICES,
+  SUBTITLE_CHOICES,
+  SUBTITLE_COLOR_CHOICES,
+  SUBTITLE_SIZE_CHOICES,
+} from '../../state/settings';
 import { APP_NAME, APP_VERSION } from '../../version';
 import { Focusable, OptionPicker, Screen, bleed, type Option } from '../components';
 import { useAsync } from '../hooks';
@@ -21,7 +28,7 @@ function Row({ label, value, onPress, testID, first }: { label: string; value: s
   );
 }
 
-type PickerKey = 'bitrate' | 'subtitles' | 'language';
+type PickerKey = 'bitrate' | 'subtitles' | 'language' | 'subsize' | 'subcolor' | 'subbg';
 const labelOf = <T,>(choices: Option<T>[], v: T) => choices.find(c => c.value === v)?.label ?? String(v);
 
 /** Playback preferences, account actions and device information. */
@@ -52,6 +59,9 @@ export function SettingsScreen() {
         <Row first testID="set-bitrate" label="Maximum streaming quality" value={labelOf(BITRATE_CHOICES, settings.maxBitrate)} onPress={() => setPicker('bitrate')} />
         <Row testID="set-subtitles" label="Subtitles" value={labelOf(SUBTITLE_CHOICES, settings.subtitleMode)} onPress={() => setPicker('subtitles')} />
         <Row testID="set-language" label="Preferred audio and subtitle language" value={labelOf(LANGUAGE_CHOICES, settings.preferredLanguage)} onPress={() => setPicker('language')} />
+        <Row testID="set-subsize" label="Subtitle size" value={labelOf(SUBTITLE_SIZE_CHOICES, settings.subtitleSize)} onPress={() => setPicker('subsize')} />
+        <Row testID="set-subcolor" label="Subtitle colour" value={labelOf(SUBTITLE_COLOR_CHOICES, settings.subtitleColor)} onPress={() => setPicker('subcolor')} />
+        <Row testID="set-subbg" label="Subtitle background" value={labelOf(SUBTITLE_BACKGROUND_CHOICES, settings.subtitleBackground)} onPress={() => setPicker('subbg')} />
         <Row testID="set-autoplay" label="Play next episode automatically" value={settings.autoplayNext ? 'On' : 'Off'} onPress={() => updateSettings({ autoplayNext: !settings.autoplayNext })} />
         <Row testID="set-debug" label="Show playback information overlay" value={settings.showDebugOverlay ? 'On' : 'Off'} onPress={() => updateSettings({ showDebugOverlay: !settings.showDebugOverlay })} />
 
@@ -110,6 +120,33 @@ export function SettingsScreen() {
         onSelect={v => updateSettings({ preferredLanguage: v })}
         onClose={() => setPicker(undefined)}
         testID="pick-language"
+      />
+      <OptionPicker
+        visible={picker === 'subsize'}
+        title="Subtitle size"
+        options={SUBTITLE_SIZE_CHOICES}
+        selected={settings.subtitleSize}
+        onSelect={v => updateSettings({ subtitleSize: v })}
+        onClose={() => setPicker(undefined)}
+        testID="pick-subsize"
+      />
+      <OptionPicker
+        visible={picker === 'subcolor'}
+        title="Subtitle colour"
+        options={SUBTITLE_COLOR_CHOICES}
+        selected={settings.subtitleColor}
+        onSelect={v => updateSettings({ subtitleColor: v })}
+        onClose={() => setPicker(undefined)}
+        testID="pick-subcolor"
+      />
+      <OptionPicker
+        visible={picker === 'subbg'}
+        title="Subtitle background"
+        options={SUBTITLE_BACKGROUND_CHOICES}
+        selected={settings.subtitleBackground}
+        onSelect={v => updateSettings({ subtitleBackground: v })}
+        onClose={() => setPicker(undefined)}
+        testID="pick-subbg"
       />
     </Screen>
   );

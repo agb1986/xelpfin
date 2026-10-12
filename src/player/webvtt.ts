@@ -18,14 +18,26 @@ function parseTime(s: string): number | undefined {
   return ((Number(h) * 60 + Number(min)) * 60 + Number(sec)) * 1000 + Number(ms);
 }
 
-/** Strips WebVTT/HTML-style markup (<i>, <c.class>, <v Speaker>, timestamps) and decodes basic entities. */
-function cleanText(s: string): string {
+/**
+ * Strips WebVTT/HTML-style markup (<i>, <c.class>, <v Speaker>, timestamps), decodes basic
+ * entities, and removes what survives of ASS/SSA styling when the server converts such a track
+ * to WebVTT: override blocks ({\an8}, {\i1}, {\pos(..)}), vector drawings ({\p1} ... {\p0}),
+ * and the \N, \n and \h escapes.
+ */
+export function cleanText(s: string): string {
   return s
+    .replace(/\{[^}]*\\p[1-9][^}]*\}[\s\S]*?(?:\{[^}]*\\p0[^}]*\}|$)/g, '')
+    .replace(/\{\\[^}]*\}/g, '')
+    .replace(/\\N/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\h/g, ' ')
     .replace(/<[^>]*>/g, '')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&');
+    .replace(/&amp;/g, '&')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
 }
 
 /**

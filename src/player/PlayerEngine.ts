@@ -12,6 +12,8 @@ export interface PlayerViewProps {
   audioStreamIndex?: number;
   /** Backend stream index of the subtitle track to show; undefined means off. */
   subtitleStreamIndex?: number;
+  /** Font size for subtitles the engine renders itself (embedded text tracks). */
+  subtitleSize?: number;
   onLoad?(e: { durationMs: number }): void;
   onProgress?(e: { positionMs: number; bufferedMs: number }): void;
   onBuffering?(buffering: boolean): void;

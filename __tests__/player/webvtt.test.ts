@@ -1,4 +1,4 @@
-import { cueTextAt, parseWebVtt } from '../../src/player/webvtt';
+import { cleanText, cueTextAt, parseWebVtt } from '../../src/player/webvtt';
 
 const VTT = `WEBVTT
 
@@ -48,5 +48,13 @@ describe('cueTextAt', () => {
     expect(cueTextAt(cues, 7500)).toBe('Second\nline two');
     expect(cueTextAt(cues, 9000)).toBe('');
     expect(cueTextAt([], 1000)).toBe('');
+  });
+});
+
+describe('cleanText', () => {
+  it('strips ASS/SSA override tags and drawings so converted subtitles stay readable', () => {
+    expect(cleanText('{\\an8}{\\b1}Top{\\b0} line\\Nsecond\\hpart')).toBe('Top line\nsecond part');
+    expect(cleanText('{\\p1}m 0 0 l 100 0 100 100{\\p0}Visible')).toBe('Visible');
+    expect(cleanText('<i>Hello</i> &amp; {\\c&H00FFFF&}there  ')).toBe('Hello & there');
   });
 });

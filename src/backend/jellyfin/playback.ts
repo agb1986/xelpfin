@@ -170,15 +170,37 @@ export function buildPlan(
   if (!/[?&]api_key=/i.test(url)) {
     url += `${url.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(ctx.token)}`;
   }
+  // A bitmap subtitle cannot travel inside the HLS stream to the player, so once the server is
+  // remuxing or transcoding anyway, it has to burn the subtitle into the picture. Make that
+  // explicit in the URL in case the server picked another delivery method.
+  const burn = imageSubSelected ? subIndex : undefined;
+  if (burn !== undefined) {
+    url = withQueryParams(url, { SubtitleMethod: 'Encode', SubtitleStreamIndex: String(burn) });
+  }
   const videoOk = !reasons.some(r => VIDEO_REASONS.includes(r.split(':')[0]));
-  const burn = imageSubSelected && reasons.some(r => r.startsWith('SubtitleCodec')) ? subIndex : undefined;
   return {
     ...common,
-    method: videoOk && !burn ? 'DirectStream' : 'Transcode',
+    method: videoOk && burn === undefined ? 'DirectStream' : 'Transcode',
     reasons,
     url,
     streamType: norm(source.TranscodingSubProtocol) === 'hls' || /\.m3u8/i.test(url) ? 'hls' : 'progressive',
     container: source.TranscodingContainer ?? 'ts',
     subtitleTracks: subtitleTracksFor(req.itemId, source, ctx, burn),
   };
+}
+
+/** Sets (or replaces) query parameters on a URL, matching existing names case-insensitively. */
+export function withQueryParams(url: string, params: Record<string, string>): string {
+  const [path, query = ''] = url.split('?', 2);
+  const parts = query ? query.split('&') : [];
+  for (const [key, value] of Object.entries(params)) {
+    const at = parts.findIndex(p => p.split('=')[0].toLowerCase() === key.toLowerCase());
+    const pair = `${key}=${encodeURIComponent(value)}`;
+    if (at >= 0) {
+      parts[at] = pair;
+    } else {
+      parts.push(pair);
+    }
+  }
+  return parts.length ? `${path}?${parts.join('&')}` : path;
 }
