@@ -36,6 +36,8 @@ items = [
     ('movies/Big Purple Test (2024)', 'Big Purple Test', 0),
     ('movies/Night Grid (2023)', 'Night Grid', 60),
     ('movies/Old Codec (2001)', 'Old Codec', 120),
+    ('movies/Pixel Subs (2022)', 'Pixel Subs', 180),
+    ('movies/Burned Pixels (2020)', 'Burned Pixels', 210),
     ('shows/Test Show', 'Test Show', 30),
 ]
 for rel, title, shift in items:

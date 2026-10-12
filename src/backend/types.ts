@@ -147,6 +147,11 @@ export interface SubtitleTrack {
   /** For external delivery: absolute URL and MIME type. */
   url?: string;
   mimeType?: string;
+  /**
+   * Position among the subtitle tracks stored inside the media file (sidecar files excluded),
+   * which is how the native player numbers its text tracks. Set for embedded tracks only.
+   */
+  containerPosition?: number;
 }
 
 export type PlayMethod = 'DirectPlay' | 'DirectStream' | 'Transcode';

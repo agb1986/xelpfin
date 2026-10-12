@@ -129,6 +129,7 @@ describe('buildPlan', () => {
     expect(plan.selectedSubtitleIndex).toBe(4);
     expect(plan.subtitleTracks.map(s => s.delivery)).toEqual(['external', 'embedded']);
     expect(plan.subtitleTracks[1].url).toBeUndefined();
+    expect(plan.subtitleTracks[1].containerPosition).toBe(1);
   });
 
   it('honours a server refusal and fails clearly when nothing is playable', () => {

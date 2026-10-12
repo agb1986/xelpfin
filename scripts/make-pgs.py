@@ -43,10 +43,10 @@ def rle(img: Image.Image) -> bytes:
     return bytes(out)
 
 
-def cue_image(text: str) -> Image.Image:
-    font = ImageFont.truetype(FONT, 40)
+def cue_image(text: str, size: int) -> Image.Image:
+    font = ImageFont.truetype(FONT, size)
     l, t, r, b = font.getbbox(text)
-    w, h = r - l + 40, b - t + 24
+    w, h = r - l + 40, b - t + 24  # widths stay well inside the frame at height // 18
     img = Image.new('P', (w, h), 2)  # 2 = dark box
     ImageDraw.Draw(img).text((20 - l, 12 - t), text, fill=1, font=font)  # 1 = white
     return img
@@ -73,7 +73,7 @@ def main() -> None:
     data = bytearray()
     number = 0
     for n, start in enumerate(range(1, duration - 2, 4), 1):
-        data += display_set(start * 1000, number, width, height, cue_image(f'[{label}] bitmap subtitle {n}'))
+        data += display_set(start * 1000, number, width, height, cue_image(f'[{label}] bitmap subtitle {n}', max(16, height // 18)))
         data += display_set(start * 1000 + 3500, number + 1, width, height, None)
         number += 2
     with open(out, 'wb') as f:

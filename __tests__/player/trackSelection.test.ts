@@ -37,6 +37,15 @@ describe('track selection', () => {
     expect(subtitleSelection(plan, -1)).toEqual({ type: 'disabled' });
   });
 
+  it('prefers the position inside the file for embedded tracks on direct play', () => {
+    const withPos: PlaybackPlan = {
+      ...plan,
+      subtitleTracks: plan.subtitleTracks.map(t => (t.index === 4 ? { ...t, containerPosition: 1 } : t)),
+    };
+    expect(subtitleSelection(withPos, 4)).toEqual({ type: 'index', value: 1 });
+    expect(subtitleSelection({ ...withPos, method: 'DirectStream' }, 4)).toEqual({ type: 'language', value: 'fra' });
+  });
+
   it('knows when the server has to make a new stream', () => {
     expect(canSwitchInStream(plan, { audioStreamIndex: 2 })).toBe(true);
     expect(canSwitchInStream({ ...plan, method: 'Transcode' }, { audioStreamIndex: 2 })).toBe(false);

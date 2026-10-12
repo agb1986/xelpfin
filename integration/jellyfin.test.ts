@@ -47,7 +47,7 @@ describe('connect', () => {
 
   it('lists public users', async () => {
     const users = await connector.publicUsers(server);
-    expect(users.map(u => u.name).sort()).toEqual(['guest', 'xelpfin']);
+    expect(users.map(u => u.name).sort()).toEqual(['bulk', 'guest', 'xelpfin']);
     expect(users.find(u => u.name === 'xelpfin')!.hasPassword).toBe(true);
     // Recent servers report HasPassword=true for everyone so the public list leaks nothing;
     // the login screen therefore always offers an (optional) password field.
@@ -89,13 +89,13 @@ describe('browse', () => {
   });
 
   it('pages movies sorted by name', async () => {
-    expect(movies.map(m => m.name)).toEqual(['Big Purple Test', 'Night Grid', 'Old Codec']);
+    expect(movies.map(m => m.name)).toEqual(['Big Purple Test', 'Burned Pixels', 'Night Grid', 'Old Codec', 'Pixel Subs']);
     const libId = (await admin.libraries()).find(l => l.name === 'Movies')!.id;
     const p1 = await admin.items({ libraryId: libId, limit: 2 });
     const p2 = await admin.items({ libraryId: libId, limit: 2, startIndex: 2 });
-    expect(p1.totalCount).toBe(3);
+    expect(p1.totalCount).toBe(5);
     expect(p1.items).toHaveLength(2);
-    expect(p2.items.map(i => i.name)).toEqual(['Old Codec']);
+    expect(p2.items.map(i => i.name)).toEqual(['Night Grid', 'Old Codec']);
     const n = await admin.items({ libraryId: libId, nameStartsWith: 'N' });
     expect(n.items.map(i => i.name)).toEqual(['Night Grid']);
   });
@@ -178,6 +178,56 @@ describe('playback', () => {
     const m3u8 = await (await fetch(plan.url)).text();
     expect(m3u8).toContain('#EXTM3U');
     await admin.reportStop({ plan, positionMs: 0, isPaused: false });
+  });
+});
+
+describe('subtitles', () => {
+  it('direct plays a PGS track by its position in the file', async () => {
+    const item = byName('Pixel Subs');
+    const plan = await admin.playback({ itemId: item.id }, BASELINE_CAPABILITIES);
+    expect(plan.method).toBe('DirectPlay');
+    const pgs = plan.subtitleTracks.find(t => t.label.startsWith('PGS bitmap'))!;
+    const ass = plan.subtitleTracks.find(t => t.label.startsWith('Styled ASS'))!;
+    expect(pgs).toMatchObject({ delivery: 'embedded', containerPosition: 0 });
+    // Text tracks are converted to WebVTT by the server so the app can style them.
+    expect(ass.delivery).toBe('external');
+    const vtt = await (await fetch(ass.url!)).text();
+    expect(vtt).toContain('WEBVTT');
+    await admin.reportStop({ plan, positionMs: 0, isPaused: false });
+  });
+
+  it('burns a VOBSUB track into a transcode', async () => {
+    const item = byName('Burned Pixels');
+    const first = await admin.playback({ itemId: item.id }, BASELINE_CAPABILITIES);
+    await admin.reportStop({ plan: first, positionMs: 0, isPaused: false });
+    const sub = first.subtitleTracks[0];
+    const plan = await admin.playback({ itemId: item.id, subtitleStreamIndex: sub.index }, BASELINE_CAPABILITIES);
+    expect(plan.method).toBe('Transcode');
+    expect(plan.url).toContain('SubtitleMethod=Encode');
+    expect(plan.subtitleTracks.find(t => t.index === sub.index)!.delivery).toBe('burn-in');
+    expect(await (await fetch(plan.url)).text()).toContain('#EXTM3U');
+    await admin.reportStop({ plan, positionMs: 0, isPaused: false });
+  });
+});
+
+describe('bulk user', () => {
+  let bulk: Backend;
+  beforeAll(async () => {
+    bulk = as(5).open(await as(5).login(server, 'bulk', ''));
+  });
+
+  it('pages through a 2000 item library', async () => {
+    const lib = (await bulk.libraries()).find(l => l.name === 'Bulk')!;
+    const p = await bulk.items({ libraryId: lib.id, startIndex: 1940, limit: 60 });
+    expect(p.totalCount).toBe(2000);
+    expect(p.items).toHaveLength(60);
+    expect(p.items[59].name).toMatch(/^Bulk Title 2000/);
+  });
+
+  it('sees an empty library as empty', async () => {
+    const lib = (await bulk.libraries()).find(l => l.name === 'Empty')!;
+    const p = await bulk.items({ libraryId: lib.id });
+    expect(p).toMatchObject({ totalCount: 0, items: [] });
   });
 });
 

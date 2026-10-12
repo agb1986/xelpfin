@@ -81,6 +81,7 @@ export function subtitleTracksFor(
   ctx: PlanContext,
   burnInIndex?: number,
 ): SubtitleTrack[] {
+  const inFile = (source.MediaStreams ?? []).filter(s => s.Type === 'Subtitle' && !s.IsExternal).map(s => s.Index);
   return (source.MediaStreams ?? [])
     .filter(s => s.Type === 'Subtitle')
     .map((s: MediaStreamDto) => {
@@ -92,7 +93,11 @@ export function subtitleTracksFor(
           `/Subtitles/${s.Index}/0/Stream.vtt${buildQuery({ api_key: ctx.token })}`;
         return { ...t, delivery: 'external', url, mimeType: 'text/vtt' };
       }
-      return { ...t, delivery: s.Index === burnInIndex ? 'burn-in' : 'embedded', url: undefined, mimeType: undefined };
+      if (s.Index === burnInIndex) {
+        return { ...t, delivery: 'burn-in', url: undefined, mimeType: undefined };
+      }
+      const at = inFile.indexOf(s.Index);
+      return { ...t, delivery: 'embedded', url: undefined, mimeType: undefined, containerPosition: at < 0 ? undefined : at };
     });
 }
 

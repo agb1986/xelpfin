@@ -29,8 +29,14 @@ export function subtitleSelection(plan: PlaybackPlan, streamIndex?: number): Tra
   if (!track) {
     return { type: 'disabled' };
   }
-  if (track.delivery === 'embedded' && track.language) {
-    return { type: 'language', value: track.language };
+  if (track.delivery === 'embedded') {
+    // Two tracks can share a language (a PGS and an ASS track, say), so prefer the position.
+    if (track.containerPosition !== undefined && plan.method === 'DirectPlay') {
+      return { type: 'index', value: track.containerPosition };
+    }
+    if (track.language) {
+      return { type: 'language', value: track.language };
+    }
   }
   // Burned-in subtitles are part of the picture.
   return { type: 'disabled' };

@@ -1,6 +1,8 @@
 // Idempotent first-run setup for the local Jellyfin test server.
 // Creates admin "xelpfin" (password "xelpfin-pass"), user "guest" (no password), the Movies and
 // Shows libraries with internet metadata providers off, and waits until the scan has finished.
+// A third user "bulk" (no password) sees only the 2000-title "Bulk" library and the "Empty"
+// library, which are kept away from the other users so their tests see a small library.
 const base = process.argv[2] ?? 'http://127.0.0.1:8096';
 const AUTH = 'MediaBrowser Client="xelpfin-setup", Device="setup", DeviceId="xelpfin-setup", Version="0.1.0"';
 export const ADMIN = { user: 'xelpfin', pass: 'xelpfin-pass' };
@@ -44,10 +46,12 @@ if (!cfg.QuickConnectAvailable || cfg.ServerName !== 'xelpfin-test' || cfg.MinRe
 }
 
 let users = await call('/Users', { token });
-if (!users.some(u => u.Name === 'guest')) {
-  const guest = await call('/Users/New', { method: 'POST', body: { Name: 'guest' }, token });
-  console.log('created user guest', guest.Id);
-  users = await call('/Users', { token });
+for (const name of ['guest', 'bulk']) {
+  if (!users.some(u => u.Name === name)) {
+    const created = await call('/Users/New', { method: 'POST', body: { Name: name }, token });
+    console.log('created user', name, created.Id);
+    users = await call('/Users', { token });
+  }
 }
 // Recent servers hide users from the login screen by default; show both so the user picker has something to list.
 for (const u of users) {
@@ -72,7 +76,13 @@ const libOptions = path => ({
   })),
 });
 let replaceAll = false;
-for (const [name, type, path] of [['Movies', 'movies', '/media/movies'], ['Shows', 'tvshows', '/media/shows']]) {
+const LIBRARIES = [
+  ['Movies', 'movies', '/media/movies'],
+  ['Shows', 'tvshows', '/media/shows'],
+  ['Bulk', 'movies', '/media/bulk'],
+  ['Empty', 'movies', '/media/empty'],
+];
+for (const [name, type, path] of LIBRARIES) {
   const existing = folders.find(f => f.Name === name);
   if (existing) {
     const opts = existing.LibraryOptions;
@@ -88,6 +98,18 @@ for (const [name, type, path] of [['Movies', 'movies', '/media/movies'], ['Shows
   console.log('created library', name);
 }
 
+// Library access: xelpfin and guest see Movies and Shows, bulk sees Bulk and Empty.
+const libIds = Object.fromEntries((await call('/Library/VirtualFolders', { token })).map(f => [f.Name, f.ItemId]));
+const access = { xelpfin: ['Movies', 'Shows'], guest: ['Movies', 'Shows'], bulk: ['Bulk', 'Empty'] };
+for (const u of await call('/Users', { token })) {
+  const want = (access[u.Name] ?? []).map(n => libIds[n]).filter(Boolean).sort();
+  const have = [...(u.Policy.EnabledFolders ?? [])].sort();
+  if (want.length && (u.Policy.EnableAllFolders || want.join() !== have.join())) {
+    await call(`/Users/${u.Id}/Policy`, { method: 'POST', body: { ...u.Policy, EnableAllFolders: false, EnabledFolders: want }, token });
+    console.log('library access for', u.Name, '->', access[u.Name].join(', '));
+  }
+}
+
 await call('/Library/Refresh', { method: 'POST', token });
 if (replaceAll) {
   // Re-read metadata from the NFO files, dropping anything fetched earlier.
@@ -98,14 +120,17 @@ if (replaceAll) {
     await call(`/Items/${item.Id}/Refresh?${r}`, { method: 'POST', token });
   }
 }
-// Wait for the scan task to go idle and the expected items to show up.
-for (let i = 0; i < 180; i++) {
+// Wait for the scan task to go idle and the expected items to show up. Counts are per user, and
+// the Bulk library is only visible to "bulk".
+const bulkAuth = await call('/Users/AuthenticateByName', { method: 'POST', body: { Username: 'bulk', Pw: '' } });
+for (let i = 0; i < 600; i++) {
   await sleep(1000);
   const tasks = await call('/ScheduledTasks?isHidden=false', { token });
   const scan = tasks.find(t => t.Key === 'RefreshLibrary');
   const counts = await call('/Items/Counts', { token });
-  if (scan && scan.State === 'Idle' && counts.MovieCount >= 3 && counts.EpisodeCount >= 4) {
-    console.log(`library ready: ${counts.MovieCount} movies, ${counts.SeriesCount} series, ${counts.EpisodeCount} episodes`);
+  const bulk = await call('/Items/Counts', { token: bulkAuth.AccessToken });
+  if (scan && scan.State === 'Idle' && counts.MovieCount >= 5 && counts.EpisodeCount >= 4 && bulk.MovieCount >= 2000) {
+    console.log(`library ready: ${counts.MovieCount} movies, ${counts.SeriesCount} series, ${counts.EpisodeCount} episodes; bulk ${bulk.MovieCount}`);
     process.exit(0);
   }
 }

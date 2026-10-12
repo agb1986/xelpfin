@@ -4,7 +4,7 @@
 set -euo pipefail
 source "$(dirname "$0")/jellyfin-env.sh"
 mkdir -p "$JF_DIR/config" "$JF_DIR/cache" "$JF_DIR/media"
-[ -d "$JF_DIR/media/movies/Big Purple Test (2024)" ] || bash "$APP_DIR/scripts/gen-media.sh" "$JF_DIR/media"
+bash "$APP_DIR/scripts/gen-media.sh" "$JF_DIR/media"
 
 if ! docker inspect "$JF_NAME" >/dev/null 2>&1; then
   docker run -d --name "$JF_NAME" --user "$(id -u):$(id -g)" \
