@@ -106,6 +106,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
 
   const view = useRef<PlayerViewHandle>(null);
   const surface = useRef<View>(null);
+  const sceneScroll = useRef<ScrollView>(null);
   const planRef = useRef<PlaybackPlan>(undefined);
   const positionRef = useRef(startPositionMs);
   const pausedRef = useRef(false);
@@ -588,7 +589,14 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
       {overlay !== 'hidden' ? (
         <View style={styles.overlay} testID="player-overlay" onLayout={e => setControlsHeight(e.nativeEvent.layout.height)}>
           {navigator && scenes.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scenes} testID="player-scenes">
+            <ScrollView
+              ref={sceneScroll}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.scenes}
+              testID="player-scenes"
+              // The card with preferred focus can start off-screen; bring it into view once.
+              onContentSizeChange={() => sceneScroll.current?.scrollTo({ x: Math.max(0, sceneNow * (200 + space.sm) - 200), animated: false })}>
               {scenes.map((sc, i) => (
                 <Focusable
                   key={`${sc.startMs}-${i}`}
