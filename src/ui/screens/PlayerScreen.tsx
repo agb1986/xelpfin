@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, StyleSheet, Text, useTVEventHandler, View, type HWEvent } from 'react-native';
-import type { ItemDetail, PlaybackPlan } from '../../backend/types';
+import { BackHandler, Image, ScrollView, StyleSheet, Text, useTVEventHandler, View, type HWEvent } from 'react-native';
+import type { ItemDetail, MediaSegment, PlaybackPlan } from '../../backend/types';
 import { getEngine } from '../../player';
 import { playerError } from '../../player/errors';
+import { activeSegment, currentSceneIndex, episodeCode, scenesFor, skipLabel, TAP_BURST_MS, tapOffsetMs } from '../../player/seeking';
 import { useSubtitleCues } from '../../player/useSubtitleCues';
 import type { PlayerViewHandle } from '../../player/PlayerEngine';
 import { useApp, useBackend } from '../../state/AppState';
@@ -14,10 +15,23 @@ import { formatDuration } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 
 const HIDE_AFTER_MS = 5000;
+
+function cancel(t: ReturnType<typeof setTimeout> | undefined) {
+  if (t) {
+    clearTimeout(t);
+  }
+}
+
 const REPORT_EVERY_MS = 10_000;
 const SEEK_STEP_MS = 10_000;
 const PROGRESS_RENDER_MS = 250;
 const SKIP_STEP_MS = 30_000;
+/** How long after the last tap a rewind/forward burst is committed as one seek. */
+const TAP_COMMIT_MS = 700;
+/** A held key counts as one tap per this interval, so holding scans fast but not instantly. */
+const HELD_TAP_MS = 500;
+/** A second BACK within this window of the first leaves the player. */
+const EXIT_WINDOW_MS = 2000;
 
 type Overlay = 'hidden' | 'seek' | 'controls';
 
@@ -84,6 +98,11 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const [subtitle, setSubtitle] = useState<number>(-1);
   const [overlay, setOverlay] = useState<Overlay>('controls');
   const [picker, setPicker] = useState<'audio' | 'subtitles'>();
+  const [segments, setSegments] = useState<MediaSegment[]>([]);
+  const [navigator, setNavigator] = useState(false);
+  // Target of a rewind/forward burst that has not been committed yet, shown on the bar.
+  const [pending, setPending] = useState<{ target: number; delta: number }>();
+  const [exitHint, setExitHint] = useState(false);
 
   const view = useRef<PlayerViewHandle>(null);
   const surface = useRef<View>(null);
@@ -98,7 +117,15 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const ended = useRef(false);
   const tracksRef = useRef<{ audio?: number; subtitle: number }>({ subtitle: -1 });
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const overlayRef = useRef<Overlay>('controls');
+  const navigatorRef = useRef(false);
+  const skipRef = useRef<MediaSegment>(undefined);
+  const exitArmedUntil = useRef(0);
+  const exitTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const burst = useRef<{ dir: 1 | -1; taps: number; base: number; lastAt: number; timer?: ReturnType<typeof setTimeout> }>(undefined);
   planRef.current = plan;
+  overlayRef.current = overlay;
+  navigatorRef.current = navigator;
   pausedRef.current = paused;
   tracksRef.current = { audio, subtitle };
   // Side-loaded subtitles are drawn by the app (see useSubtitleCues).
@@ -161,6 +188,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           return;
         }
         setItem(detail);
+        backend
+          .mediaSegments(itemId)
+          .then(found => !cancelled && setSegments(found))
+          .catch(() => undefined);
         const src = detail.mediaSources?.[0];
         const a = src ? pickAudio(src.audioTracks, settings) : undefined;
         const s = src ? pickSubtitle(src.subtitleTracks, settings) : -1;
@@ -201,15 +232,15 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const showOverlay = useCallback((mode: Overlay) => {
     setOverlay(mode);
     if (hideTimer.current) {
-      clearTimeout(hideTimer.current);
+      cancel(hideTimer.current);
     }
-    hideTimer.current = setTimeout(() => !pausedRef.current && setOverlay('hidden'), HIDE_AFTER_MS);
+    hideTimer.current = setTimeout(() => !pausedRef.current && !navigatorRef.current && setOverlay('hidden'), HIDE_AFTER_MS);
   }, []);
   useEffect(
     () => () => {
-      if (hideTimer.current) {
-        clearTimeout(hideTimer.current);
-      }
+      cancel(hideTimer.current);
+      cancel(exitTimer.current);
+      cancel(burst.current?.timer);
     },
     [],
   );
@@ -225,15 +256,72 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
     claimFocus.current = overlay !== 'controls';
   }, [overlay]);
 
-  const seekBy = useCallback(
-    (delta: number) => {
+  const seekTo = useCallback(
+    (ms: number) => {
       const max = duration || planRef.current?.durationMs || Infinity;
-      const target = Math.max(0, Math.min(max - 1000, positionRef.current + delta));
+      const target = Math.max(0, Math.min(max - 1000, ms));
       positionRef.current = target;
       setPosition(target);
       view.current?.seek(target);
     },
     [duration],
+  );
+  const seekBy = useCallback((delta: number) => seekTo(positionRef.current + delta), [seekTo]);
+
+  /** Commits the rewind/forward burst in progress as a single seek. */
+  const commitBurst = useCallback(() => {
+    const b = burst.current;
+    burst.current = undefined;
+    if (!b) {
+      return;
+    }
+    cancel(b.timer);
+    seekTo(b.base + b.dir * tapOffsetMs(b.taps));
+    setPending(undefined);
+  }, [seekTo]);
+
+  /**
+   * One rewind/forward tap. Taps in quick succession escalate (10 s, 30 s, 1 min, then 5 min
+   * each) and are committed as one seek once the taps stop.
+   */
+  const tapSeek = useCallback(
+    (dir: 1 | -1, held: boolean) => {
+      const now = Date.now();
+      let b = burst.current;
+      if (b && b.dir !== dir) {
+        commitBurst();
+        b = undefined;
+      }
+      if (b && held && now - b.lastAt < HELD_TAP_MS) {
+        return;
+      }
+      if (!b || now - b.lastAt > TAP_BURST_MS + TAP_COMMIT_MS) {
+        b = { dir, taps: 0, base: positionRef.current, lastAt: now };
+      }
+      cancel(b.timer);
+      b.taps += 1;
+      b.lastAt = now;
+      b.timer = setTimeout(commitBurst, TAP_COMMIT_MS);
+      burst.current = b;
+      const max = duration || planRef.current?.durationMs || Infinity;
+      const delta = dir * tapOffsetMs(b.taps);
+      setPending({ target: Math.max(0, Math.min(max - 1000, b.base + delta)), delta });
+    },
+    [commitBurst, duration],
+  );
+
+  const closeNavigator = useCallback(() => {
+    setNavigator(false);
+    navigatorRef.current = false;
+    showOverlay('controls');
+  }, [showOverlay]);
+
+  const skipSegment = useCallback(
+    (seg: MediaSegment) => {
+      seekTo(seg.endMs);
+      showOverlay('seek');
+    },
+    [seekTo, showOverlay],
   );
 
   const togglePause = useCallback(() => {
@@ -261,11 +349,8 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           togglePause();
           break;
         case 'fastForward':
-          seekBy(SKIP_STEP_MS);
-          showOverlay(overlay === 'controls' ? 'controls' : 'seek');
-          break;
         case 'rewind':
-          seekBy(-SKIP_STEP_MS);
+          tapSeek(type === 'rewind' ? -1 : 1, held);
           showOverlay(overlay === 'controls' ? 'controls' : 'seek');
           break;
         case 'left':
@@ -273,12 +358,24 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           if (overlay === 'controls') {
             showOverlay('controls'); // D-pad moves between buttons; just keep the overlay up.
           } else {
-            seekBy(type === 'left' ? -SEEK_STEP_MS : SEEK_STEP_MS);
+            tapSeek(type === 'left' ? -1 : 1, held);
             showOverlay('seek');
           }
           break;
-        case 'select':
         case 'up':
+          // Controls already up: Up opens the scene navigator.
+          if (overlay === 'controls' && !navigatorRef.current) {
+            setNavigator(true);
+          }
+          showOverlay('controls');
+          break;
+        case 'select':
+          // Hidden controls and a skippable segment: the surface's press skips it instead.
+          if (overlay === 'hidden' && skipRef.current) {
+            break;
+          }
+          showOverlay('controls');
+          break;
         case 'down':
         case 'info':
         case 'menu':
@@ -288,7 +385,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           break;
       }
     },
-    [active, picker, overlay, seekBy, showOverlay, togglePause],
+    [active, picker, overlay, tapSeek, showOverlay, togglePause],
   );
   useTVEventHandler(onKey);
 
@@ -299,23 +396,42 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
       return;
     }
     const t = setTimeout(() => surface.current?.requestTVFocus?.(), 0);
-    return () => clearTimeout(t);
+    return () => cancel(t);
   }, [active, picker, overlay, error, plan]);
 
-  // BACK hides the controls first; a second BACK leaves the player.
+  // BACK lowers the navigator, then the controls. With nothing showing, the first BACK asks
+  // for confirmation and a second one within a couple of seconds leaves the player.
   useEffect(() => {
     if (!active) {
       return;
     }
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (overlay === 'controls' && planRef.current && !pausedRef.current && !ended.current) {
-        setOverlay('hidden');
+      if (!planRef.current || ended.current) {
+        return false;
+      }
+      if (navigatorRef.current) {
+        closeNavigator();
         return true;
       }
-      return false;
+      const now = Date.now();
+      if (overlayRef.current !== 'hidden') {
+        cancel(hideTimer.current);
+        setOverlay('hidden');
+        // A quick second BACK right after lowering the controls leaves.
+        exitArmedUntil.current = now + EXIT_WINDOW_MS;
+        return true;
+      }
+      if (now < exitArmedUntil.current) {
+        return false;
+      }
+      exitArmedUntil.current = now + EXIT_WINDOW_MS;
+      setExitHint(true);
+      cancel(exitTimer.current);
+      exitTimer.current = setTimeout(() => setExitHint(false), EXIT_WINDOW_MS);
+      return true;
     });
     return () => sub.remove();
-  }, [active, overlay]);
+  }, [active, closeNavigator]);
 
   const onEnd = useCallback(async () => {
     if (ended.current || !alive.current) {
@@ -377,9 +493,19 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   }
 
   const total = duration || plan?.durationMs || item?.runtimeMs || 0;
-  const pct = total ? Math.min(1, position / total) : 0;
+  const pct = total ? Math.min(1, (pending?.target ?? position) / total) : 0;
   const bufPct = total ? Math.min(1, buffered / total) : 0;
-  const title = item ? (item.kind === 'episode' && item.seriesName ? `${item.seriesName} · ${item.name}` : item.name) : '';
+  const code = item?.kind === 'episode' ? episodeCode(item.parentIndexNumber, item.indexNumber) : undefined;
+  const title = item
+    ? item.kind === 'episode' && item.seriesName
+      ? [item.seriesName, code, item.name].filter(Boolean).join(' · ')
+      : item.name
+    : '';
+  const shown = pending?.target ?? position;
+  const skip = active && plan && !buffering ? activeSegment(segments, position) : undefined;
+  skipRef.current = skip;
+  const scenes = navigator ? scenesFor(item?.chapters, total) : [];
+  const sceneNow = currentSceneIndex(scenes, position);
   const audioLabel = plan?.audioTracks.find(a => a.index === audio)?.label;
   const subLabel = subtitle >= 0 ? plan?.subtitleTracks.find(s => s.index === subtitle)?.label : 'Off';
 
@@ -421,7 +547,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
 
       {/* Holds focus while the controls are hidden so remote keys still reach the player. */}
       {overlay !== 'controls' ? (
-        <Focusable ref={surface} testID="player-surface" hasTVPreferredFocus style={StyleSheet.absoluteFill} onPress={() => showOverlay('controls')}>
+        <Focusable ref={surface} testID="player-surface" hasTVPreferredFocus style={StyleSheet.absoluteFill} onPress={() => (skipRef.current ? skipSegment(skipRef.current) : showOverlay('controls'))}>
           <View />
         </Focusable>
       ) : null}
@@ -446,8 +572,43 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
         </View>
       ) : null}
 
+      {skip && overlay === 'hidden' ? (
+        <View style={styles.skip} pointerEvents="none" testID="player-skip-hint">
+          <Text style={styles.skipText}>{skipLabel(skip.kind)}</Text>
+          <Text style={styles.skipSub}>press OK</Text>
+        </View>
+      ) : null}
+
+      {exitHint ? (
+        <View style={styles.hint} pointerEvents="none" testID="player-exit-hint">
+          <Text style={styles.hintText}>Press back again to exit</Text>
+        </View>
+      ) : null}
+
       {overlay !== 'hidden' ? (
         <View style={styles.overlay} testID="player-overlay" onLayout={e => setControlsHeight(e.nativeEvent.layout.height)}>
+          {navigator && scenes.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scenes} testID="player-scenes">
+              {scenes.map((sc, i) => (
+                <Focusable
+                  key={`${sc.startMs}-${i}`}
+                  hasTVPreferredFocus={i === sceneNow}
+                  testID={`player-scene-${i}`}
+                  onPress={() => {
+                    seekTo(sc.startMs);
+                    closeNavigator();
+                  }}
+                  style={(f: boolean) => [styles.scene, f && styles.sceneFocused]}
+                >
+                  {sc.imageUrl ? <Image source={{ uri: sc.imageUrl }} style={styles.sceneImage} /> : <View style={styles.sceneImage} />}
+                  <Text style={styles.sceneTime}>{formatDuration(sc.startMs)}</Text>
+                  <Text style={styles.sceneName} numberOfLines={1}>
+                    {sc.name}
+                  </Text>
+                </Focusable>
+              ))}
+            </ScrollView>
+          ) : null}
           <Text style={styles.title} numberOfLines={1}>
             {title}
           </Text>
@@ -457,14 +618,23 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           </View>
           <View style={styles.times}>
             <Text style={styles.time} testID="player-position">
-              {formatDuration(position)}
+              {formatDuration(shown)}
             </Text>
-            <Text style={styles.time}>{plan ? plan.method.replace(/([a-z])([A-Z])/g, '$1 $2') : ''}</Text>
+            <Text style={pending ? styles.timePending : styles.time} testID="player-pending">
+              {pending
+                ? `${pending.delta < 0 ? '−' : '+'}${formatDuration(Math.abs(pending.delta))}`
+                : plan
+                ? plan.method.replace(/([a-z])([A-Z])/g, '$1 $2')
+                : ''}
+            </Text>
             <Text style={styles.time}>{formatDuration(total)}</Text>
           </View>
           {overlay === 'controls' ? (
             <View style={styles.buttons}>
-              <Button variant="primary" hasTVPreferredFocus={claimFocus.current} label={paused ? '▶ Play' : '❚❚ Pause'} onPress={togglePause} testID="player-playpause" />
+              {skip ? (
+                <Button variant="primary" hasTVPreferredFocus={claimFocus.current} label={skipLabel(skip.kind)} onPress={() => skipSegment(skip)} testID="player-skip" />
+              ) : null}
+              <Button variant={skip ? undefined : 'primary'} hasTVPreferredFocus={claimFocus.current && !skip} label={paused ? '▶ Play' : '❚❚ Pause'} onPress={togglePause} testID="player-playpause" />
               <Button label="−10 s" onPress={() => { seekBy(-SEEK_STEP_MS); showOverlay('controls'); }} testID="player-rew" />
               <Button label="+30 s" onPress={() => { seekBy(SKIP_STEP_MS); showOverlay('controls'); }} testID="player-ffwd" />
               {plan && plan.audioTracks.length > 1 ? (
@@ -526,6 +696,28 @@ const styles = StyleSheet.create({
   times: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
   time: { color: colors.textDim, fontSize: font.small },
   buttons: { flexDirection: 'row', marginTop: space.md },
+  timePending: { color: colors.accent, fontSize: font.small, fontWeight: '700' },
+  scenes: { marginBottom: space.md },
+  scene: { width: 200, marginRight: space.sm, padding: space.xs, borderRadius: radius.sm, borderWidth: 2, borderColor: 'transparent' },
+  sceneFocused: { borderColor: colors.accent, backgroundColor: colors.surfaceHi },
+  sceneImage: { width: 192, height: 108, borderRadius: radius.sm, backgroundColor: colors.surface },
+  sceneTime: { color: colors.text, fontSize: font.small, fontWeight: '700', marginTop: space.xs },
+  sceneName: { color: colors.textDim, fontSize: font.small },
+  skip: {
+    position: 'absolute',
+    right: space.safeX,
+    bottom: space.safeY + space.lg,
+    backgroundColor: 'rgba(10,6,20,0.85)',
+    borderColor: colors.accent,
+    borderWidth: 2,
+    borderRadius: radius.sm,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+  },
+  skipText: { color: colors.text, fontSize: font.title, fontWeight: '700' },
+  skipSub: { color: colors.textDim, fontSize: font.small },
+  hint: { position: 'absolute', bottom: space.safeY + space.lg, alignSelf: 'center', backgroundColor: 'rgba(10,6,20,0.85)', borderRadius: radius.sm, padding: space.sm },
+  hintText: { color: colors.text, fontSize: font.small },
   debug: { position: 'absolute', top: space.safeY, right: space.safeX, backgroundColor: 'rgba(0,0,0,0.7)', padding: space.sm, borderRadius: radius.sm },
   debugText: { color: '#9EF59E', fontSize: 12, fontFamily: 'monospace' },
 });

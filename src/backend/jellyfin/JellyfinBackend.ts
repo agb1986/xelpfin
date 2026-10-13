@@ -6,6 +6,7 @@ import {
   type ItemQuery,
   type Library,
   type MediaItem,
+  type MediaSegment,
   type Page,
   type PlaybackPlan,
   type PlaybackRequest,
@@ -22,12 +23,14 @@ import {
   mapDetail,
   mapItem,
   mapLibraries,
+  mapSegments,
   msToTicks,
   type AuthResultDto,
   type BaseItemDto,
   type ImageType,
   type ImageUrlFn,
   type ItemsResultDto,
+  type MediaSegmentsResultDto,
   type PlaybackInfoResponseDto,
   type PublicSystemInfoDto,
   type UserDto,
@@ -39,7 +42,7 @@ import { buildPlan } from './playback';
 
 /** Fields requested on list endpoints: enough for cards and rows, nothing heavy. */
 const LIST_FIELDS = ['PrimaryImageAspectRatio', 'Overview', 'Genres', 'ProductionYear', 'ChildCount', 'RecursiveItemCount'];
-const DETAIL_FIELDS = [...LIST_FIELDS, 'People', 'Studios', 'Taglines', 'MediaSources', 'MediaStreams', 'PremiereDate'];
+const DETAIL_FIELDS = [...LIST_FIELDS, 'People', 'Studios', 'Taglines', 'MediaSources', 'MediaStreams', 'PremiereDate', 'Chapters'];
 const IMAGE_TYPES = ['Primary', 'Backdrop', 'Thumb'];
 
 const SORT: Record<SortField, string> = {
@@ -393,6 +396,16 @@ export class JellyfinBackend implements Backend {
       await this.http
         .delete('/Videos/ActiveEncodings', { deviceId: this.client.deviceId, playSessionId: p.plan.playSessionId })
         .catch(() => undefined);
+    }
+  }
+
+  async mediaSegments(itemId: string): Promise<MediaSegment[]> {
+    try {
+      const r = await this.http.get<MediaSegmentsResultDto>(`/MediaSegments/${encodeURIComponent(itemId)}`);
+      return mapSegments(r.Items);
+    } catch {
+      // Servers before 10.10 have no such endpoint; a missing skip button is not an error.
+      return [];
     }
   }
 

@@ -10,6 +10,7 @@ import {
   type ItemQuery,
   type Library,
   type MediaItem,
+  type MediaSegment,
   type Page,
   type PlaybackPlan,
   type PlaybackRequest,
@@ -202,6 +203,9 @@ export class MockBackend implements Backend {
   }
   async reportStop(report: ProgressReport): Promise<void> {
     this.reports.push({ type: 'stop', report });
+  }
+  async mediaSegments(): Promise<MediaSegment[]> {
+    return [];
   }
   async setPlayed(itemId: string, played: boolean): Promise<void> {
     const it = this.all().find(i => i.id === itemId);

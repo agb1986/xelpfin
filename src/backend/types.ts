@@ -110,6 +110,24 @@ export interface ItemDetail extends MediaItem {
   /** For series: the next episode to watch. */
   nextUp?: MediaItem;
   mediaSources?: MediaSourceSummary[];
+  /** Chapter marks embedded in the file or added by the server; empty when there are none. */
+  chapters?: Chapter[];
+}
+
+export interface Chapter {
+  name: string;
+  startMs: number;
+  /** Absolute thumbnail URL when the server has an image for this chapter. */
+  imageUrl?: string;
+}
+
+export type SegmentKind = 'intro' | 'outro' | 'recap' | 'preview' | 'commercial' | 'unknown';
+
+/** A stretch of an item the server has tagged, such as the opening titles or the end credits. */
+export interface MediaSegment {
+  kind: SegmentKind;
+  startMs: number;
+  endMs: number;
 }
 
 export interface MediaSourceSummary {

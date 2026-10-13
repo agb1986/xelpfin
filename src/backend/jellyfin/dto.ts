@@ -8,7 +8,9 @@ import type {
   ItemKind,
   Library,
   MediaItem,
+  MediaSegment,
   MediaSourceSummary,
+  SegmentKind,
   SubtitleTrack,
   UserData,
 } from '../types';
@@ -119,6 +121,42 @@ export interface BaseItemDto {
   MediaSources?: MediaSourceDto[];
   MediaType?: string;
   IsFolder?: boolean;
+  Chapters?: ChapterDto[];
+}
+
+export interface ChapterDto {
+  Name?: string;
+  StartPositionTicks?: number;
+  ImageTag?: string;
+}
+
+export interface MediaSegmentDto {
+  Type?: string;
+  StartTicks?: number;
+  EndTicks?: number;
+}
+
+export interface MediaSegmentsResultDto {
+  Items?: MediaSegmentDto[];
+}
+
+const SEGMENT_KINDS: Record<string, SegmentKind> = {
+  intro: 'intro',
+  outro: 'outro',
+  recap: 'recap',
+  preview: 'preview',
+  commercial: 'commercial',
+};
+
+export function mapSegments(dtos: MediaSegmentDto[] | undefined): MediaSegment[] {
+  return (dtos ?? [])
+    .map(d => ({
+      kind: SEGMENT_KINDS[(d.Type ?? '').toLowerCase()] ?? ('unknown' as SegmentKind),
+      startMs: ticksToMs(d.StartTicks) ?? 0,
+      endMs: ticksToMs(d.EndTicks) ?? 0,
+    }))
+    .filter(s => s.endMs > s.startMs)
+    .sort((a, b) => a.startMs - b.startMs);
 }
 
 export interface ItemsResultDto {
@@ -338,6 +376,11 @@ export function mapDetail(i: BaseItemDto, img: ImageUrlFn, baseUrl?: string): It
     tagline: i.Taglines?.[0],
     premiereDate: i.PremiereDate,
     mediaSources: i.MediaSources?.map(ms => mapMediaSource(ms, baseUrl)),
+    chapters: i.Chapters?.map((c, n) => ({
+      name: c.Name || `Chapter ${n + 1}`,
+      startMs: ticksToMs(c.StartPositionTicks) ?? 0,
+      imageUrl: c.ImageTag && baseUrl ? `${baseUrl}/Items/${i.Id}/Images/Chapter/${n}?maxWidth=320&tag=${c.ImageTag}` : undefined,
+    })),
   };
 }
 

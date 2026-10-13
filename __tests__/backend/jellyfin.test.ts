@@ -169,6 +169,41 @@ describe('JellyfinBackend', () => {
     expect(f.calls[1].query.seriesId).toBe('s1');
   });
 
+  it('maps chapters on item detail', async () => {
+    const { b, f } = setup({
+      'GET /Items/m1': {
+        ...movieDto,
+        Chapters: [
+          { Name: 'Opening', StartPositionTicks: 0, ImageTag: 'c0' },
+          { StartPositionTicks: 600_000_000 },
+        ],
+      },
+    });
+    const d = await b.item('m1');
+    expect(f.calls[0].query.fields).toContain('Chapters');
+    expect(d.chapters).toEqual([
+      { name: 'Opening', startMs: 0, imageUrl: 'http://srv:8096/Items/m1/Images/Chapter/0?maxWidth=320&tag=c0' },
+      { name: 'Chapter 2', startMs: 60_000, imageUrl: undefined },
+    ]);
+  });
+
+  it('reads media segments, sorted, and treats a missing endpoint as none', async () => {
+    const { b } = setup({
+      'GET /MediaSegments/e1': {
+        Items: [
+          { Type: 'Outro', StartTicks: 12_000_000_000, EndTicks: 12_600_000_000 },
+          { Type: 'Intro', StartTicks: 100_000_000, EndTicks: 700_000_000 },
+          { Type: 'Intro', StartTicks: 5, EndTicks: 5 },
+        ],
+      },
+    });
+    expect(await b.mediaSegments('e1')).toEqual([
+      { kind: 'intro', startMs: 10_000, endMs: 70_000 },
+      { kind: 'outro', startMs: 1_200_000, endMs: 1_260_000 },
+    ]);
+    expect(await b.mediaSegments('nope')).toEqual([]);
+  });
+
   it('searches, gets next up, latest, seasons and episodes', async () => {
     const { b, f } = setup({
       'GET /Items': { Items: [movieDto], TotalRecordCount: 1 },

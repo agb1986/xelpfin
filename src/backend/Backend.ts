@@ -4,6 +4,7 @@ import type {
   ItemQuery,
   Library,
   MediaItem,
+  MediaSegment,
   Page,
   PlaybackPlan,
   PlaybackRequest,
@@ -64,6 +65,8 @@ export interface Backend {
   reportStart(report: ProgressReport): Promise<void>;
   reportProgress(report: ProgressReport): Promise<void>;
   reportStop(report: ProgressReport): Promise<void>;
+  /** Tagged intro/credits ranges. Resolves empty when the server has none or does not support it. */
+  mediaSegments(itemId: string): Promise<MediaSegment[]>;
   setPlayed(itemId: string, played: boolean): Promise<void>;
   setFavorite(itemId: string, favorite: boolean): Promise<void>;
 }
