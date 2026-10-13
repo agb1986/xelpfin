@@ -105,22 +105,24 @@ export function DetailScreen({ itemId }: { itemId: string }) {
     <View style={styles.root} testID="detail">
       {backdrop ? <Image source={{ uri: backdrop }} style={styles.backdrop} resizeMode="cover" blurRadius={1} /> : null}
       <View style={styles.scrim} />
-      <ScrollView contentContainerStyle={styles.body}>
+      <ScrollView contentContainerStyle={isSeries ? styles.bodySeries : styles.body}>
         <View style={styles.top}>
-          {item.posterUrl && item.kind !== 'episode' ? <Image source={{ uri: item.posterUrl }} style={styles.poster} /> : null}
+          {item.posterUrl && item.kind !== 'episode' ? (
+            <Image source={{ uri: item.posterUrl }} style={isSeries ? styles.posterSeries : styles.poster} />
+          ) : null}
           <View style={styles.info}>
-            <Text style={styles.title} numberOfLines={2} testID="detail-title">
+            <Text style={styles.title} numberOfLines={isSeries ? 1 : 2} testID="detail-title">
               {item.name}
             </Text>
             <Text style={styles.meta}>{metaLine(item)}</Text>
-            {item.genres?.length ? <Text style={styles.meta}>{item.genres.slice(0, 4).join(', ')}</Text> : null}
-            {item.tagline ? <Text style={styles.tagline}>{item.tagline}</Text> : null}
+            {!isSeries && item.genres?.length ? <Text style={styles.meta}>{item.genres.slice(0, 4).join(', ')}</Text> : null}
+            {!isSeries && item.tagline ? <Text style={styles.tagline}>{item.tagline}</Text> : null}
             {item.overview ? (
-              <Text style={styles.overview} numberOfLines={5}>
+              <Text style={styles.overview} numberOfLines={isSeries ? 3 : 5}>
                 {item.overview}
               </Text>
             ) : null}
-            {mediaLine(item) ? <Text style={styles.media}>{mediaLine(item)}</Text> : null}
+            {!isSeries && mediaLine(item) ? <Text style={styles.media}>{mediaLine(item)}</Text> : null}
             <View style={styles.actions}>
               {isSeries ? (
                 next ? (
@@ -185,6 +187,10 @@ const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, opacity: 0.45 },
   scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,16,31,0.55)' },
   body: { paddingTop: space.safeY + space.md, paddingBottom: space.xl },
+  // A series page has to fit the 540 dp canvas without scrolling: header, seasons and one
+  // episode row. Anything taller makes the page jump down when focus reaches the episodes.
+  bodySeries: { paddingTop: space.safeY },
+  posterSeries: { width: 135, height: 202, borderRadius: radius.md, marginRight: space.xl, backgroundColor: colors.surface },
   top: { flexDirection: 'row', paddingHorizontal: space.safeX },
   poster: { width: 180, height: 270, borderRadius: radius.md, marginRight: space.xl, backgroundColor: colors.surface },
   info: { flex: 1 },
@@ -195,6 +201,6 @@ const styles = StyleSheet.create({
   media: { color: colors.textDim, fontSize: font.small, marginTop: space.md },
   actions: { flexDirection: 'row', flexWrap: 'wrap', marginTop: space.lg, paddingVertical: space.xs },
   error: { color: colors.danger, fontSize: font.body, marginTop: space.sm },
-  series: { marginTop: space.lg },
-  seasons: { paddingHorizontal: space.safeX, paddingVertical: space.sm },
+  series: { marginTop: space.md },
+  seasons: { paddingHorizontal: space.safeX, paddingVertical: space.xs },
 });

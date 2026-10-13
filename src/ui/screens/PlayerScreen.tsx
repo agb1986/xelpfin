@@ -121,6 +121,8 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const overlayRef = useRef<Overlay>('controls');
   const navigatorRef = useRef(false);
   const skipRef = useRef<MediaSegment>(undefined);
+  // Segments the viewer waved away with BACK; keyed by kind and start so each shows once.
+  const [dismissed, setDismissed] = useState<string[]>([]);
   const exitArmedUntil = useRef(0);
   const exitTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const burst = useRef<{ dir: 1 | -1; taps: number; base: number; lastAt: number; timer?: ReturnType<typeof setTimeout> }>(undefined);
@@ -415,6 +417,11 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
         return true;
       }
       const now = Date.now();
+      if (overlayRef.current === 'hidden' && skipRef.current) {
+        const seg = skipRef.current;
+        setDismissed(d => [...d, `${seg.kind}:${seg.startMs}`]);
+        return true;
+      }
       if (overlayRef.current !== 'hidden') {
         cancel(hideTimer.current);
         setOverlay('hidden');
@@ -503,7 +510,8 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
       : item.name
     : '';
   const shown = pending?.target ?? position;
-  const skip = active && plan && !buffering ? activeSegment(segments, position) : undefined;
+  const found = active && plan && !buffering ? activeSegment(segments, position) : undefined;
+  const skip = found && !dismissed.includes(`${found.kind}:${found.startMs}`) ? found : undefined;
   skipRef.current = skip;
   const scenes = navigator ? scenesFor(item?.chapters, total) : [];
   const sceneNow = currentSceneIndex(scenes, position);
@@ -575,8 +583,9 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
 
       {skip && overlay === 'hidden' ? (
         <View style={styles.skip} pointerEvents="none" testID="player-skip-hint">
-          <Text style={styles.skipText}>{skipLabel(skip.kind)}</Text>
-          <Text style={styles.skipSub}>press OK</Text>
+          <Text style={styles.skipText}>
+            {skipLabel(skip.kind)} <Text style={styles.skipSub}>· OK</Text>
+          </Text>
         </View>
       ) : null}
 
@@ -717,12 +726,12 @@ const styles = StyleSheet.create({
     bottom: space.safeY + space.lg,
     backgroundColor: 'rgba(10,6,20,0.85)',
     borderColor: colors.accent,
-    borderWidth: 2,
+    borderWidth: 1,
     borderRadius: radius.sm,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
   },
-  skipText: { color: colors.text, fontSize: font.title, fontWeight: '700' },
+  skipText: { color: colors.text, fontSize: font.small, fontWeight: '700' },
   skipSub: { color: colors.textDim, fontSize: font.small },
   hint: { position: 'absolute', bottom: space.safeY + space.lg, alignSelf: 'center', backgroundColor: 'rgba(10,6,20,0.85)', borderRadius: radius.sm, padding: space.sm },
   hintText: { color: colors.text, fontSize: font.small },

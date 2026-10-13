@@ -83,7 +83,8 @@ and for working on the UI without a server.
   - Skip Intro / Credits / Recap / Preview is offered while the position is inside a segment
     returned by `Backend.mediaSegments`. Jellyfin 10.10+ serves these at `/MediaSegments/{id}`;
     they exist only when something on the server creates them (for example the Intro Skipper
-    plugin). Older servers or empty results simply show no button.
+    plugin). Older servers or empty results simply show no button. While the compact hint is
+    up (controls hidden), BACK dismisses it for that segment instead of leaving the player.
   - BACK lowers the controls or seek bar (also when paused) and arms a short window; a second BACK
     inside it leaves the player. With nothing showing, the first BACK only shows "Press back
     again to exit".

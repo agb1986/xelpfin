@@ -21,12 +21,13 @@ interface MediaRowProps {
  */
 export function MediaRow({ title, items, variant, onPress, titleFor, preferFirst, testID }: MediaRowProps) {
   const stride = cardStride(variant);
+  const count = items.length;
   const getItemLayout = useCallback((_: unknown, index: number) => ({ length: stride, offset: stride * index, index }), [stride]);
   const renderItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => (
-      <Card item={item} variant={variant} onPress={onPress} title={titleFor?.(item)} hasTVPreferredFocus={preferFirst && index === 0} />
+      <Card item={item} variant={variant} onPress={onPress} title={titleFor?.(item)} hasTVPreferredFocus={preferFirst && index === 0} lastInRow={index === count - 1} />
     ),
-    [variant, onPress, titleFor, preferFirst],
+    [variant, onPress, titleFor, preferFirst, count],
   );
   if (items.length === 0) {
     return null;

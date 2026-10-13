@@ -1,5 +1,5 @@
-import React, { memo } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import React, { memo, useEffect, useRef, useState } from 'react';
+import { findNodeHandle, Image, StyleSheet, Text, View } from 'react-native';
 import type { MediaItem } from '../../backend/types';
 import { card, colors, focusScale, font, radius, space } from '../theme';
 import { Focusable } from './Focusable';
@@ -63,6 +63,8 @@ interface CardProps {
   onPress(item: MediaItem): void;
   onFocus?(item: MediaItem): void;
   hasTVPreferredFocus?: boolean;
+  /** Last card of a row: D-pad right stays here instead of jumping to whatever is nearest. */
+  lastInRow?: boolean;
   /** Title under the image; thumbs of episodes show the episode name with the series as subtitle. */
   title?: string;
   testID?: string;
@@ -74,9 +76,18 @@ export const Card = memo(function Card({
   onPress,
   onFocus,
   hasTVPreferredFocus,
+  lastInRow,
   title,
   testID,
 }: CardProps) {
+  const ref = useRef<View>(null);
+  // Pointing nextFocusRight at the card itself is how Android is told "nothing further right".
+  const [self, setSelf] = useState<number>();
+  useEffect(() => {
+    if (lastInRow) {
+      setSelf(findNodeHandle(ref.current) ?? undefined);
+    }
+  }, [lastInRow]);
   const size = card[variant];
   const uri = imageFor(item, variant);
   const progress = progressOf(item);
@@ -85,6 +96,8 @@ export const Card = memo(function Card({
     item.kind === 'series' ? item.userData?.unplayedItemCount : undefined;
   return (
     <Focusable
+      ref={ref}
+      nextFocusRight={lastInRow ? self : undefined}
       testID={testID ?? `card-${item.id}`}
       accessibilityLabel={item.name}
       onPress={() => onPress(item)}
