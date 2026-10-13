@@ -72,6 +72,22 @@ and for working on the UI without a server.
     directly, and those drop side-loaded subtitle configurations, so a side-loaded track never
     reaches ExoPlayer. Drawing the cues in shared code also gives Vega the same subtitles,
     styling and switching without native work.
+- Remote controls (`PlayerScreen`, with the pure rules in `player/seeking.ts`):
+  - Rewind/forward and left/right (while the controls are hidden) escalate with quick taps: one
+    tap is 10 s, two are 30 s in total, three are 1 min, and every tap after that adds 5 min. The
+    taps are collected into one burst and committed as a single seek once they stop; the pending
+    target is shown on the bar meanwhile.
+  - Up with the controls showing opens the scene navigator: the item's chapters, or marks every
+    five minutes when the file has none (nothing for items of five minutes or less). The card
+    for the current scene has focus; choosing one seeks there.
+  - Skip Intro / Credits / Recap / Preview is offered while the position is inside a segment
+    returned by `Backend.mediaSegments`. Jellyfin 10.10+ serves these at `/MediaSegments/{id}`;
+    they exist only when something on the server creates them (for example the Intro Skipper
+    plugin). Older servers or empty results simply show no button.
+  - BACK lowers the controls or seek bar (also when paused) and arms a short window; a second BACK
+    inside it leaves the player. With nothing showing, the first BACK only shows "Press back
+    again to exit".
+  - The title line carries the episode code (`S01E04`) for episodes.
 
 ## Platform (`src/platform`)
 

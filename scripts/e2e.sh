@@ -4,7 +4,7 @@
 #
 #   scripts/e2e.sh [--install] [scenario ...]     (default: all scenarios, in order)
 #
-# Scenarios: quickconnect audio subtitles burnin substyle resume watched autoplay back
+# Scenarios: quickconnect audio subtitles burnin substyle resume watched autoplay back seek
 #            switch empty expiry offline
 # Extra, run only when named: perf (cold start, grid scrolling, memory)
 #
@@ -19,7 +19,7 @@ if [ "${1:-}" = --install ]; then
   shift
   install_apk
 fi
-ALL=(quickconnect audio subtitles burnin substyle resume watched autoplay back switch empty expiry offline)
+ALL=(quickconnect audio subtitles burnin substyle resume watched autoplay back seek switch empty expiry offline)
 SCENARIOS=("${@:-${ALL[@]}}")
 [ $# -gt 0 ] || SCENARIOS=("${ALL[@]}")
 
@@ -103,7 +103,8 @@ pick() { # pick BUTTON PICKER TEXT: open a picker from a button and choose the o
   wait_gone "$2" 5
 }
 leave_player() {
-  for _ in $(seq 4); do dump; ui has player || return 0; key BACK; sleep 1; done
+  # Two quick BACKs: the first lowers the controls (or asks to confirm), the second leaves.
+  for _ in $(seq 3); do dump; ui has player || return 0; key BACK BACK; sleep 1; done
   fail "could not leave the player"
 }
 setting() { # setting ID OPTION: change a setting through its picker (or toggle when OPTION is empty)
@@ -365,6 +366,72 @@ s_autoplay() {
   set_user_data "$e2" '{"PlaybackPositionTicks":0,"Played":false}'
 }
 
+bar_seconds() { # seconds shown by the player's position label once a pending seek has been applied
+  sleep 2
+  dump
+  ui has player-position || fail "no position label on the player bar"
+  ui text player-position | python3 -c '
+import re, sys
+parts = [int(x) for x in re.findall(r"\d+", sys.stdin.read())]
+t = 0
+for x in parts:
+    t = t * 60 + x
+print(t)'
+}
+s_seek() {
+  home xelpfin xelpfin-pass
+  # Escalating rewind/forward taps, the scene navigator and the episode code in the title.
+  local id
+  id=$(item_id "Long Chapters")
+  set_user_data "$id" '{"PlaybackPositionTicks":0,"Played":false}'
+  search_open long "Long Chapters"
+  play
+  sleep 4
+  # Seek while paused so the bar position read from the screen is exact. The server session can
+  # still show an earlier run of this scenario, so everything here is read from the screen.
+  key MEDIA_PLAY_PAUSE
+  wait_for player-overlay 10
+  local p0 p1 p2
+  p0=$(bar_seconds)
+  key BACK # lowers the controls, the video stays paused
+  key DPAD_RIGHT # one tap: +10 s
+  p1=$(bar_seconds)
+  echo "  one tap: ${p0}s -> ${p1}s"
+  [ "$p1" -eq $(( p0 + 10 )) ] || fail "one forward tap did not move 10 s"
+  key DPAD_RIGHT DPAD_RIGHT DPAD_RIGHT # three taps in a burst: +1 min in one seek
+  p2=$(bar_seconds)
+  echo "  three taps: ${p1}s -> ${p2}s"
+  [ "$p2" -eq $(( p1 + 60 )) ] || fail "three quick forward taps did not move a minute"
+  key DPAD_CENTER # controls up
+  wait_for player-overlay 10
+  key DPAD_UP # scene navigator
+  wait_for player-scenes 10
+  dump
+  for i in 0 1 2 3; do ui has "player-scene-$i" || fail "scene $i missing from the navigator"; done
+  echo "  navigator lists 4 chapters"
+  shot e2e-scenes
+  tap player-scene-3
+  wait_gone player-scenes 10
+  local p3
+  p3=$(bar_seconds)
+  echo "  third-last chapter: ${p3}s"
+  [ "$p3" -ge 268 ] || fail "choosing the last chapter did not seek to it"
+  leave_player
+  wait_for detail
+  for _ in $(seq 3); do key BACK; dump; ui has home && break; done
+  search_open Episode "Episode 1"
+  play
+  sleep 4
+  key MEDIA_PLAY_PAUSE
+  wait_for player-overlay 10
+  dump
+  ui find S01E01 >/dev/null || fail "title does not show S01E01"
+  echo "  title shows S01E01"
+  shot e2e-episode-code
+  leave_player
+  set_user_data "$id" '{"PlaybackPositionTicks":0,"Played":false}'
+}
+
 s_back() {
   home xelpfin xelpfin-pass
   # Every screen returns to where it came from, and pickers close before their screen.
@@ -378,11 +445,16 @@ s_back() {
   key DPAD_CENTER
   key BACK # hides the controls
   dump; ui has player || fail "first BACK in the player left it instead of hiding the controls"
+  sleep 4 # the double-tap window has passed: a lone BACK now only asks for confirmation
   key BACK
+  dump; ui has player || fail "a lone BACK on the bare video left the player"
+  ui has player-exit-hint || fail "no exit hint after a lone BACK on the bare video"
+  key BACK # second BACK inside the window leaves
   wait_for detail
   key BACK
   wait_for search
-  key BACK
+  # The search field may still hold the soft keyboard, which takes the first BACK.
+  for _ in 1 2 3; do key BACK; dump; ui has home && break; done
   wait_for home
   # BACK on the home screen leaves the app; the session survives a restart.
   key BACK

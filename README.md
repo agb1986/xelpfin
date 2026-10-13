@@ -63,7 +63,7 @@ npm run emu:start
 npm run smoke               # or: scripts/smoke.sh --no-install
 
 # 6. Scenario tests on the emulator (Quick Connect, audio and subtitle switching, burn-in,
-#    subtitle styling, resume, watched/favourite, autoplay, BACK, switch user/server, empty
+#    subtitle styling, resume, watched/favourite, autoplay, BACK, seek taps and scene navigator, switch user/server, empty
 #    library, token expiry, server going away). "offline" restarts the Jellyfin container.
 npm run e2e                 # or: scripts/e2e.sh [--install] [scenario ...]
 scripts/e2e.sh perf         # cold start, 2000-item grid scrolling and memory (not in the default run)

@@ -108,6 +108,23 @@ if [ ! -f "$d/Burned Pixels (2020).mkv" ]; then
   rm -rf "$tmp"
 fi
 
+# 7a. A 6-minute low-resolution film with four chapters: more than the five minutes the player
+#     needs before it offers a scene navigator, and chapters for it to list.
+d="$OUT/movies/Long Chapters (2021)"; mkdir -p "$d"
+if [ ! -f "$d/Long Chapters (2021).mkv" ]; then
+  tmp=$(mktemp -d)
+  {
+    echo ';FFMETADATA1'
+    for c in 0 1 2 3; do
+      printf '[CHAPTER]\nTIMEBASE=1/1000\nSTART=%d\nEND=%d\ntitle=Chapter %d\n' $((c * 90000)) $((c * 90000 + 89999)) $((c + 1))
+    done
+  } > "$tmp/chapters.txt"
+  ff -f lavfi -i "testsrc2=size=640x360:rate=10:duration=360" -f lavfi -i "sine=frequency=520:duration=360" -i "$tmp/chapters.txt" \
+     -map_metadata 2 -vf "hue=h=60,$(label 'Long Chapters' 40)" -c:v libx264 -preset veryfast -pix_fmt yuv420p -c:a aac -b:a 48k \
+     "$d/Long Chapters (2021).mkv"
+  rm -rf "$tmp"
+fi
+
 # 7. A 2000-title library for list performance (one tiny clip and a few posters, hard-linked),
 #    and an empty library. Both are only visible to the "bulk" test user.
 if [ ! -d "$OUT/bulk/Bulk Title 2000 (1999)" ]; then
@@ -140,6 +157,7 @@ nfo_movie "$OUT/movies/Big Purple Test (2024)" "Big Purple Test" 2024 "An H.264 
 nfo_movie "$OUT/movies/Night Grid (2023)" "Night Grid" 2023 "HEVC in Matroska with English AAC and German AC3 audio and two embedded subtitle tracks."
 nfo_movie "$OUT/movies/Old Codec (2001)" "Old Codec" 2001 "MS-MPEG4v3 video in AVI. No Android decoder exists, so the server has to transcode."
 nfo_movie "$OUT/movies/Pixel Subs (2022)" "Pixel Subs" 2022 "H.264 in Matroska with a PGS bitmap subtitle and a styled ASS subtitle."
+nfo_movie "$OUT/movies/Long Chapters (2021)" "Long Chapters" 2021 "Six minutes with four chapters, for the scene navigator."
 nfo_movie "$OUT/movies/Burned Pixels (2020)" "Burned Pixels" 2020 "MS-MPEG4v3 in Matroska with a VOBSUB bitmap subtitle that has to be burned in while transcoding."
 printf '<?xml version="1.0" encoding="utf-8"?>\n<tvshow><title>Test Show</title><year>2024</year><plot>A synthetic two-season show for testing seasons, episodes and next up.</plot><genre>Test</genre></tvshow>\n' \
   > "$OUT/shows/Test Show/tvshow.nfo"

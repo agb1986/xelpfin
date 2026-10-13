@@ -31,7 +31,7 @@ const TAP_COMMIT_MS = 700;
 /** A held key counts as one tap per this interval, so holding scans fast but not instantly. */
 const HELD_TAP_MS = 500;
 /** A second BACK within this window of the first leaves the player. */
-const EXIT_WINDOW_MS = 2000;
+const EXIT_WINDOW_MS = 3000;
 
 type Overlay = 'hidden' | 'seek' | 'controls';
 
