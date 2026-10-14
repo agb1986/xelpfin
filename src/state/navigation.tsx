@@ -10,7 +10,7 @@ export type Route =
   | { name: 'detail'; itemId: string; /** Series page: the season to show first. */ seasonId?: string }
   | { name: 'search' }
   | { name: 'settings' }
-  | { name: 'player'; itemId: string; startPositionMs?: number };
+  | { name: 'player'; itemId: string; startPositionMs?: number; /** Playing from the Randomizer: next is a random episode. */ shuffle?: boolean };
 
 interface Entry {
   key: number;

@@ -216,6 +216,12 @@ export class MockBackend implements Backend {
       it.userData = { ...(it.userData ?? { playbackPositionMs: 0, favorite: false }), played };
     }
   }
+  async clearProgress(itemId: string): Promise<void> {
+    const it = this.all().find(i => i.id === itemId);
+    if (it?.userData) {
+      it.userData = { ...it.userData, playbackPositionMs: 0 };
+    }
+  }
   async setFavorite(itemId: string, favorite: boolean): Promise<void> {
     const it = this.all().find(i => i.id === itemId);
     if (it) {

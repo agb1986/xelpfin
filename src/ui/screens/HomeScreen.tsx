@@ -4,6 +4,8 @@ import type { Library, MediaItem } from '../../backend/types';
 import { BackendError } from '../../backend/types';
 import { useApp, useBackend } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
+import { useHiddenNextUp, withoutHidden } from '../../state/hiddenNextUp';
+import { drawEpisode, loadPool, useRandomizer } from '../../state/randomizer';
 import { Button, EmptyView, ErrorView, LoadingView, MediaRow, TopBar } from '../components';
 import { useAsync } from '../hooks';
 import { colors, space } from '../theme';
@@ -22,6 +24,8 @@ export function HomeScreen() {
   const { signOut } = useApp();
   const nav = useNavigation();
   const active = useIsActive();
+  const randomizer = useRandomizer();
+  const { hidden } = useHiddenNextUp();
 
   const home = useAsync<HomeData>(async () => {
     const libraries = await backend.libraries();
@@ -74,12 +78,26 @@ export function HomeScreen() {
     );
   }
 
-  const { libraries, resume, nextUp, latest } = home.data;
+  const playRandom = async () => {
+    const pool = await loadPool(backend, randomizer.list.get().series);
+    let drawn: MediaItem | undefined;
+    randomizer.list.update(s => {
+      const d = drawEpisode(s, pool, Math.random);
+      drawn = d?.episode;
+      return d?.state ?? s;
+    });
+    if (drawn) {
+      nav.push({ name: 'player', itemId: drawn.id, startPositionMs: drawn.userData?.playbackPositionMs ?? 0, shuffle: true });
+    }
+  };
+
+  const { libraries, resume, latest } = home.data;
+  const nextUp = withoutHidden(home.data.nextUp, hidden);
   const empty = !resume.length && !nextUp.length && latest.every(l => !l.items.length);
   const firstRow = resume.length ? 'resume' : nextUp.length ? 'next' : 'latest';
   return (
     <View style={styles.root} testID="home">
-      <TopBar libraries={libraries} current="home" />
+      <TopBar libraries={libraries} current="home" onRandomizer={randomizer.state.series.length ? playRandom : undefined} />
       {empty ? (
         <EmptyView title="Nothing here yet" message="Your libraries are empty. Add media in the Jellyfin dashboard, then come back." />
       ) : (

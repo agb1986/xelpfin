@@ -5,7 +5,7 @@
 #   scripts/e2e.sh [--install] [scenario ...]     (default: all scenarios, in order)
 #
 # Scenarios: quickconnect audio subtitles burnin substyle resume watched autoplay back seek
-#            series switch empty expiry offline
+#            series prevnext randomizer actions switch empty expiry offline
 # Extra, run only when named: perf (cold start, grid scrolling, memory)
 #
 # Each scenario checks the result on the server (session state, user data) where there is one
@@ -19,7 +19,7 @@ if [ "${1:-}" = --install ]; then
   shift
   install_apk
 fi
-ALL=(quickconnect audio subtitles burnin substyle resume watched autoplay back seek series switch empty expiry offline)
+ALL=(quickconnect audio subtitles burnin substyle resume watched autoplay back seek series prevnext randomizer actions switch empty expiry offline)
 SCENARIOS=("${@:-${ALL[@]}}")
 [ $# -gt 0 ] || SCENARIOS=("${ALL[@]}")
 
@@ -484,6 +484,135 @@ s_series() {
   leave_player
   set_user_data "$e1" '{"PlaybackPositionTicks":0,"Played":false}'
   set_user_data "$e2" '{"PlaybackPositionTicks":0,"Played":false}'
+}
+
+to_home() { for _ in $(seq 5); do dump; ui has home && return 0; key BACK; sleep 1; done; fail "BACK did not reach Home"; }
+
+s_prevnext() {
+  home xelpfin xelpfin-pass
+  # Previous/Next buttons in the player: the first episode has only Next, a middle one both, the
+  # last one only Previous. Next switches playback to the following episode.
+  local e1 e2 e3
+  e1=$(item_id "Episode 1" Episode); e2=$(item_id "Episode 2" Episode); e3=$(item_id "Episode 3" Episode)
+  for id in "$e1" "$e2" "$e3"; do set_user_data "$id" '{"PlaybackPositionTicks":0,"Played":false}'; done
+  search_open show "Test Show"
+  wait_for season-1 10
+  # Choosing the season lands on its first episode; open it, then play.
+  tap season-1; sleep 2; dump
+  key DPAD_CENTER; wait_for detail 10
+  play
+  wait_session '^Episode 1' 30 name
+  controls; dump
+  ui has player-next-episode || fail "Episode 1 has no Next button"
+  ui has player-prev-episode && fail "Episode 1 has a Previous button"
+  echo "  Episode 1: Next only"
+  shot e2e-next-only
+  tap player-next-episode
+  wait_session '^Episode 2' 30 name
+  controls; dump
+  ui has player-prev-episode || fail "Episode 2 has no Previous button"
+  ui has player-next-episode || fail "Episode 2 has no Next button"
+  echo "  Episode 2: Previous and Next"
+  tap player-next-episode
+  wait_session '^Episode 3' 30 name
+  controls; dump
+  ui has player-prev-episode || fail "last episode of season has no Previous button"
+  ui has player-next-episode || fail "Episode 3 should lead on to the next season"
+  tap player-next-episode
+  wait_session '^Season Two' 30 name
+  controls; dump
+  ui has player-prev-episode || fail "last episode has no Previous button"
+  ui has player-next-episode && fail "last episode of the series has a Next button"
+  echo "  last episode: Previous only"
+  shot e2e-prev-only
+  tap player-prev-episode
+  wait_session '^Episode 3' 30 name
+  controls; dump
+  tap player-prev-episode
+  wait_session '^Episode 2' 30 name
+  echo "  Previous went back to Episode 2"
+  leave_player
+  for id in "$e1" "$e2" "$e3"; do set_user_data "$id" '{"PlaybackPositionTicks":0,"Played":false}'; done
+}
+
+s_randomizer() {
+  home xelpfin xelpfin-pass
+  # Add a series to the Randomizer: the tab shows on Home, starts playback of one of its
+  # episodes, and Next draws another. Removing the series removes the tab.
+  dump; ui has tab-randomizer && fail "Randomizer tab shown with an empty list"
+  search_open show "Test Show"
+  wait_for toggle-randomizer 10; dump
+  [[ "$(ui text toggle-randomizer)" == *Add* ]] || fail "toggle says '$(ui text toggle-randomizer)', not Add Randomizer"
+  tap toggle-randomizer; sleep 1; dump
+  [[ "$(ui text toggle-randomizer)" == *Remove* ]] || fail "toggle did not switch to Remove Randomizer"
+  shot e2e-randomizer-series
+  # The series page must still fit: episode row visible with the extra button.
+  ui has episodes || fail "episode row missing from series page with the Randomizer button"
+  to_home
+  ui has tab-randomizer || fail "no Randomizer tab on Home"
+  tap tab-randomizer
+  wait_session '^(Episode [123]|Season Two)' 40 name
+  local first; first=$(session name)
+  controls; dump
+  ui has player-prev-episode && fail "shuffle playback shows Previous"
+  tap player-next-episode
+  local second=""
+  for _ in $(seq 30); do second=$(session name); [ -n "$second" ] && [ "$second" != "$first" ] && break; sleep 1; done
+  echo "  shuffle played '$first' then '$second'"
+  [ "$second" != "$first" ] || fail "Next replayed the same episode"
+  leave_player
+  to_home
+  search_open show "Test Show"
+  wait_for toggle-randomizer 10
+  tap toggle-randomizer
+  to_home
+  ui has tab-randomizer && fail "Randomizer tab still shown after removing the series"
+  echo "  tab gone after removal"
+}
+
+s_actions() {
+  home xelpfin xelpfin-pass
+  # Settings actions: Clear Continue Watching resets resume positions after a confirm;
+  # Clear Next Up hides the current Next Up entries.
+  local m
+  m=$(item_id "Night Grid")
+  set_user_data "$m" '{"PlaybackPositionTicks":300000000,"Played":false}'
+  key BACK 2>/dev/null || true
+  home xelpfin xelpfin-pass
+  for _ in $(seq 10); do dump; ui has row-resume && break; sleep 1; done
+  ui has row-resume || fail "Continue Watching row missing before clearing"
+  tap tab-settings; wait_for settings 10; dump
+  move_until DPAD_DOWN act-clear-continue || true
+  dump; tap act-clear-continue; sleep 1; dump
+  [[ "$(ui text act-clear-continue)" == *confirm* ]] || fail "first press did not ask for confirmation"
+  shot e2e-actions-confirm
+  tap act-clear-continue; sleep 3; dump
+  echo "  result: $(ui text act-clear-continue)"
+  [[ "$(ui text act-clear-continue)" == Cleared* || "$(ui text act-clear-continue)" == *Cleared* ]] || fail "no result after confirm"
+  local pos; pos=$(ticks "$m" PlaybackPositionTicks)
+  [ "${pos:-0}" -eq 0 ] || fail "server still has position $pos"
+  shot e2e-actions-done
+  key BACK; wait_for home 10
+  for _ in $(seq 5); do dump; ui has row-resume || break; sleep 1; done
+  ui has row-resume && fail "Continue Watching still shown after clear"
+  echo "  Continue Watching cleared"
+  # Clear Next Up: needs an entry first (Episode 1 watched makes Episode 2 next).
+  local e1; e1=$(item_id "Episode 1" Episode)
+  set_user_data "$e1" '{"PlaybackPositionTicks":0,"Played":true}'
+  key BACK 2>/dev/null || true
+  home xelpfin xelpfin-pass
+  for _ in $(seq 10); do dump; ui has row-nextup && break; sleep 1; done
+  ui has row-nextup || fail "Next Up row missing before clearing"
+  tap tab-settings; wait_for settings 10; dump
+  move_until DPAD_DOWN act-clear-nextup || true
+  dump; tap act-clear-nextup; sleep 1; dump; tap act-clear-nextup; sleep 3; dump
+  echo "  result: $(ui text act-clear-nextup)"
+  key BACK; wait_for home 10
+  for _ in $(seq 5); do dump; ui has row-nextup || break; sleep 1; done
+  ui has row-nextup && fail "Next Up still shown after clear"
+  echo "  Next Up cleared"
+  set_user_data "$e1" '{"PlaybackPositionTicks":0,"Played":false}'
+  set_user_data "$m" '{"PlaybackPositionTicks":0,"Played":false}'
 }
 
 s_back() {

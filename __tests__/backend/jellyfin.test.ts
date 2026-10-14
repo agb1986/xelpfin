@@ -295,6 +295,13 @@ describe('JellyfinBackend', () => {
     ]);
   });
 
+  it('clears a resume position', async () => {
+    const { b, f } = setup({ 'POST /UserItems/m1/UserData': () => ({ json: {} }) });
+    await b.clearProgress('m1');
+    expect(f.calls[0].query.userId).toBe('u1');
+    expect(f.calls[0].body).toEqual({ PlaybackPositionTicks: 0 });
+  });
+
   it('validates the token', async () => {
     const { b } = setup({ 'GET /Users/u1': () => ({ status: 401 }) });
     await expect(b.validate()).rejects.toMatchObject({ kind: 'auth' });

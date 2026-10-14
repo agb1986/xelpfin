@@ -9,6 +9,7 @@ import type { PlayerViewHandle } from '../../player/PlayerEngine';
 import { useApp, useBackend } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
 import { findNextEpisode } from '../../state/nextEpisode';
+import { drawEpisode, loadPool, useRandomizer } from '../../state/randomizer';
 import { pickAudio, pickSubtitle } from '../../state/trackDefaults';
 import { Button, ErrorView, Focusable, LoadingView, OptionPicker, SubtitleText, type Option } from '../components';
 import { formatDuration } from '../hooks';
@@ -70,7 +71,7 @@ function shortLabel(label: string | undefined): string | undefined {
  * Full-screen playback: negotiates a plan with the backend, renders the engine view, reports
  * progress, and offers seek, audio and subtitle selection with the remote.
  */
-export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; startPositionMs?: number }) {
+export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: { itemId: string; startPositionMs?: number; shuffle?: boolean }) {
   const backend = useBackend();
   const app = useApp();
   const nav = useNavigation();
@@ -102,6 +103,8 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   // The strip above the controls: the scene navigator (Up) or the next-episodes reel (Down).
   const [navigator, setNavigator] = useState<'scenes' | 'episodes' | false>(false);
   const [upcoming, setUpcoming] = useState<MediaItem[]>([]);
+  const [previous, setPrevious] = useState<MediaItem>();
+  const randomizer = useRandomizer();
   // Target of a rewind/forward burst that has not been committed yet, shown on the bar.
   const [pending, setPending] = useState<{ target: number; delta: number }>();
   const [exitHint, setExitHint] = useState(false);
@@ -216,7 +219,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           return;
         }
         setItem(detail);
-        if (detail.kind === 'episode' && detail.seriesId) {
+        if (detail.kind === 'episode' && detail.seriesId && !shuffle) {
           const seriesId = detail.seriesId;
           backend
             .episodes(seriesId)
@@ -224,6 +227,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
               const at = list.findIndex(e => e.id === detail.id);
               if (!cancelled && at >= 0) {
                 setUpcoming(list.slice(at + 1));
+                setPrevious(list[at - 1]);
               }
             })
             .catch(() => undefined);
@@ -488,6 +492,18 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
     return () => sub.remove();
   }, [active, closeNavigator]);
 
+  /** Draws the next Randomizer episode and records it as played in this cycle. */
+  const randomEpisode = useCallback(async () => {
+    const pool = await loadPool(backend, randomizer.list.get().series);
+    let drawn: MediaItem | undefined;
+    randomizer.list.update(s => {
+      const d = drawEpisode(s, pool, Math.random, item ?? undefined);
+      drawn = d?.episode;
+      return d?.state ?? s;
+    });
+    return drawn;
+  }, [backend, item, randomizer.list]);
+
   const onEnd = useCallback(async () => {
     if (ended.current || !alive.current) {
       return;
@@ -498,7 +514,16 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
       report('stop');
     }
     started.current = false;
-    if (settings.autoplayNext && item?.kind === 'episode' && item.seriesId) {
+    if (settings.autoplayNext && shuffle) {
+      const next = await randomEpisode().catch(() => undefined);
+      if (!alive.current) {
+        return;
+      }
+      if (next) {
+        nav.replace({ name: 'player', itemId: next.id, startPositionMs: next.userData?.playbackPositionMs ?? 0, shuffle: true });
+        return;
+      }
+    } else if (settings.autoplayNext && item?.kind === 'episode' && item.seriesId) {
       const next = await findNextEpisode(backend, item).catch(() => undefined);
       // BACK during the lookup already popped this screen; replacing now would replace the page
       // below it.
@@ -511,7 +536,15 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
       }
     }
     nav.back();
-  }, [backend, duration, item, nav, report, settings.autoplayNext]);
+  }, [backend, duration, item, nav, randomEpisode, report, settings.autoplayNext, shuffle]);
+
+  const goTo = (ep: MediaItem) => nav.replace({ name: 'player', itemId: ep.id, startPositionMs: ep.userData?.playbackPositionMs ?? 0 });
+  const playRandom = async () => {
+    const next = await randomEpisode().catch(() => undefined);
+    if (next && alive.current) {
+      nav.replace({ name: 'player', itemId: next.id, startPositionMs: next.userData?.playbackPositionMs ?? 0, shuffle: true });
+    }
+  };
 
   const chooseAudio = (index: number) => {
     if (!plan || index === audio) {
@@ -700,7 +733,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
                   key={ep.id}
                   hasTVPreferredFocus={i === 0}
                   testID={`player-episode-${i}`}
-                  onPress={() => nav.replace({ name: 'player', itemId: ep.id, startPositionMs: ep.userData?.playbackPositionMs ?? 0 })}
+                  onPress={() => goTo(ep)}
                   style={(f: boolean) => [styles.scene, f && styles.sceneFocused]}
                 >
                   {ep.thumbUrl ?? ep.posterUrl ? <Image source={{ uri: (ep.thumbUrl ?? ep.posterUrl)! }} style={styles.sceneImage} /> : <View style={styles.sceneImage} />}
@@ -718,6 +751,16 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
                 <Button variant="primary" hasTVPreferredFocus={claimFocus.current} label={skipLabel(skip.kind)} onPress={() => skipSegment(skip)} testID="player-skip" />
               ) : null}
               <Button variant={skip ? undefined : 'primary'} hasTVPreferredFocus={claimFocus.current && !skip} label={paused ? '▶ Play' : '❚❚ Pause'} onPress={togglePause} testID="player-playpause" />
+              {shuffle ? (
+                <Button label="Next ▶▶" onPress={playRandom} testID="player-next-episode" />
+              ) : (
+                <>
+                  {previous ? (
+                    <Button label="◀◀ Previous" onPress={() => goTo(previous)} testID="player-prev-episode" />
+                  ) : null}
+                  {upcoming[0] ? <Button label="Next ▶▶" onPress={() => goTo(upcoming[0])} testID="player-next-episode" /> : null}
+                </>
+              )}
               <Button label="−10 s" onPress={() => { seekBy(-SEEK_STEP_MS); showOverlay('controls'); }} testID="player-rew" />
               <Button label="+30 s" onPress={() => { seekBy(SKIP_STEP_MS); showOverlay('controls'); }} testID="player-ffwd" />
               {plan && plan.audioTracks.length > 1 ? (

@@ -14,7 +14,7 @@ function Tab({ label, onPress, testID, active }: { label: string; onPress(): voi
 }
 
 /** Wordmark plus the main destinations. Shown on home; other screens are reached from it. */
-export function TopBar({ libraries, current }: { libraries: Library[]; current?: string }) {
+export function TopBar({ libraries, current, onRandomizer }: { libraries: Library[]; current?: string; onRandomizer?: () => void }) {
   const nav = useNavigation();
   // Trap left/right so the ends of the bar do not jump focus down into the rows below.
   return (
@@ -30,6 +30,7 @@ export function TopBar({ libraries, current }: { libraries: Library[]; current?:
           onPress={() => nav.push({ name: 'library', library: lib })}
         />
       ))}
+      {onRandomizer ? <Tab label="Randomizer" testID="tab-randomizer" onPress={onRandomizer} /> : null}
       <View style={styles.spacer} />
       <Tab label="Search" testID="tab-search" onPress={() => nav.push({ name: 'search' })} />
       <Tab label="Settings" testID="tab-settings" onPress={() => nav.push({ name: 'settings' })} />

@@ -3,6 +3,7 @@ import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { ItemDetail, MediaItem } from '../../backend/types';
 import { useBackend } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
+import { toggleSeries, useRandomizer } from '../../state/randomizer';
 import { Button, ErrorView, LoadingView, MediaRow, describeError } from '../components';
 import { formatDuration, formatRuntime, useAsync } from '../hooks';
 import { colors, font, radius, space } from '../theme';
@@ -54,6 +55,7 @@ export function DetailScreen({ itemId, seasonId: initialSeason }: { itemId: stri
   const active = useIsActive();
   const detail = useAsync(() => backend.item(itemId), [backend, itemId]);
   const [actionError, setActionError] = useState<string>();
+  const randomizer = useRandomizer();
 
   const { reload } = detail;
   const wasActive = useRef(active);
@@ -179,6 +181,13 @@ export function DetailScreen({ itemId, seasonId: initialSeason }: { itemId: stri
               ) : null}
               {isEpisode && item.seriesId ? (
                 <Button label="Back to series" onPress={() => nav.replace({ name: 'detail', itemId: item.seriesId! })} testID="back-to-series" />
+              ) : null}
+              {isSeries ? (
+                <Button
+                  label={randomizer.state.series.includes(item.id) ? 'Remove Randomizer' : 'Add Randomizer'}
+                  onPress={() => randomizer.list.update(s => toggleSeries(s, item.id))}
+                  testID="toggle-randomizer"
+                />
               ) : null}
               <Button
                 label={item.userData?.played ? 'Mark unwatched' : 'Mark watched'}

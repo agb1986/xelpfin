@@ -69,6 +69,8 @@ export interface Backend {
   reportStop(report: ProgressReport): Promise<void>;
   /** Tagged intro/credits ranges. Resolves empty when the server has none or does not support it. */
   mediaSegments(itemId: string): Promise<MediaSegment[]>;
+  /** Forgets the resume position, which takes a partly watched item off Continue Watching. */
+  clearProgress(itemId: string): Promise<void>;
   setPlayed(itemId: string, played: boolean): Promise<void>;
   setFavorite(itemId: string, favorite: boolean): Promise<void>;
 }

@@ -129,6 +129,20 @@ Nothing outside `src/platform` imports `NativeModules`.
 - `settings.ts` and `servers.ts` persist through `PlatformServices.storage`.
 - `trackDefaults.ts` picks the initial audio and subtitle tracks from the settings: the preferred
   language, and a subtitle mode of off, forced only, or always.
+- `localLists.ts` keeps small per-user JSON documents on the device (`xelpfin.<name>.<serverId>.<userId>`
+  in `platform.storage`). Screens that show one document share a single instance and stay in step
+  through `subscribe`. Two lists use it:
+  - `randomizer.ts`: the Randomizer. The user's series ids are stored with the ids of the episodes
+    already drawn in the current cycle. The candidate pool is rebuilt from the server's episode
+    lists on every draw, so new episodes join by themselves and removed ones fall out. A draw is a
+    shuffle bag: only episodes not yet drawn are candidates. When none are left, the drawn list is
+    emptied and a new cycle starts, leaving out the episode played last so it is never repeated
+    back to back at the boundary. While another series has candidates, the series that just
+    played is skipped. The randomizer is episode-weighted: a long series comes up more often.
+  - `hiddenNextUp.ts`: Next Up entries cleared in Settings, as series id to the episode that was
+    offered. Jellyfin has no call that removes a Next Up entry without marking something watched,
+    so the entry is only hidden on this device, and it returns when the series offers a
+    different episode.
 - `navigation.tsx` is a minimal stack navigator for TV. Screens below the top stay mounted but
   hidden, so their data, scroll position and last focused element survive a round trip to a
   detail page. The player is always on top and unmounts when it is popped, which stops playback.
@@ -155,9 +169,18 @@ Nothing outside `src/platform` imports `NativeModules`.
     for the partly watched episode (and Play for the next unwatched one). Choosing a season puts
     focus on its first episode. An episode page lists the episodes after it and has Back to
     season and Back to series buttons.
+    A series also has an Add/Remove Randomizer button.
   - `SearchScreen`.
-  - `PlayerScreen`.
-  - `SettingsScreen`.
+  - `PlayerScreen`: an episode shows Previous and Next buttons in the controls, only the ones
+    that exist (the first episode of a series has no Previous, the last no Next). Playback
+    started from the Randomizer (route `player` with `shuffle`) has only Next, which draws
+    another random episode, and the end of an episode draws one too when autoplay is on.
+  - `SettingsScreen`: besides the options, an Actions section. Each action asks for a second
+    press within five seconds, then shows its result in place:
+    Clear Continue Watching (`Backend.clearProgress` resets the resume position of every
+    Continue Watching item on the server), Clear Next Up (hides the current entries, see
+    above), and Reset Randomizer history (starts a new cycle, keeps the series).
+    HomeScreen shows a Randomizer tab only while the list has series.
   - Every screen has loading, error (with retry) and empty states.
   - `App.tsx` wraps each route in `ScreenBoundary`, an error boundary. A render error shows
     `ErrorView` with Retry for that screen, and BACK still works. The error is logged with
@@ -191,6 +214,8 @@ reach the screen. Media keys (play/pause, rewind, fast forward) work in every ov
 - `scripts/e2e.sh` runs the scenarios that need setup or checks on the server:
   - Quick Connect, and audio and subtitle switching (text, ASS, PGS and burn-in).
   - Subtitle styling and position, resume, watched and favourite, and autoplay on and off.
+  - Series resume, episode navigation, Previous/Next buttons, the Randomizer and the Settings
+    actions.
   - BACK on every screen.
   - Switching user, changing server and signing out.
   - An empty library and a 2000-item one.

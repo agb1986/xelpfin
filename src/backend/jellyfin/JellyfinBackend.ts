@@ -431,6 +431,10 @@ export class JellyfinBackend implements Backend {
     }
   }
 
+  async clearProgress(itemId: string): Promise<void> {
+    await this.http.post(`/UserItems/${encodeURIComponent(itemId)}/UserData`, { PlaybackPositionTicks: 0 }, { userId: this.session.userId });
+  }
+
   async setFavorite(itemId: string, favorite: boolean): Promise<void> {
     const path = `/UserFavoriteItems/${encodeURIComponent(itemId)}`;
     const q = { userId: this.session.userId };

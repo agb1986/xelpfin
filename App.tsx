@@ -90,7 +90,7 @@ function screenFor(route: Route): React.ReactNode {
     case 'settings':
       return <SettingsScreen />;
     case 'player':
-      return <PlayerScreen itemId={route.itemId} startPositionMs={route.startPositionMs} />;
+      return <PlayerScreen itemId={route.itemId} startPositionMs={route.startPositionMs} shuffle={route.shuffle} />;
   }
 }
 

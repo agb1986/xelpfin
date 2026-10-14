@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../state/AppState';
+import { useHiddenNextUp } from '../../state/hiddenNextUp';
+import { emptyRandomizer, useRandomizer } from '../../state/randomizer';
 import { useNavigation } from '../../state/navigation';
 import {
   BITRATE_CHOICES,
@@ -28,6 +30,9 @@ function Row({ label, value, onPress, testID, first }: { label: string; value: s
   );
 }
 
+type ActionKey = 'continue' | 'nextup' | 'randomizer';
+const CONFIRM_MS = 5000;
+
 type PickerKey = 'bitrate' | 'subtitles' | 'language' | 'subsize' | 'subcolor' | 'subbg';
 const labelOf = <T,>(choices: Option<T>[], v: T) => choices.find(c => c.value === v)?.label ?? String(v);
 
@@ -42,6 +47,47 @@ export function SettingsScreen() {
 
   const signOut = () => app.signOut(() => nav.reset(server ? [{ name: 'servers' }, { name: 'login', server }] : [{ name: 'servers' }]));
   const changeServer = () => app.signOut(() => nav.reset([{ name: 'servers' }]));
+
+  // Actions change data, so each asks for a second press. The result replaces the prompt.
+  const hiddenNextUp = useHiddenNextUp();
+  const randomizer = useRandomizer();
+  const [armed, setArmed] = useState<ActionKey>();
+  const [results, setResults] = useState<Partial<Record<ActionKey, string>>>({});
+  const armTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const disarm = () => armTimer.current !== undefined && clearTimeout(armTimer.current);
+  useEffect(() => () => (armTimer.current !== undefined ? clearTimeout(armTimer.current) : undefined), []);
+
+  const actions: Record<ActionKey, () => Promise<string>> = {
+    continue: async () => {
+      const items = await backend!.resume(200);
+      await Promise.all(items.map(i => backend!.clearProgress(i.id)));
+      return items.length ? `Cleared ${items.length}` : 'Nothing to clear';
+    },
+    nextup: async () => {
+      const items = await backend!.nextUp(200);
+      hiddenNextUp.list.update(h => ({ ...h, ...Object.fromEntries(items.filter(i => i.seriesId).map(i => [i.seriesId!, i.id])) }));
+      return items.length ? `Cleared ${items.length}` : 'Nothing to clear';
+    },
+    randomizer: async () => {
+      const n = randomizer.state.played.length;
+      randomizer.list.update(s => ({ ...emptyRandomizer(), series: s.series }));
+      return n ? 'History cleared' : 'Nothing to clear';
+    },
+  };
+  const runAction = (key: ActionKey) => {
+    disarm();
+    setResults(r => ({ ...r, [key]: undefined }));
+    if (armed !== key) {
+      setArmed(key);
+      armTimer.current = setTimeout(() => setArmed(undefined), CONFIRM_MS);
+      return;
+    }
+    setArmed(undefined);
+    actions[key]()
+      .then(text => setResults(r => ({ ...r, [key]: text })))
+      .catch(() => setResults(r => ({ ...r, [key]: 'Failed' })));
+  };
+  const actionValue = (key: ActionKey, idle: string) => (armed === key ? 'Press again to confirm' : results[key] ?? idle);
 
   const device = platform.device;
   const decoders = caps.data?.video.map(v => `${v.codec.toUpperCase()} ${v.maxBitDepth}-bit${v.hardware ? '' : ' (sw)'}`).join(', ');
@@ -58,6 +104,15 @@ export function SettingsScreen() {
         <Row testID="set-subbg" label="Subtitle background" value={labelOf(SUBTITLE_BACKGROUND_CHOICES, settings.subtitleBackground)} onPress={() => setPicker('subbg')} />
         <Row testID="set-autoplay" label="Play next episode automatically" value={settings.autoplayNext ? 'On' : 'Off'} onPress={() => updateSettings({ autoplayNext: !settings.autoplayNext })} />
         <Row testID="set-debug" label="Show playback information overlay" value={settings.showDebugOverlay ? 'On' : 'Off'} onPress={() => updateSettings({ showDebugOverlay: !settings.showDebugOverlay })} />
+
+        {backend ? (
+          <>
+            <Text style={styles.section}>Actions</Text>
+            <Row testID="act-clear-continue" label="Clear Continue Watching" value={actionValue('continue', 'Forget resume positions')} onPress={() => runAction('continue')} />
+            <Row testID="act-clear-nextup" label="Clear Next Up" value={actionValue('nextup', 'Hide current entries')} onPress={() => runAction('nextup')} />
+            <Row testID="act-reset-randomizer" label="Reset Randomizer history" value={actionValue('randomizer', 'Start a new cycle')} onPress={() => runAction('randomizer')} />
+          </>
+        ) : null}
 
         <Text style={styles.section}>Account</Text>
         {backend ? (
