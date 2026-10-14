@@ -7,7 +7,7 @@ export type Route =
   | { name: 'login'; server: ServerInfo; expired?: boolean }
   | { name: 'home' }
   | { name: 'library'; library: Library }
-  | { name: 'detail'; itemId: string }
+  | { name: 'detail'; itemId: string; /** Series page: the season to show first. */ seasonId?: string }
   | { name: 'search' }
   | { name: 'settings' }
   | { name: 'player'; itemId: string; startPositionMs?: number };

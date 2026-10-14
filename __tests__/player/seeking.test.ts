@@ -1,4 +1,4 @@
-import { activeSegment, currentSceneIndex, episodeCode, scenesFor, skipLabel, tapOffsetMs } from '../../src/player/seeking';
+import { activeSegment, currentSceneIndex, episodeCode, playedToEnd, scenesFor, skipLabel, tapOffsetMs } from '../../src/player/seeking';
 
 describe('tapOffsetMs', () => {
   it('climbs 10 s, 30 s, 1 min, then 5 min per further tap', () => {
@@ -44,5 +44,26 @@ describe('episodeCode', () => {
     expect(episodeCode(1, 4)).toBe('S01E04');
     expect(episodeCode(12, 103)).toBe('S12E103');
     expect(episodeCode(undefined, 4)).toBeUndefined();
+  });
+});
+
+describe('playedToEnd', () => {
+  const outro = [{ kind: 'outro' as const, startMs: 1_300_000, endMs: 1_500_000 }];
+  it('is true at the end and in the last 15 s', () => {
+    expect(playedToEnd(1_490_000, 1_500_000, [])).toBe(true);
+    expect(playedToEnd(1_485_000, 1_500_000, [])).toBe(true);
+  });
+  it('is true past 97 %', () => {
+    expect(playedToEnd(1_460_000, 1_500_000, [])).toBe(true);
+  });
+  it('is true inside credits that run to the end', () => {
+    expect(playedToEnd(1_350_000, 1_500_000, outro)).toBe(true);
+  });
+  it('is false mid-episode, including right after an intro skip', () => {
+    expect(playedToEnd(90_000, 1_500_000, outro)).toBe(false);
+    expect(playedToEnd(700_000, 1_500_000, outro)).toBe(false);
+  });
+  it('is false with no known duration', () => {
+    expect(playedToEnd(10_000, 0, [])).toBe(false);
   });
 });

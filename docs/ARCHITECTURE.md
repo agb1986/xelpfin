@@ -23,7 +23,8 @@ state can be reused unchanged on Vega OS:
   the Quick Connect calls (`quickConnectStart`, `quickConnectPoll`, `quickConnectLogin`), and
   `open(session)`, which returns a `Backend`.
 - `Backend` is one signed-in session. It covers libraries, paged `items(query)`, `item(id)`
-  detail, `search`, `resume` (Continue Watching), `nextUp`, `latest`, `seasons`, `episodes`,
+  detail, `search`, `resume` (Continue Watching), `nextUp`, `resumeEpisode` (the partly watched
+  episode of a series), `latest`, `seasons`, `episodes`,
   `imageUrl`, `playback(request, caps)` returning a `PlaybackPlan`, progress reporting
   (`reportStart`, `reportProgress`, `reportStop`), `setPlayed` and `setFavorite`.
 
@@ -88,6 +89,12 @@ and for working on the UI without a server.
   - BACK lowers the controls or seek bar (also when paused) and arms a short window; a second BACK
     inside it leaves the player. With nothing showing, the first BACK only shows "Press back
     again to exit".
+  - Down with the controls showing and more episodes in the season opens a reel of the following
+    episodes; choosing one replaces the player with that episode. BACK closes it.
+  - Progress and stop reports are serialized, so a stop can never be overtaken by a late progress
+    report. When playback ends, or stops in the last 15 s, at 97 % or later, or inside an outro
+    segment that runs to the end (`playedToEnd`), the item is explicitly marked watched so it
+    leaves Continue Watching. Skipping a segment reports progress at once.
   - The title line carries the episode code (`S01E04`) for episodes.
 
 ## Platform (`src/platform`)
@@ -144,7 +151,10 @@ Nothing outside `src/platform` imports `NativeModules`.
   - `LoginScreen`: user tiles, password and Quick Connect.
   - `HomeScreen`: Continue Watching, Next Up and latest per library.
   - `LibraryScreen`: grid with sort, letter and unwatched filters.
-  - `DetailScreen`: movie, series, season and episode pages.
+  - `DetailScreen`: movie, series, season and episode pages. A series page has a Resume button
+    for the partly watched episode (and Play for the next unwatched one). Choosing a season puts
+    focus on its first episode. An episode page lists the episodes after it and has Back to
+    season and Back to series buttons.
   - `SearchScreen`.
   - `PlayerScreen`.
   - `SettingsScreen`.

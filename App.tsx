@@ -84,7 +84,7 @@ function screenFor(route: Route): React.ReactNode {
     case 'library':
       return <LibraryScreen library={route.library} />;
     case 'detail':
-      return <DetailScreen itemId={route.itemId} />;
+      return <DetailScreen itemId={route.itemId} seasonId={route.seasonId} />;
     case 'search':
       return <SearchScreen />;
     case 'settings':

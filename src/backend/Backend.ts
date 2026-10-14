@@ -53,6 +53,8 @@ export interface Backend {
   search(term: string, limit?: number): Promise<MediaItem[]>;
   /** Continue watching: partially watched movies and episodes. */
   resume(limit?: number): Promise<MediaItem[]>;
+  /** The most recently played, partly watched episode of a series, if any. */
+  resumeEpisode(seriesId: string): Promise<MediaItem | undefined>;
   /** Next episode per in-progress series. */
   nextUp(limit?: number, seriesId?: string): Promise<MediaItem[]>;
   latest(libraryId: string, limit?: number): Promise<MediaItem[]>;

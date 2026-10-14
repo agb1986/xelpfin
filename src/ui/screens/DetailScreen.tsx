@@ -48,7 +48,7 @@ function mediaLine(item: ItemDetail): string | undefined {
 }
 
 /** Movie, episode and series detail with play/resume, watched and favourite actions. */
-export function DetailScreen({ itemId }: { itemId: string }) {
+export function DetailScreen({ itemId, seasonId: initialSeason }: { itemId: string; seasonId?: string }) {
   const backend = useBackend();
   const nav = useNavigation();
   const active = useIsActive();
@@ -67,12 +67,25 @@ export function DetailScreen({ itemId }: { itemId: string }) {
   const item = detail.data;
   const isSeries = item?.kind === 'series';
   const seasons = useAsync(async () => (isSeries ? backend.seasons(itemId) : []), [backend, itemId, isSeries]);
-  const [seasonId, setSeasonId] = useState<string>();
-  const currentSeason = seasonId ?? item?.nextUp?.seasonId ?? seasons.data?.[0]?.id;
-  const episodes = useAsync(
-    async () => (isSeries && currentSeason ? backend.episodes(itemId, currentSeason) : []),
-    [backend, itemId, isSeries, currentSeason],
-  );
+  const isEpisode = item?.kind === 'episode';
+  const resumeEp = useAsync(async () => (isSeries ? backend.resumeEpisode(itemId) : undefined), [backend, itemId, isSeries, detail.data]);
+  const [seasonId, setSeasonId] = useState(initialSeason);
+  // Set when a season button is pressed: the first episode of the new season takes focus.
+  const [pickedSeason, setPickedSeason] = useState(false);
+  const currentSeason = seasonId ?? resumeEp.data?.seasonId ?? item?.nextUp?.seasonId ?? seasons.data?.[0]?.id;
+  // Tagged with its season so a row never shows the previous season's episodes while loading.
+  const episodes = useAsync(async () => {
+    if (isSeries && currentSeason) {
+      return { season: currentSeason, list: await backend.episodes(itemId, currentSeason) };
+    }
+    if (isEpisode && item?.seriesId && item.seasonId) {
+      const list = await backend.episodes(item.seriesId, item.seasonId);
+      const at = list.findIndex(e => e.id === item.id);
+      return { season: item.seasonId, list: at < 0 ? [] : list.slice(at + 1) };
+    }
+    return { season: '', list: [] as MediaItem[] };
+  }, [backend, itemId, isSeries, isEpisode, currentSeason, item?.seriesId, item?.seasonId]);
+  const shownEpisodes = episodes.data && (isEpisode || episodes.data.season === currentSeason) ? episodes.data.list : [];
 
   const openEpisode = useCallback((ep: MediaItem) => openItem(nav, ep), [nav]);
   const episodeTitle = useCallback((ep: MediaItem) => `${ep.indexNumber ?? ''}. ${ep.name}`, []);
@@ -100,12 +113,16 @@ export function DetailScreen({ itemId }: { itemId: string }) {
   const play = (from: number) => nav.push({ name: 'player', itemId: item.id, startPositionMs: from });
   const backdrop = item.backdropUrl ?? item.thumbUrl;
   const next = item.nextUp;
+  const resume = resumeEp.data;
+  const code = (e: MediaItem) => `S${e.parentIndexNumber ?? '?'}:E${e.indexNumber ?? '?'}`;
+  const playEp = (e: MediaItem) => nav.push({ name: 'player', itemId: e.id, startPositionMs: e.userData?.playbackPositionMs ?? 0 });
+  const compact = isSeries || isEpisode;
 
   return (
     <View style={styles.root} testID="detail">
       {backdrop ? <Image source={{ uri: backdrop }} style={styles.backdrop} resizeMode="cover" blurRadius={1} /> : null}
       <View style={styles.scrim} />
-      <ScrollView contentContainerStyle={isSeries ? styles.bodySeries : styles.body}>
+      <ScrollView contentContainerStyle={compact ? styles.bodySeries : styles.body}>
         <View style={styles.top}>
           {item.posterUrl && item.kind !== 'episode' ? (
             <Image source={{ uri: item.posterUrl }} style={isSeries ? styles.posterSeries : styles.poster} />
@@ -118,22 +135,33 @@ export function DetailScreen({ itemId }: { itemId: string }) {
             {!isSeries && item.genres?.length ? <Text style={styles.meta}>{item.genres.slice(0, 4).join(', ')}</Text> : null}
             {!isSeries && item.tagline ? <Text style={styles.tagline}>{item.tagline}</Text> : null}
             {item.overview ? (
-              <Text style={styles.overview} numberOfLines={isSeries ? 3 : 5}>
+              <Text style={styles.overview} numberOfLines={compact ? 3 : 5}>
                 {item.overview}
               </Text>
             ) : null}
-            {!isSeries && mediaLine(item) ? <Text style={styles.media}>{mediaLine(item)}</Text> : null}
+            {!compact && mediaLine(item) ? <Text style={styles.media}>{mediaLine(item)}</Text> : null}
             <View style={styles.actions}>
               {isSeries ? (
-                next ? (
-                  <Button
-                    variant="primary"
-                    hasTVPreferredFocus
-                    label={`Play S${next.parentIndexNumber ?? '?'}:E${next.indexNumber ?? '?'}`}
-                    onPress={() => nav.push({ name: 'player', itemId: next.id, startPositionMs: next.userData?.playbackPositionMs ?? 0 })}
-                    testID="play-next"
-                  />
-                ) : null
+                <>
+                  {resume ? (
+                    <Button
+                      variant="primary"
+                      hasTVPreferredFocus
+                      label={`Resume ${code(resume)} · ${formatDuration(resume.userData?.playbackPositionMs)}`}
+                      onPress={() => playEp(resume)}
+                      testID="resume-episode"
+                    />
+                  ) : null}
+                  {next && next.id !== resume?.id && (resumeEp.status !== 'loading' || resume) ? (
+                    <Button
+                      variant={resume ? 'secondary' : 'primary'}
+                      hasTVPreferredFocus={!resume}
+                      label={`Play ${code(next)}`}
+                      onPress={() => playEp(next)}
+                      testID="play-next"
+                    />
+                  ) : null}
+                </>
               ) : canResume ? (
                 <>
                   <Button variant="primary" hasTVPreferredFocus label={`Resume from ${formatDuration(position)}`} onPress={() => play(position)} testID="resume" />
@@ -142,6 +170,16 @@ export function DetailScreen({ itemId }: { itemId: string }) {
               ) : (
                 <Button variant="primary" hasTVPreferredFocus label="Play" onPress={() => play(0)} testID="play" />
               )}
+              {isEpisode && item.seasonId && item.seriesId ? (
+                <Button
+                  label="Back to season"
+                  onPress={() => nav.replace({ name: 'detail', itemId: item.seriesId!, seasonId: item.seasonId })}
+                  testID="back-to-season"
+                />
+              ) : null}
+              {isEpisode && item.seriesId ? (
+                <Button label="Back to series" onPress={() => nav.replace({ name: 'detail', itemId: item.seriesId! })} testID="back-to-series" />
+              ) : null}
               <Button
                 label={item.userData?.played ? 'Mark unwatched' : 'Mark watched'}
                 onPress={() => act(() => backend.setPlayed(item.id, !item.userData?.played))}
@@ -165,7 +203,10 @@ export function DetailScreen({ itemId }: { itemId: string }) {
                   compact
                   variant={s.id === currentSeason ? 'primary' : 'secondary'}
                   label={s.name}
-                  onPress={() => setSeasonId(s.id)}
+                  onPress={() => {
+                    setSeasonId(s.id);
+                    setPickedSeason(true);
+                  }}
                   testID={`season-${s.indexNumber ?? s.id}`}
                 />
               ))}
@@ -173,8 +214,22 @@ export function DetailScreen({ itemId }: { itemId: string }) {
             {episodes.status === 'error' ? (
               <ErrorView error={episodes.error} onRetry={episodes.reload} />
             ) : (
-              <MediaRow title="Episodes" items={episodes.data ?? []} variant="thumb" onPress={openEpisode} titleFor={episodeTitle} testID="episodes" />
+              <MediaRow
+                key={currentSeason}
+                title="Episodes"
+                items={shownEpisodes}
+                variant="thumb"
+                onPress={openEpisode}
+                titleFor={episodeTitle}
+                preferFirst={pickedSeason}
+                testID="episodes"
+              />
             )}
+          </View>
+        ) : null}
+        {isEpisode ? (
+          <View style={styles.series}>
+            <MediaRow title="Next episodes" items={shownEpisodes} variant="thumb" onPress={openEpisode} titleFor={episodeTitle} testID="next-episodes" />
           </View>
         ) : null}
       </ScrollView>

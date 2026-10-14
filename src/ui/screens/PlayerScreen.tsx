@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Image, ScrollView, StyleSheet, Text, useTVEventHandler, View, type HWEvent } from 'react-native';
-import type { ItemDetail, MediaSegment, PlaybackPlan } from '../../backend/types';
+import type { ItemDetail, MediaItem, MediaSegment, PlaybackPlan } from '../../backend/types';
 import { getEngine } from '../../player';
 import { playerError } from '../../player/errors';
-import { activeSegment, currentSceneIndex, episodeCode, scenesFor, skipLabel, TAP_BURST_MS, tapOffsetMs } from '../../player/seeking';
+import { activeSegment, currentSceneIndex, episodeCode, playedToEnd, scenesFor, skipLabel, TAP_BURST_MS, tapOffsetMs } from '../../player/seeking';
 import { useSubtitleCues } from '../../player/useSubtitleCues';
 import type { PlayerViewHandle } from '../../player/PlayerEngine';
 import { useApp, useBackend } from '../../state/AppState';
@@ -99,7 +99,9 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const [overlay, setOverlay] = useState<Overlay>('controls');
   const [picker, setPicker] = useState<'audio' | 'subtitles'>();
   const [segments, setSegments] = useState<MediaSegment[]>([]);
-  const [navigator, setNavigator] = useState(false);
+  // The strip above the controls: the scene navigator (Up) or the next-episodes reel (Down).
+  const [navigator, setNavigator] = useState<'scenes' | 'episodes' | false>(false);
+  const [upcoming, setUpcoming] = useState<MediaItem[]>([]);
   // Target of a rewind/forward burst that has not been committed yet, shown on the bar.
   const [pending, setPending] = useState<{ target: number; delta: number }>();
   const [exitHint, setExitHint] = useState(false);
@@ -119,7 +121,8 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const tracksRef = useRef<{ audio?: number; subtitle: number }>({ subtitle: -1 });
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const overlayRef = useRef<Overlay>('controls');
-  const navigatorRef = useRef(false);
+  const navigatorRef = useRef<'scenes' | 'episodes' | false>(false);
+  const upcomingRef = useRef<MediaItem[]>([]);
   const skipRef = useRef<MediaSegment>(undefined);
   // Segments the viewer waved away with BACK; keyed by kind and start so each shows once.
   const [dismissed, setDismissed] = useState<string[]>([]);
@@ -129,10 +132,19 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   planRef.current = plan;
   overlayRef.current = overlay;
   navigatorRef.current = navigator;
+  upcomingRef.current = upcoming;
   pausedRef.current = paused;
   tracksRef.current = { audio, subtitle };
   // Side-loaded subtitles are drawn by the app (see useSubtitleCues).
   const cues = useSubtitleCues(plan?.subtitleTracks.find(t => t.index === subtitle), plan?.headers);
+
+  const reportChain = useRef<Promise<unknown>>(Promise.resolve());
+  const segmentsRef = useRef<MediaSegment[]>([]);
+  segmentsRef.current = segments;
+  const isFinished = useCallback(
+    (p: PlaybackPlan, positionMs: number) => ended.current || playedToEnd(positionMs, p.durationMs ?? 0, segmentsRef.current),
+    [],
+  );
 
   const report = useCallback(
     (kind: 'start' | 'progress' | 'stop', p = planRef.current) => {
@@ -146,10 +158,23 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
         audioStreamIndex: tracksRef.current.audio,
         subtitleStreamIndex: tracksRef.current.subtitle,
       };
-      const call = kind === 'start' ? backend.reportStart(r) : kind === 'progress' ? backend.reportProgress(r) : backend.reportStop(r);
-      call.catch(() => undefined);
+      // One report at a time, in order: a progress call that lands after the stop would put the
+      // episode back on Continue Watching at the position it had when the call was sent.
+      const finished = kind === 'stop' && isFinished(p, r.positionMs);
+      const send = () => {
+        if (kind === 'start') {
+          return backend.reportStart(r);
+        }
+        if (kind === 'progress') {
+          return backend.reportProgress(r);
+        }
+        // The server only clears the resume point past its own threshold; a viewer who watched
+        // to the credits or the end expects the episode off Continue Watching.
+        return backend.reportStop(r).then(() => (finished ? backend.setPlayed(p.itemId, true) : undefined));
+      };
+      reportChain.current = reportChain.current.then(send).catch(() => undefined);
     },
-    [backend],
+    [backend, isFinished],
   );
 
   /** Asks the backend for a (new) plan. Stops the session of the previous plan first. */
@@ -191,6 +216,18 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           return;
         }
         setItem(detail);
+        if (detail.kind === 'episode' && detail.seriesId) {
+          const seriesId = detail.seriesId;
+          backend
+            .episodes(seriesId)
+            .then(list => {
+              const at = list.findIndex(e => e.id === detail.id);
+              if (!cancelled && at >= 0) {
+                setUpcoming(list.slice(at + 1));
+              }
+            })
+            .catch(() => undefined);
+        }
         backend
           .mediaSegments(itemId)
           .then(found => !cancelled && setSegments(found))
@@ -323,8 +360,12 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
     (seg: MediaSegment) => {
       seekTo(seg.endMs);
       showOverlay('seek');
+      // Tell the server right away so the resume point follows the skip.
+      if (started.current) {
+        report('progress');
+      }
     },
-    [seekTo, showOverlay],
+    [seekTo, showOverlay, report],
   );
 
   const togglePause = useCallback(() => {
@@ -368,7 +409,14 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
         case 'up':
           // Controls already up: Up opens the scene navigator.
           if (overlay === 'controls' && !navigatorRef.current) {
-            setNavigator(true);
+            setNavigator('scenes');
+          }
+          showOverlay('controls');
+          break;
+        case 'down':
+          // Controls already up: Down opens the reel of the episodes that follow.
+          if (overlay === 'controls' && !navigatorRef.current && upcomingRef.current.length) {
+            setNavigator('episodes');
           }
           showOverlay('controls');
           break;
@@ -379,7 +427,6 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
           }
           showOverlay('controls');
           break;
-        case 'down':
         case 'info':
         case 'menu':
           showOverlay('controls');
@@ -513,7 +560,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
   const found = active && plan && !buffering ? activeSegment(segments, position) : undefined;
   const skip = found && !dismissed.includes(`${found.kind}:${found.startMs}`) ? found : undefined;
   skipRef.current = skip;
-  const scenes = navigator ? scenesFor(item?.chapters, total) : [];
+  const scenes = navigator === 'scenes' ? scenesFor(item?.chapters, total) : [];
   const sceneNow = currentSceneIndex(scenes, position);
   const audioLabel = plan?.audioTracks.find(a => a.index === audio)?.label;
   const subLabel = subtitle >= 0 ? plan?.subtitleTracks.find(s => s.index === subtitle)?.label : 'Off';
@@ -597,7 +644,7 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
 
       {overlay !== 'hidden' ? (
         <View style={styles.overlay} testID="player-overlay" onLayout={e => setControlsHeight(e.nativeEvent.layout.height)}>
-          {navigator && scenes.length ? (
+          {navigator === 'scenes' && scenes.length ? (
             <ScrollView
               ref={sceneScroll}
               horizontal
@@ -646,6 +693,25 @@ export function PlayerScreen({ itemId, startPositionMs = 0 }: { itemId: string; 
             </Text>
             <Text style={styles.time}>{formatDuration(total)}</Text>
           </View>
+          {overlay === 'controls' && navigator === 'episodes' && upcoming.length ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reel} testID="player-episodes">
+              {upcoming.map((ep, i) => (
+                <Focusable
+                  key={ep.id}
+                  hasTVPreferredFocus={i === 0}
+                  testID={`player-episode-${i}`}
+                  onPress={() => nav.replace({ name: 'player', itemId: ep.id, startPositionMs: ep.userData?.playbackPositionMs ?? 0 })}
+                  style={(f: boolean) => [styles.scene, f && styles.sceneFocused]}
+                >
+                  {ep.thumbUrl ?? ep.posterUrl ? <Image source={{ uri: (ep.thumbUrl ?? ep.posterUrl)! }} style={styles.sceneImage} /> : <View style={styles.sceneImage} />}
+                  <Text style={styles.sceneTime}>{episodeCode(ep.parentIndexNumber, ep.indexNumber)}</Text>
+                  <Text style={styles.sceneName} numberOfLines={1}>
+                    {ep.name}
+                  </Text>
+                </Focusable>
+              ))}
+            </ScrollView>
+          ) : null}
           {overlay === 'controls' ? (
             <View style={styles.buttons}>
               {skip ? (
@@ -715,6 +781,7 @@ const styles = StyleSheet.create({
   buttons: { flexDirection: 'row', marginTop: space.md },
   timePending: { color: colors.accent, fontSize: font.small, fontWeight: '700' },
   scenes: { marginBottom: space.md },
+  reel: { marginTop: space.md },
   scene: { width: 200, marginRight: space.sm, padding: space.xs, borderRadius: radius.sm, borderWidth: 2, borderColor: 'transparent' },
   sceneFocused: { borderColor: colors.accent, backgroundColor: colors.surfaceHi },
   sceneImage: { width: 192, height: 108, borderRadius: radius.sm, backgroundColor: colors.surface },

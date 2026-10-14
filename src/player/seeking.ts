@@ -83,3 +83,21 @@ export function episodeCode(season?: number, episode?: number): string | undefin
   const pad = (n: number) => String(n).padStart(2, '0');
   return `S${pad(season)}E${pad(episode)}`;
 }
+
+/** How close to the end counts as finished for the "mark played" decision. */
+const FINISH_TAIL_MS = 15_000;
+
+/**
+ * True when playback stopped at the end, in the last stretch, or inside closing credits that
+ * run to the end. The server alone only clears the resume point past its own percentage, which
+ * leaves episodes on Continue Watching after the viewer skipped the intro and watched it all.
+ */
+export function playedToEnd(positionMs: number, totalMs: number, segments: MediaSegment[]): boolean {
+  if (totalMs <= 0) {
+    return false;
+  }
+  if (positionMs >= totalMs * 0.97 || totalMs - positionMs <= FINISH_TAIL_MS) {
+    return true;
+  }
+  return segments.some(g => g.kind === 'outro' && positionMs >= g.startMs && g.endMs >= totalMs - FINISH_TAIL_MS);
+}

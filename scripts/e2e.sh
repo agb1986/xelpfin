@@ -5,7 +5,7 @@
 #   scripts/e2e.sh [--install] [scenario ...]     (default: all scenarios, in order)
 #
 # Scenarios: quickconnect audio subtitles burnin substyle resume watched autoplay back seek
-#            switch empty expiry offline
+#            series switch empty expiry offline
 # Extra, run only when named: perf (cold start, grid scrolling, memory)
 #
 # Each scenario checks the result on the server (session state, user data) where there is one
@@ -19,7 +19,7 @@ if [ "${1:-}" = --install ]; then
   shift
   install_apk
 fi
-ALL=(quickconnect audio subtitles burnin substyle resume watched autoplay back seek switch empty expiry offline)
+ALL=(quickconnect audio subtitles burnin substyle resume watched autoplay back seek series switch empty expiry offline)
 SCENARIOS=("${@:-${ALL[@]}}")
 [ $# -gt 0 ] || SCENARIOS=("${ALL[@]}")
 
@@ -430,6 +430,60 @@ s_seek() {
   shot e2e-episode-code
   leave_player
   set_user_data "$id" '{"PlaybackPositionTicks":0,"Played":false}'
+}
+
+s_series() {
+  home xelpfin xelpfin-pass
+  # Series page: resume button, season switching; episode page: sibling episodes, back buttons;
+  # player: reel of the episodes that follow.
+  local e1 e2
+  e1=$(item_id "Episode 1" Episode)
+  e2=$(item_id "Episode 2" Episode)
+  set_user_data "$e1" '{"PlaybackPositionTicks":50000000,"Played":false}'
+  set_user_data "$e2" '{"PlaybackPositionTicks":0,"Played":false}'
+  search_open show "Test Show"
+  wait_for resume-episode 10
+  dump
+  echo "  series page: $(ui text resume-episode)"
+  [[ "$(ui text resume-episode)" == *S1:E1* ]] || fail "resume button does not name S1:E1"
+  shot e2e-series
+  # Selecting a season lands on its first episode, not wherever the last season was scrolled.
+  tap season-2
+  sleep 2; dump
+  [[ "$(ui focused)" == card-* ]] || fail "after choosing a season focus is on '$(ui focused)', not an episode"
+  echo "  season 2 chosen: focus on $(ui focused)"
+  tap season-1
+  sleep 2; dump
+  [[ "$(ui focused)" == card-* ]] || fail "after choosing season 1 focus is not on an episode"
+  key DPAD_CENTER
+  wait_for detail 10
+  dump
+  ui has back-to-season || fail "episode page has no Back to season"
+  ui has back-to-series || fail "episode page has no Back to series"
+  ui has next-episodes || fail "episode page lists no following episodes"
+  echo "  episode page: back buttons and following episodes present"
+  shot e2e-episode-page
+  tap back-to-season
+  wait_for episodes 10
+  dump; ui has play-next || ui has resume-episode || fail "back to season did not reach the series page"
+  # Player reel.
+  dump; ui has resume-episode || fail "no resume button to start playback"
+  tap resume-episode
+  wait_session '^Episode 1' 30 name
+  key DPAD_CENTER
+  wait_for player-overlay 10
+  key DPAD_DOWN
+  wait_for player-episodes 10
+  dump
+  ui has player-episode-0 || fail "no next episode in the reel"
+  echo "  reel lists the following episodes"
+  shot e2e-episode-reel
+  tap player-episode-0
+  wait_session '^Episode 2' 30 name
+  echo "  reel switched playback to Episode 2"
+  leave_player
+  set_user_data "$e1" '{"PlaybackPositionTicks":0,"Played":false}'
+  set_user_data "$e2" '{"PlaybackPositionTicks":0,"Played":false}'
 }
 
 s_back() {

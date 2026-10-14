@@ -289,6 +289,18 @@ export class JellyfinBackend implements Backend {
     return this.mapAll(r);
   }
 
+  async resumeEpisode(seriesId: string): Promise<MediaItem | undefined> {
+    const r = await this.http.get<ItemsResultDto>(`${this.user}/Items/Resume`, {
+      parentId: seriesId,
+      includeItemTypes: 'Episode',
+      limit: 1,
+      fields: LIST_FIELDS,
+      enableImageTypes: IMAGE_TYPES,
+      imageTypeLimit: 1,
+    });
+    return this.mapAll(r)[0];
+  }
+
   async nextUp(limit = 20, seriesId?: string): Promise<MediaItem[]> {
     const r = await this.http.get<ItemsResultDto>('/Shows/NextUp', {
       userId: this.session.userId,

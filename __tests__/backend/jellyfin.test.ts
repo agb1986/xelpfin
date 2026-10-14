@@ -136,6 +136,13 @@ describe('JellyfinBackend', () => {
     expect(f.calls[1].query.nameStartsWith).toBeUndefined();
   });
 
+  it('finds the in-progress episode of one series through the resume list', async () => {
+    const { b, f } = setup({ 'GET /Users/u1/Items/Resume': { Items: [episodeDto], TotalRecordCount: 1 } });
+    const ep = await b.resumeEpisode('series1');
+    expect(ep?.kind).toBe('episode');
+    expect(f.calls[0].query).toMatchObject({ parentId: 'series1', includeItemTypes: 'Episode', limit: '1' });
+  });
+
   it('maps items with user data and TV-sized images', async () => {
     const { b } = setup({ 'GET /Users/u1/Items/Resume': { Items: [movieDto, episodeDto], TotalRecordCount: 2 } });
     const [m, e] = await b.resume();

@@ -163,6 +163,9 @@ export class MockBackend implements Backend {
   async resume(): Promise<MediaItem[]> {
     return this.data.movies.filter(m => (m.userData?.playbackPositionMs ?? 0) > 0);
   }
+  async resumeEpisode(): Promise<MediaItem | undefined> {
+    return this.data.episodes.find(e => (e.userData?.playbackPositionMs ?? 0) > 0);
+  }
   async nextUp(): Promise<MediaItem[]> {
     return [this.data.episodes[1]];
   }
