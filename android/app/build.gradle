@@ -104,8 +104,12 @@ android {
         applicationId "com.xelpfin.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "0.1.0"
+        // package.json is the single source of truth. versionCode is derived so it always rises
+        // with the semver: 1.2.3 -> 10203 (minor and patch must stay below 100).
+        def pkgVersion = new groovy.json.JsonSlurper().parse(file("../../package.json")).version
+        def (vMajor, vMinor, vPatch) = pkgVersion.split("-")[0].tokenize(".").collect { it.toInteger() }
+        versionCode vMajor * 10000 + vMinor * 100 + vPatch
+        versionName pkgVersion
         buildConfigField "boolean", "XELPFIN_DEV_SUPPORT", project.hasProperty("xelpfinDev") ? "true" : "false"
         ndk {
             abiFilters(*packagedAbis)

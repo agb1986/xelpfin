@@ -31,7 +31,7 @@ PROPS
   echo "Created a release keystore in signing/. Back it up."
 fi
 
-VERSION="$(sed -n 's/.*versionName "\(.*\)".*/\1/p' android/app/build.gradle)"
+VERSION="$(node -p "require('./package.json').version")"
 mkdir -p dist
 build() { # build NAME ABIS
   (cd android && ./gradlew --quiet assembleRelease -PreactNativeArchitectures="$2")
