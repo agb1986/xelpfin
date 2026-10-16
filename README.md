@@ -99,6 +99,24 @@ signed with the debug key and Gradle prints a warning.
 The keep rules for R8 are in `android/app/proguard-rules.pro`. If you add a native module, add
 its package there too, and check `adb logcat` for `ClassNotFoundException` on a release build.
 
+### Versioning
+
+`package.json` is the only place the version is set. `android/app/build.gradle` reads it:
+`versionName` is the semver string and `versionCode` is `major*10000 + minor*100 + patch`, so it
+always rises with the version (minor and patch must stay below 100). `scripts/release.sh` names
+the APKs from it too.
+
+Releases use Conventional Commits (`feat:` bumps minor, `fix:` bumps patch, `feat!:` or a
+`BREAKING CHANGE:` footer bumps major). From a clean `main`:
+
+```sh
+npm run version:dry-run     # shows the next version and changelog without changing anything
+npm run version:bump        # bumps package.json and the lockfile, writes CHANGELOG.md, commits, tags vX.Y.Z
+git push --follow-tags
+```
+
+Use `npm run version:bump -- --release-as minor` (or `major`, `patch`, or `1.0.0`) to override.
+
 ### Changing the app id
 
 The app id is `com.xelpfin.app`. The stripped reference APK built in an earlier phase uses the same
