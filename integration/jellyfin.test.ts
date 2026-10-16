@@ -89,13 +89,13 @@ describe('browse', () => {
   });
 
   it('pages movies sorted by name', async () => {
-    expect(movies.map(m => m.name)).toEqual(['Big Purple Test', 'Burned Pixels', 'Night Grid', 'Old Codec', 'Pixel Subs']);
+    expect(movies.map(m => m.name)).toEqual(['Big Purple Test', 'Burned Pixels', 'Long Chapters', 'Night Grid', 'Old Codec', 'Pixel Subs']);
     const libId = (await admin.libraries()).find(l => l.name === 'Movies')!.id;
     const p1 = await admin.items({ libraryId: libId, limit: 2 });
     const p2 = await admin.items({ libraryId: libId, limit: 2, startIndex: 2 });
-    expect(p1.totalCount).toBe(5);
+    expect(p1.totalCount).toBe(6);
     expect(p1.items).toHaveLength(2);
-    expect(p2.items.map(i => i.name)).toEqual(['Night Grid', 'Old Codec']);
+    expect(p2.items.map(i => i.name)).toEqual(['Long Chapters', 'Night Grid']);
     const n = await admin.items({ libraryId: libId, nameStartsWith: 'N' });
     expect(n.items.map(i => i.name)).toEqual(['Night Grid']);
   });
