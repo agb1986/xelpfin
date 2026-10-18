@@ -5,6 +5,8 @@
  */
 export const DISCOVERY_PORT = 7359;
 export const DISCOVERY_MESSAGE = 'who is JellyfinServer?';
+/** Replies beyond this are ignored, so a flood of answers cannot start a flood of probes. */
+export const MAX_DISCOVERY_REPLIES = 64;
 
 export interface UdpReply {
   /** Source IP of the datagram. */
@@ -38,7 +40,7 @@ interface ReplyDto {
  */
 export function parseDiscoveryReplies(replies: UdpReply[]): DiscoveryAnswer[] {
   const byId = new Map<string, DiscoveryAnswer>();
-  for (const r of replies) {
+  for (const r of replies.slice(0, MAX_DISCOVERY_REPLIES)) {
     let dto: ReplyDto;
     try {
       dto = JSON.parse(r.payload) as ReplyDto;

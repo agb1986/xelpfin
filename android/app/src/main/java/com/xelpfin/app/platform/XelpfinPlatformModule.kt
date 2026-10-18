@@ -47,8 +47,9 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
 
   /**
    * Sends [message] to [port] on the limited broadcast address, every IPv4 interface broadcast
-   * address, and any [extraHosts]; collects replies until [timeoutMs] elapses.
-   * Resolves to an array of { address, payload } maps.
+   * address, and any [extraHosts]; collects replies until [timeoutMs] elapses (clamped to
+   * [MAX_DISCOVERY_MS]) or [MAX_DISCOVERY_REPLIES] replies have arrived, so a device flooding the
+   * port cannot grow the result without bound. Resolves to an array of { address, payload } maps.
    */
   @ReactMethod
   fun udpBroadcast(
@@ -72,9 +73,9 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
           for (t in targets) {
             runCatching { socket.send(DatagramPacket(data, data.size, t, port)) }
           }
-          val deadline = System.currentTimeMillis() + timeoutMs
+          val deadline = System.currentTimeMillis() + timeoutMs.coerceIn(0, MAX_DISCOVERY_MS)
           val buf = ByteArray(8192)
-          while (true) {
+          while (results.size() < MAX_DISCOVERY_REPLIES) {
             val left = deadline - System.currentTimeMillis()
             if (left <= 0) break
             socket.soTimeout = left.toInt().coerceAtLeast(1)
@@ -146,5 +147,7 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
 
   companion object {
     const val NAME = "XelpfinPlatform"
+    const val MAX_DISCOVERY_REPLIES = 64
+    const val MAX_DISCOVERY_MS = 10_000
   }
 }
