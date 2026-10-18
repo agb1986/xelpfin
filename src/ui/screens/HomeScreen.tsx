@@ -50,6 +50,8 @@ export function HomeScreen() {
 
   const resumeItem = useCallback((item: MediaItem) => openItem(nav, item, { resume: true }), [nav]);
   const open = useCallback((item: MediaItem) => openItem(nav, item), [nav]);
+  // Loading the pool takes a moment; a second press meanwhile would draw and open a second episode.
+  const drawing = useRef(false);
 
   if (!home.data) {
     if (home.status === 'error') {
@@ -79,7 +81,13 @@ export function HomeScreen() {
   }
 
   const playRandom = async () => {
-    const pool = await loadPool(backend, randomizer.list.get().series);
+    if (drawing.current) {
+      return;
+    }
+    drawing.current = true;
+    const pool = await loadPool(backend, randomizer.list.get().series).finally(() => {
+      drawing.current = false;
+    });
     let drawn: MediaItem | undefined;
     randomizer.list.update(s => {
       const d = drawEpisode(s, pool, Math.random);

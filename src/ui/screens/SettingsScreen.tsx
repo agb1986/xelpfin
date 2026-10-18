@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useApp } from '../../state/AppState';
 import { useHiddenNextUp } from '../../state/hiddenNextUp';
+import { mapLimit, SERVER_CONCURRENCY } from '../../state/mapLimit';
 import { emptyRandomizer, useRandomizer } from '../../state/randomizer';
 import { useNavigation } from '../../state/navigation';
 import {
@@ -60,8 +61,9 @@ export function SettingsScreen() {
   const actions: Record<ActionKey, () => Promise<string>> = {
     continue: async () => {
       const items = await backend!.resume(200);
-      await Promise.all(items.map(i => backend!.clearProgress(i.id)));
-      return items.length ? `Cleared ${items.length}` : 'Nothing to clear';
+      const cleared = await mapLimit(items, SERVER_CONCURRENCY, i => backend!.clearProgress(i.id).then(() => true, () => false));
+      const done = cleared.filter(Boolean).length;
+      return !items.length ? 'Nothing to clear' : done === items.length ? `Cleared ${done}` : `Cleared ${done} of ${items.length}`;
     },
     nextup: async () => {
       const items = await backend!.nextUp(200);
@@ -74,7 +76,11 @@ export function SettingsScreen() {
       return n ? 'History cleared' : 'Nothing to clear';
     },
   };
+  const running = useRef(new Set<ActionKey>());
   const runAction = (key: ActionKey) => {
+    if (running.current.has(key)) {
+      return;
+    }
     disarm();
     setResults(r => ({ ...r, [key]: undefined }));
     if (armed !== key) {
@@ -83,9 +89,12 @@ export function SettingsScreen() {
       return;
     }
     setArmed(undefined);
+    running.current.add(key);
+    setResults(r => ({ ...r, [key]: 'Working…' }));
     actions[key]()
       .then(text => setResults(r => ({ ...r, [key]: text })))
-      .catch(() => setResults(r => ({ ...r, [key]: 'Failed' })));
+      .catch(() => setResults(r => ({ ...r, [key]: 'Failed' })))
+      .finally(() => running.current.delete(key));
   };
   const actionValue = (key: ActionKey, idle: string) => (armed === key ? 'Press again to confirm' : results[key] ?? idle);
 

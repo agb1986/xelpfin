@@ -553,8 +553,17 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   }, [backend, duration, item, nav, randomEpisode, report, settings.autoplayNext, shuffle]);
 
   const goTo = (ep: MediaItem) => nav.replace({ name: 'player', itemId: ep.id, startPositionMs: ep.userData?.playbackPositionMs ?? 0 });
+  const drawing = useRef(false);
   const playRandom = async () => {
-    const next = await randomEpisode().catch(() => undefined);
+    if (drawing.current) {
+      return;
+    }
+    drawing.current = true;
+    const next = await randomEpisode()
+      .catch(() => undefined)
+      .finally(() => {
+        drawing.current = false;
+      });
     if (next && alive.current) {
       nav.replace({ name: 'player', itemId: next.id, startPositionMs: next.userData?.playbackPositionMs ?? 0, shuffle: true });
     }
