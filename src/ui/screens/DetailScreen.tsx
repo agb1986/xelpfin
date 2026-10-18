@@ -9,6 +9,9 @@ import { formatDuration, formatRuntime, useAsync } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 import { openItem } from './navigate';
 
+/** Upper bound on films listed on a collection page; one request, no paging. */
+const COLLECTION_LIMIT = 500;
+
 function metaLine(item: ItemDetail): string {
   const parts: string[] = [];
   if (item.kind === 'episode' && item.seriesName) {
@@ -70,6 +73,11 @@ export function DetailScreen({ itemId, seasonId: initialSeason }: { itemId: stri
   const isSeries = item?.kind === 'series';
   const seasons = useAsync(async () => (isSeries ? backend.seasons(itemId) : []), [backend, itemId, isSeries]);
   const isEpisode = item?.kind === 'episode';
+  const isCollection = item?.kind === 'collection';
+  const members = useAsync(
+    async () => (isCollection ? (await backend.items({ parentId: itemId, sort: 'year', limit: COLLECTION_LIMIT })).items : []),
+    [backend, itemId, isCollection],
+  );
   const resumeEp = useAsync(async () => (isSeries ? backend.resumeEpisode(itemId) : undefined), [backend, itemId, isSeries, detail.data]);
   const [seasonId, setSeasonId] = useState(initialSeason);
   // Set when a season button is pressed: the first episode of the new season takes focus.
@@ -89,6 +97,7 @@ export function DetailScreen({ itemId, seasonId: initialSeason }: { itemId: stri
   }, [backend, itemId, isSeries, isEpisode, currentSeason, item?.seriesId, item?.seasonId]);
   const shownEpisodes = episodes.data && (isEpisode || episodes.data.season === currentSeason) ? episodes.data.list : [];
 
+  const openMember = useCallback((m: MediaItem) => openItem(nav, m), [nav]);
   const openEpisode = useCallback((ep: MediaItem) => openItem(nav, ep), [nav]);
   const episodeTitle = useCallback((ep: MediaItem) => `${ep.indexNumber ?? ''}. ${ep.name}`, []);
 
@@ -169,7 +178,7 @@ export function DetailScreen({ itemId, seasonId: initialSeason }: { itemId: stri
                   <Button variant="primary" hasTVPreferredFocus label={`Resume from ${formatDuration(position)}`} onPress={() => play(position)} testID="resume" />
                   <Button label="Play from start" onPress={() => play(0)} testID="play-start" />
                 </>
-              ) : (
+              ) : isCollection ? null : (
                 <Button variant="primary" hasTVPreferredFocus label="Play" onPress={() => play(0)} testID="play" />
               )}
               {isEpisode && item.seasonId && item.seriesId ? (
@@ -233,6 +242,15 @@ export function DetailScreen({ itemId, seasonId: initialSeason }: { itemId: stri
                 preferFirst={pickedSeason}
                 testID="episodes"
               />
+            )}
+          </View>
+        ) : null}
+        {isCollection ? (
+          <View style={styles.series}>
+            {members.status === 'error' ? (
+              <ErrorView error={members.error} onRetry={members.reload} hasTVPreferredFocus />
+            ) : (
+              <MediaRow title="Films" items={members.data ?? []} variant="poster" onPress={openMember} preferFirst testID="collection-items" />
             )}
           </View>
         ) : null}
