@@ -222,7 +222,7 @@ export type QuickConnectState =
 export class BackendError extends Error {
   constructor(
     message: string,
-    readonly kind: 'network' | 'auth' | 'notFound' | 'server' | 'unsupported' | 'timeout',
+    readonly kind: 'network' | 'auth' | 'forbidden' | 'notFound' | 'server' | 'unsupported' | 'timeout',
     readonly status?: number,
   ) {
     super(message);

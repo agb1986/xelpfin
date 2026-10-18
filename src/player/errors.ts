@@ -12,8 +12,11 @@ export function playerError(message: string): Error {
   const http = BAD_HTTP.exec(message);
   if (http) {
     const status = http[1] ? Number(http[1]) : undefined;
-    if (status === 401 || status === 403) {
+    if (status === 401) {
       return new BackendError('Your sign-in is no longer valid.', 'auth', status);
+    }
+    if (status === 403) {
+      return new BackendError('This account is not allowed to play this item.', 'forbidden', status);
     }
     return new BackendError(`The server refused the stream${status ? ` (HTTP ${status})` : ''}.`, 'server', status);
   }

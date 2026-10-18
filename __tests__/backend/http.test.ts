@@ -42,9 +42,14 @@ describe('JellyfinHttp', () => {
   });
 
   it('maps status codes to error kinds', async () => {
-    const f = fakeFetch({ 'GET /a': () => ({ status: 401 }), 'GET /b': () => ({ status: 500, text: 'boom' }) });
+    const f = fakeFetch({
+      'GET /a': () => ({ status: 401 }),
+      'GET /b': () => ({ status: 500, text: 'boom' }),
+      'GET /c': () => ({ status: 403 }),
+    });
     const http = new JellyfinHttp('http://s', CLIENT, undefined, f.fetch);
     await expect(http.get('/a')).rejects.toMatchObject({ kind: 'auth', status: 401 });
+    await expect(http.get('/c')).rejects.toMatchObject({ kind: 'forbidden', status: 403 });
     await expect(http.get('/b')).rejects.toMatchObject({ kind: 'server', status: 500 });
     await expect(http.get('/missing')).rejects.toMatchObject({ kind: 'notFound' });
   });

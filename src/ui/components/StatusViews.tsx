@@ -23,6 +23,8 @@ export function describeError(err: unknown): string {
         return 'The server took too long to answer.';
       case 'auth':
         return err.message || 'Your sign-in is no longer valid.';
+      case 'forbidden':
+        return 'This account is not allowed to do that.';
       case 'notFound':
         return 'This item no longer exists on the server.';
       default:

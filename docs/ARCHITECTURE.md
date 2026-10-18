@@ -29,7 +29,7 @@ state can be reused unchanged on Vega OS:
   (`reportStart`, `reportProgress`, `reportStop`), `setPlayed` and `setFavorite`.
 
 All types in `types.ts` are backend-neutral. Errors are `BackendError` with a `kind` (network,
-auth, notFound, server, unsupported, timeout), and the UI maps that to its error views.
+auth, forbidden (HTTP 403), notFound, server, unsupported, timeout), and the UI maps that to its error views.
 
 ### Jellyfin implementation (`src/backend/jellyfin`)
 

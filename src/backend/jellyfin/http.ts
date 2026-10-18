@@ -112,8 +112,10 @@ export class JellyfinHttp {
     }
     if (!res.ok) {
       const kind =
-        res.status === 401 || res.status === 403
+        res.status === 401
           ? 'auth'
+          : res.status === 403
+          ? 'forbidden'
           : res.status === 404
           ? 'notFound'
           : 'server';

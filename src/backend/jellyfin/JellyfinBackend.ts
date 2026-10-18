@@ -156,6 +156,9 @@ export class JellyfinConnector implements ServerConnector {
       if (e instanceof BackendError && (e.kind === 'auth' || e.status === 400)) {
         throw new BackendError('Wrong user name or password', 'auth', e.status);
       }
+      if (e instanceof BackendError && e.kind === 'forbidden') {
+        throw new BackendError('This account is not allowed to sign in right now.', 'forbidden', e.status);
+      }
       throw e;
     }
   }
