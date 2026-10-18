@@ -1,7 +1,7 @@
 import type { MediaItem } from '../../src/backend/types';
 import { LocalList } from '../../src/state/localLists';
 import { sanitizeHidden, withoutHidden } from '../../src/state/hiddenNextUp';
-import { drawEpisode, emptyRandomizer, sanitizeRandomizer, toggleSeries, type RandomizerState } from '../../src/state/randomizer';
+import { drawEpisode, emptyRandomizer, HISTORY_LIMIT, recentDraws, sanitizeRandomizer, toggleSeries, type RandomizerState } from '../../src/state/randomizer';
 
 const ep = (id: string, seriesId: string): MediaItem => ({ id, name: id, kind: 'episode', seriesId });
 const pool = [ep('a1', 'A'), ep('a2', 'A'), ep('a3', 'A'), ep('b1', 'B'), ep('b2', 'B')];
@@ -34,7 +34,7 @@ describe('drawEpisode', () => {
   it('starts a new cycle without repeating the last episode first', () => {
     for (let seed = 1; seed <= 50; seed++) {
       const last = pool[2];
-      const state: RandomizerState = { series: ['A', 'B'], played: pool.map(e => e.id) };
+      const state: RandomizerState = { series: ['A', 'B'], played: pool.map(e => e.id), history: [] };
       const d = drawEpisode(state, pool, seeded(seed), last)!;
       expect(d.episode.id).not.toBe(last.id);
       expect(d.state.played).toEqual([d.episode.id]);
@@ -49,15 +49,15 @@ describe('drawEpisode', () => {
   });
 
   it('falls back to the same series when it is all that is left', () => {
-    const state: RandomizerState = { series: [], played: ['b1', 'b2'] };
+    const state: RandomizerState = { series: [], played: ['b1', 'b2'], history: [] };
     const d = drawEpisode(state, pool, seeded(3), pool[3])!;
     expect(d.episode.seriesId).toBe('A');
-    const onlyA = drawEpisode({ series: [], played: ['a1'] }, pool.slice(0, 3), seeded(3), pool[0])!;
+    const onlyA = drawEpisode({ series: [], played: ['a1'], history: [] }, pool.slice(0, 3), seeded(3), pool[0])!;
     expect(onlyA.episode.seriesId).toBe('A');
   });
 
   it('drops played ids that left the pool and handles a single episode', () => {
-    const d = drawEpisode({ series: [], played: ['gone', 'a1'] }, pool, seeded(2))!;
+    const d = drawEpisode({ series: [], played: ['gone', 'a1'], history: [] }, pool, seeded(2))!;
     expect(d.state.played).not.toContain('gone');
     expect(drawEpisode(emptyRandomizer(), [], seeded(1))).toBeUndefined();
     const single = [ep('x', 'X')];
@@ -66,12 +66,25 @@ describe('drawEpisode', () => {
   });
 });
 
+describe('randomizer history', () => {
+  it('keeps draws across a cycle reset, newest first, capped', () => {
+    const single = [ep('x', 'X')];
+    let state = emptyRandomizer();
+    for (let i = 0; i < HISTORY_LIMIT + 5; i++) {
+      state = drawEpisode(state, single, seeded(1))!.state;
+    }
+    expect(state.history).toHaveLength(HISTORY_LIMIT);
+    expect(state.played.length).toBeLessThan(HISTORY_LIMIT);
+    expect(recentDraws({ ...state, history: ['a', 'b', 'c'] }, 2)).toEqual(['c', 'b']);
+  });
+});
+
 describe('randomizer state', () => {
   it('toggles series and sanitizes stored data', () => {
     const on = toggleSeries(emptyRandomizer(), 'A');
     expect(on.series).toEqual(['A']);
     expect(toggleSeries(on, 'A').series).toEqual([]);
-    expect(sanitizeRandomizer({ series: ['A', 'A', 3], played: 'x' })).toEqual({ series: ['A'], played: [] });
+    expect(sanitizeRandomizer({ series: ['A', 'A', 3], played: 'x' })).toEqual({ series: ['A'], played: [], history: [] });
     expect(sanitizeRandomizer(null)).toEqual(emptyRandomizer());
   });
 });
@@ -112,7 +125,7 @@ describe('LocalList', () => {
     const store = memory(JSON.stringify({ series: ['old'], played: [] }));
     const list = new LocalList(store, 'k', emptyRandomizer, sanitizeRandomizer);
     const loading = list.load();
-    list.update(() => ({ series: ['new'], played: [] }));
+    list.update(() => ({ series: ['new'], played: [], history: [] }));
     await loading;
     expect(list.get().series).toEqual(['new']);
   });
