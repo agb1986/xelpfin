@@ -15,19 +15,26 @@ SIGN="$ROOT/signing"
 PROPS="$SIGN/keystore.properties"
 
 if [ ! -f "$PROPS" ]; then
-  mkdir -p "$SIGN"
-  chmod 700 "$SIGN"
-  PASS="$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
-  keytool -genkeypair -v -noprompt -keystore "$SIGN/xelpfin-release.keystore" -storetype PKCS12 \
-    -alias xelpfin -keyalg RSA -keysize 3072 -validity 10000 \
-    -dname "CN=xelpfin, O=xelpfin" -storepass "$PASS" -keypass "$PASS" >/dev/null
-  cat > "$PROPS" <<PROPS
+  # The key files are private from the moment they exist, and the password is passed through the
+  # environment so it never appears in the process list.
+  (
+    umask 077
+    mkdir -p "$SIGN"
+    chmod 700 "$SIGN"
+    XELPFIN_KEY_PASS="$(head -c 24 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 24)"
+    export XELPFIN_KEY_PASS
+    keytool -genkeypair -v -noprompt -keystore "$SIGN/xelpfin-release.keystore" -storetype PKCS12 \
+      -alias xelpfin -keyalg RSA -keysize 3072 -validity 10000 \
+      -dname "CN=xelpfin, O=xelpfin" -storepass:env XELPFIN_KEY_PASS -keypass:env XELPFIN_KEY_PASS >/dev/null
+    PASS="$XELPFIN_KEY_PASS"
+    cat > "$PROPS" <<PROPS
 storeFile=xelpfin-release.keystore
 storePassword=$PASS
 keyAlias=xelpfin
 keyPassword=$PASS
 PROPS
-  chmod 600 "$PROPS" "$SIGN/xelpfin-release.keystore"
+    chmod 600 "$PROPS" "$SIGN/xelpfin-release.keystore"
+  )
   echo "Created a release keystore in signing/. Back it up."
 fi
 
