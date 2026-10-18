@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.2](https://github.com/agb1986/xelpfin/compare/v0.1.1...v0.1.2) (2026-10-18)
+
+### Bug Fixes
+
+* **backend:** harden request headers, timeouts and image addresses ([6f8a5b4](https://github.com/agb1986/xelpfin/commit/6f8a5b45ca5305e1dfa9916b052acbaef2c0cef1))
+* cap the number of discovery replies the app collects ([bab3ab3](https://github.com/agb1986/xelpfin/commit/bab3ab35f9b55691a0bd2139087b80c301c9b228))
+* keep saved server addresses when discovery replies disagree ([6b3d75b](https://github.com/agb1986/xelpfin/commit/6b3d75b641276e995d684b43bbf28a1937c059d0))
+* limit parallel server requests and ignore repeated random-play presses ([6232bea](https://github.com/agb1986/xelpfin/commit/6232bea25afbdb0aae762800ec59c45a7c656173))
+* **player:** only send the access token to the signed-in server ([cdf4291](https://github.com/agb1986/xelpfin/commit/cdf42910b31a2fc952e4ba63a76469acc062d7f4))
+* report the real app version and keep it in step with releases ([3be4421](https://github.com/agb1986/xelpfin/commit/3be4421474376de7a54c103bb2a0e5af51e39c04))
+* stop losing randomizer and hidden Next Up lists after a bad read ([029ecbb](https://github.com/agb1986/xelpfin/commit/029ecbb539561704fbc9e64b229e038b21f8cfb4))
+* stop Quick Connect polls piling up and give up when the code expires ([f6b8786](https://github.com/agb1986/xelpfin/commit/f6b878659b948d45c8e43bd66df05479bc443d2a))
+* stop treating HTTP 403 as an expired sign-in ([6094fab](https://github.com/agb1986/xelpfin/commit/6094fabb448e29cd3cadbec9253274a5eb207e02))
+* **ui:** stop showing server response text in error messages ([4bbb9d3](https://github.com/agb1986/xelpfin/commit/4bbb9d3d04cf4f11839c268e5c95c36b51b0d8b6))
+
 ## [0.1.1](https://github.com/agb1986/xelpfin/compare/v0.1.0...v0.1.1) (2026-10-18)
 
 ### Features
