@@ -16,17 +16,21 @@ export function LoadingView({ label }: { label?: string }) {
 /** Turns any thrown value into a short message for the user. */
 export function describeError(err: unknown): string {
   if (err instanceof BackendError) {
+    // Messages built from a raw HTTP failure name endpoints; show a fixed sentence instead.
+    const raw = / failed: HTTP \d+$/.test(err.message);
     switch (err.kind) {
       case 'network':
         return 'The server could not be reached. Check that it is running and on the same network.';
       case 'timeout':
         return 'The server took too long to answer.';
       case 'auth':
-        return err.message || 'Your sign-in is no longer valid.';
+        return raw || !err.message ? 'Your sign-in is no longer valid.' : err.message;
+      case 'forbidden':
+        return 'This account is not allowed to do that.';
       case 'notFound':
         return 'This item no longer exists on the server.';
       default:
-        return err.message;
+        return raw ? `The server could not complete the request (HTTP ${err.status}).` : err.message;
     }
   }
   return err instanceof Error ? err.message : String(err);

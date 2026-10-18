@@ -3,6 +3,7 @@ import { Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-nati
 import type { PublicUser, ServerInfo, Session } from '../../backend/types';
 import { useApp } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
+import { watchQuickConnect } from '../../state/quickConnect';
 import { Button, describeError, Focusable, Screen, TextField, bleed } from '../components';
 import { useAsync } from '../hooks';
 import { colors, font, radius, space } from '../theme';
@@ -60,7 +61,17 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
     }
   }, [active, userCount]);
 
+  const mounted = useRef(true);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+    },
+    [],
+  );
   const done = (session: Session) => {
+    if (!mounted.current) {
+      return;
+    }
     signIn(session);
     nav.reset([{ name: 'home' }]);
   };
@@ -75,8 +86,11 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
     try {
       done(await connector.login(server, name.trim(), pw));
     } catch (e) {
-      setError(describeError(e));
-      setBusy(false);
+      if (mounted.current) {
+        setError(describeError(e));
+        setPassword('');
+        setBusy(false);
+      }
     }
   };
 
@@ -86,6 +100,9 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
     setError(undefined);
     try {
       const st = await connector.quickConnectStart(server);
+      if (!mounted.current) {
+        return;
+      }
       if (st.status === 'pending') {
         setQcCode(st.code);
         setQcSecret(st.secret);
@@ -93,36 +110,37 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
         setError('Quick Connect is turned off on this server.');
       }
     } catch (e) {
-      setError(describeError(e));
+      if (mounted.current) {
+        setError(describeError(e));
+      }
     }
   };
   useEffect(() => {
     if (!qcSecret || !active) {
       return;
     }
-    let stopped = false;
-    const timer = setInterval(async () => {
-      try {
-        const st = await connector.quickConnectPoll(server, qcSecret);
-        if (!stopped && st.status === 'authorized') {
-          stopped = true;
-          clearInterval(timer);
-          done(await connector.quickConnectLogin(server, qcSecret));
-        }
-      } catch (e) {
-        if (!stopped) {
-          stopped = true;
-          clearInterval(timer);
-          setQcCode(undefined);
-          setQcSecret(undefined);
-          setError(describeError(e));
-        }
-      }
-    }, 3000);
-    return () => {
-      stopped = true;
-      clearInterval(timer);
+    const stopQc = () => {
+      setQcCode(undefined);
+      setQcSecret(undefined);
     };
+    return watchQuickConnect(() => connector.quickConnectPoll(server, qcSecret), {
+      onAuthorized: () => {
+        connector.quickConnectLogin(server, qcSecret).then(done, e => {
+          if (mounted.current) {
+            stopQc();
+            setError(describeError(e));
+          }
+        });
+      },
+      onExpired: () => {
+        stopQc();
+        setError('The Quick Connect code has expired. Start Quick Connect again.');
+      },
+      onError: e => {
+        stopQc();
+        setError(describeError(e));
+      },
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qcSecret, active, connector, server]);
 

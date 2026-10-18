@@ -130,7 +130,7 @@ export class JellyfinConnector implements ServerConnector {
       name: u.Name,
       hasPassword: !!(u.HasPassword ?? u.HasConfiguredPassword),
       imageUrl: u.PrimaryImageTag
-        ? `${server.url}/Users/${u.Id}/Images/Primary${buildQuery({ tag: u.PrimaryImageTag, maxWidth: 200 })}`
+        ? `${server.url}/Users/${encodeURIComponent(u.Id)}/Images/Primary${buildQuery({ tag: u.PrimaryImageTag, maxWidth: 200 })}`
         : undefined,
     }));
   }
@@ -155,6 +155,9 @@ export class JellyfinConnector implements ServerConnector {
     } catch (e) {
       if (e instanceof BackendError && (e.kind === 'auth' || e.status === 400)) {
         throw new BackendError('Wrong user name or password', 'auth', e.status);
+      }
+      if (e instanceof BackendError && e.kind === 'forbidden') {
+        throw new BackendError('This account is not allowed to sign in right now.', 'forbidden', e.status);
       }
       throw e;
     }

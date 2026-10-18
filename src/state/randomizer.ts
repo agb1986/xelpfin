@@ -1,6 +1,7 @@
 import type { Backend } from '../backend/Backend';
 import type { MediaItem } from '../backend/types';
 import { useLocalList } from './localLists';
+import { mapLimit, SERVER_CONCURRENCY } from './mapLimit';
 
 /**
  * The Randomizer list: series chosen by the user, and the episodes already drawn in the current
@@ -71,7 +72,7 @@ export function drawEpisode(state: RandomizerState, pool: MediaItem[], rng: () =
 
 /** All episodes of the listed series; series that fail to load are skipped. */
 export async function loadPool(backend: Backend, seriesIds: string[]): Promise<MediaItem[]> {
-  const lists = await Promise.all(seriesIds.map(id => backend.episodes(id).catch(() => [] as MediaItem[])));
+  const lists = await mapLimit(seriesIds, SERVER_CONCURRENCY, id => backend.episodes(id).catch(() => [] as MediaItem[]));
   return lists.flat().filter(e => e.kind === 'episode');
 }
 
@@ -80,7 +81,7 @@ export const recentDraws = (state: RandomizerState, count: number): string[] => 
 
 /** Resolves ids to items in order; ids the server no longer has are dropped. */
 export async function loadHistory(backend: Backend, ids: string[]): Promise<MediaItem[]> {
-  const items = await Promise.all(ids.map(id => backend.item(id).catch(() => undefined)));
+  const items = await mapLimit(ids, SERVER_CONCURRENCY, id => backend.item(id).catch(() => undefined));
   return items.filter((i): i is NonNullable<typeof i> => !!i);
 }
 

@@ -65,6 +65,12 @@ describe('JellyfinConnector', () => {
     await expect(c.login(SERVER, 'xelpfin', 'nope')).rejects.toMatchObject({ kind: 'auth', message: 'Wrong user name or password' });
   });
 
+  it('tells a refused account apart from a wrong password', async () => {
+    const f = fakeFetch({ 'POST /Users/AuthenticateByName': () => ({ status: 403 }) });
+    const c = new JellyfinConnector({ client: CLIENT, fetch: f.fetch });
+    await expect(c.login(SERVER, 'xelpfin', 'xelpfin-pass')).rejects.toMatchObject({ kind: 'forbidden', status: 403 });
+  });
+
   it('runs the Quick Connect flow', async () => {
     let polls = 0;
     const f = fakeFetch({

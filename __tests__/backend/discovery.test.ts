@@ -51,3 +51,26 @@ describe('JellyfinConnector.discover', () => {
     await expect(new JellyfinConnector({ client: CLIENT, fetch: fakeFetch({}).fetch }).discover()).resolves.toEqual([]);
   });
 });
+
+describe('parseDiscoveryReplies scheme filter', () => {
+  it('drops advertised addresses that are not http or https', () => {
+    const r = parseDiscoveryReplies([
+      {
+        address: '192.168.1.20',
+        payload: JSON.stringify({ Id: 'srv1', Name: 'Home', Address: 'file:///etc/passwd', EndpointAddress: 'smb://192.168.1.20/media' }),
+      },
+      { address: '192.168.1.21', payload: JSON.stringify({ Id: 'srv2', Name: 'Ok', Address: 'http://192.168.1.21:8096', EndpointAddress: 'ftp://x' }) },
+    ]);
+    expect(r).toEqual([
+      { id: 'srv1', name: 'Home', candidates: [] },
+      { id: 'srv2', name: 'Ok', candidates: ['http://192.168.1.21:8096'] },
+    ]);
+  });
+});
+
+describe('parseDiscoveryReplies limits', () => {
+  it('ignores replies beyond the cap', () => {
+    const replies = Array.from({ length: 200 }, (_, i) => ({ address: `10.0.${Math.floor(i / 256)}.${i % 256}`, payload: reply(`http://10.0.0.1:8096`, `srv${i}`) }));
+    expect(parseDiscoveryReplies(replies)).toHaveLength(64);
+  });
+});

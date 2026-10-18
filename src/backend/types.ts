@@ -222,8 +222,10 @@ export type QuickConnectState =
 export class BackendError extends Error {
   constructor(
     message: string,
-    readonly kind: 'network' | 'auth' | 'notFound' | 'server' | 'unsupported' | 'timeout',
+    readonly kind: 'network' | 'auth' | 'forbidden' | 'notFound' | 'server' | 'unsupported' | 'timeout',
     readonly status?: number,
+    /** Text the server sent with the failure. For logs only: it is never shown to the user. */
+    readonly detail?: string,
   ) {
     super(message);
     this.name = 'BackendError';

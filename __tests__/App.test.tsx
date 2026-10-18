@@ -82,6 +82,7 @@ test('a wrong password shows an error and stays on login', async () => {
   await press(root, 'signin');
   expect(has(root, 'login-error')).toBe(true);
   expect(has(root, 'screen-login')).toBe(true);
+  expect(byId(root, 'password').props.value).toBe('');
   await act(async () => root.unmount());
 });
 

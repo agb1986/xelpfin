@@ -14,6 +14,7 @@ import type {
   SubtitleTrack,
   UserData,
 } from '../types';
+import { buildQuery } from './http';
 
 export interface PublicSystemInfoDto {
   Id: string;
@@ -379,7 +380,7 @@ export function mapDetail(i: BaseItemDto, img: ImageUrlFn, baseUrl?: string): It
     chapters: i.Chapters?.map((c, n) => ({
       name: c.Name || `Chapter ${n + 1}`,
       startMs: ticksToMs(c.StartPositionTicks) ?? 0,
-      imageUrl: c.ImageTag && baseUrl ? `${baseUrl}/Items/${i.Id}/Images/Chapter/${n}?maxWidth=320&tag=${c.ImageTag}` : undefined,
+      imageUrl: c.ImageTag && baseUrl ? `${baseUrl}/Items/${encodeURIComponent(i.Id)}/Images/Chapter/${n}${buildQuery({ maxWidth: 320, tag: c.ImageTag })}` : undefined,
     })),
   };
 }

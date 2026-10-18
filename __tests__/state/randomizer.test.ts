@@ -99,12 +99,13 @@ describe('hidden Next Up', () => {
 });
 
 describe('LocalList', () => {
+  const flush = () => new Promise<void>(resolve => setImmediate(() => resolve()));
   const memory = (initial?: string) => {
     const data = new Map<string, string>(initial ? [['k', initial]] : []);
     return {
       data,
       get: async (k: string) => data.get(k) ?? null,
-      set: async (k: string, v: string) => void data.set(k, v),
+      set: async (k: string, v: string): Promise<void> => void data.set(k, v),
       remove: async (k: string) => void data.delete(k),
     };
   };
@@ -117,6 +118,7 @@ describe('LocalList', () => {
     await list.load();
     expect(list.get().series).toEqual(['A']);
     list.update(s => toggleSeries(s, 'B'));
+    await flush();
     expect(JSON.parse(store.data.get('k')!).series).toEqual(['A', 'B']);
     expect(fn).toHaveBeenCalledTimes(2);
   });
@@ -128,5 +130,50 @@ describe('LocalList', () => {
     list.update(() => ({ series: ['new'], played: [], history: [] }));
     await loading;
     expect(list.get().series).toEqual(['new']);
+  });
+
+  it('sets an unreadable document aside instead of overwriting it', async () => {
+    const store = memory('{not json');
+    const list = new LocalList(store, 'k', emptyRandomizer, sanitizeRandomizer);
+    await list.load();
+    expect(store.data.get('k.corrupt')).toBe('{not json');
+    list.update(s => toggleSeries(s, 'B'));
+    await flush();
+    expect(JSON.parse(store.data.get('k')!).series).toEqual(['B']);
+  });
+
+  it('does not write over a document it could not read', async () => {
+    const store = memory(JSON.stringify({ series: ['A'], played: [] }));
+    const get = jest.spyOn(store, 'get').mockRejectedValueOnce(new Error('busy'));
+    const set = jest.spyOn(store, 'set');
+    const list = new LocalList(store, 'k', emptyRandomizer, sanitizeRandomizer);
+    await list.load();
+    list.update(s => toggleSeries(s, 'B'));
+    await flush();
+    expect(set).not.toHaveBeenCalled();
+    await list.load();
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(list.get().series).toEqual(['A']);
+    list.update(s => toggleSeries(s, 'C'));
+    await flush();
+    expect(JSON.parse(store.data.get('k')!).series).toEqual(['A', 'C']);
+  });
+
+  it('writes in the order updates were made', async () => {
+    const store = memory();
+    const slow: Array<() => void> = [];
+    const set = store.set;
+    store.set = (k: string, v: string) => new Promise<void>(resolve => slow.push(() => set(k, v).then(resolve)));
+    const list = new LocalList(store, 'k', emptyRandomizer, sanitizeRandomizer);
+    await list.load();
+    list.update(s => toggleSeries(s, 'A'));
+    list.update(s => toggleSeries(s, 'B'));
+    await flush();
+    expect(slow).toHaveLength(1);
+    slow.shift()!();
+    await flush();
+    slow.shift()!();
+    await flush();
+    expect(JSON.parse(store.data.get('k')!).series).toEqual(['A', 'B']);
   });
 });

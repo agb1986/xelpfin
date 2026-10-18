@@ -7,6 +7,9 @@ describe('playerError', () => {
     expect(auth).toBeInstanceOf(BackendError);
     expect((auth as BackendError).kind).toBe('auth');
     expect((auth as BackendError).status).toBe(401);
+    const forbidden = playerError('Response code: 403');
+    expect((forbidden as BackendError).kind).toBe('forbidden');
+    expect((forbidden as BackendError).status).toBe(403);
     const server = playerError('Response code: 500');
     expect((server as BackendError).kind).toBe('server');
     expect(server.message).toContain('HTTP 500');
