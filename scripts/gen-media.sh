@@ -6,6 +6,10 @@ OUT=${1:?media dir}
 FONT=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
 HERE=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$OUT/movies" "$OUT/shows"
+# Scratch files go in a private directory: fixed names under /tmp could be pre-created or linked
+# elsewhere by another user.
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 ff() { ffmpeg -hide_banner -loglevel error -y "$@"; }
 label() { echo "drawtext=fontfile=$FONT:text='$1':fontcolor=white:fontsize=$2:x=(w-tw)/2:y=h*0.4,drawtext=fontfile=$FONT:text='%{pts\\:hms}':fontcolor=white:fontsize=$(( $2 / 2 )):x=(w-tw)/2:y=h*0.6"; }
 
@@ -30,16 +34,15 @@ fi
 # 2. HEVC MKV, two audio tracks (AAC eng, AC3 ger), two embedded subtitle tracks.
 d="$OUT/movies/Night Grid (2023)"; mkdir -p "$d"
 if [ ! -f "$d/Night Grid (2023).mkv" ]; then
-  srt /tmp/xelpfin-en.srt EN; srt /tmp/xelpfin-fr.srt FR
+  srt "$TMP/en.srt" EN; srt "$TMP/fr.srt" FR
   ff -f lavfi -i "smptehdbars=size=1280x720:rate=25:duration=40" -f lavfi -i "sine=frequency=330:duration=40" \
-     -f lavfi -i "sine=frequency=550:duration=40" -i /tmp/xelpfin-en.srt -i /tmp/xelpfin-fr.srt \
+     -f lavfi -i "sine=frequency=550:duration=40" -i "$TMP/en.srt" -i "$TMP/fr.srt" \
      -map 0:v -map 1:a -map 2:a -map 3 -map 4 -vf "$(label 'Night Grid' 64)" \
      -c:v libx265 -preset ultrafast -x265-params log-level=error -pix_fmt yuv420p -c:a:0 aac -b:a:0 96k -c:a:1 ac3 -b:a:1 192k -c:s srt \
      -metadata:s:a:0 language=eng -metadata:s:a:0 title="English Stereo" \
      -metadata:s:a:1 language=ger -metadata:s:a:1 title="Deutsch AC3" \
      -metadata:s:s:0 language=eng -metadata:s:s:1 language=fre \
      "$d/Night Grid (2023).mkv"
-  rm -f /tmp/xelpfin-en.srt /tmp/xelpfin-fr.srt
 fi
 
 # 3. MS-MPEG4v3 in AVI: no Android decoder, so the server must transcode.
