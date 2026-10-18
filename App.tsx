@@ -15,6 +15,7 @@ import {
   PlayerScreen,
   SearchScreen,
   ServerSelectScreen,
+  RandomizerHistoryScreen,
   SettingsScreen,
 } from './src/ui/screens';
 import { colors } from './src/ui/theme';
@@ -89,6 +90,8 @@ function screenFor(route: Route): React.ReactNode {
       return <SearchScreen />;
     case 'settings':
       return <SettingsScreen />;
+    case 'randomizerHistory':
+      return <RandomizerHistoryScreen />;
     case 'player':
       return <PlayerScreen itemId={route.itemId} startPositionMs={route.startPositionMs} shuffle={route.shuffle} />;
   }

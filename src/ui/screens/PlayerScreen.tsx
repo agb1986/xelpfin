@@ -569,6 +569,20 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
     }
   };
 
+  // Randomizer playback jumps straight past recaps, openings and credits instead of offering a button.
+  const autoSkipped = useRef('');
+  useEffect(() => {
+    if (!shuffle || !active || !plan || buffering) {
+      return;
+    }
+    const seg = activeSegment(segments, position);
+    const key = seg && `${seg.kind}:${seg.startMs}`;
+    if (seg && key !== autoSkipped.current) {
+      autoSkipped.current = key!;
+      skipSegment(seg);
+    }
+  }, [shuffle, active, plan, buffering, segments, position, skipSegment]);
+
   if (error) {
     return (
       <View style={styles.root} testID="player">

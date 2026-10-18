@@ -110,6 +110,7 @@ export function SettingsScreen() {
             <Text style={styles.section}>Actions</Text>
             <Row testID="act-clear-continue" label="Clear Continue Watching" value={actionValue('continue', 'Forget resume positions')} onPress={() => runAction('continue')} />
             <Row testID="act-clear-nextup" label="Clear Next Up" value={actionValue('nextup', 'Hide current entries')} onPress={() => runAction('nextup')} />
+            <Row testID="act-randomizer-history" label="View Randomizer History" value="Latest picks" onPress={() => nav.push({ name: 'randomizerHistory' })} />
             <Row testID="act-reset-randomizer" label="Reset Randomizer history" value={actionValue('randomizer', 'Start a new cycle')} onPress={() => runAction('randomizer')} />
           </>
         ) : null}
