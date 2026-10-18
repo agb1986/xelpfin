@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoveredServer, ServerInfo } from '../../backend/types';
 import { useApp } from '../../state/AppState';
@@ -6,10 +6,36 @@ import { useNavigation } from '../../state/navigation';
 import { Button, describeError, Focusable, Screen, TextField, bleed } from '../components';
 import { colors, font, radius, space } from '../theme';
 
-function ServerTile({ server, note, onPress, preferred }: { server: ServerInfo; note: string; onPress(): void; preferred?: boolean }) {
+export interface ServerEntry {
+  key: string;
+  server: ServerInfo;
+  note: string;
+}
+
+/**
+ * Lists saved servers first, then what discovery found. Any device on the network can answer
+ * discovery with a saved server's id, so a reply never replaces a saved entry's address: it only
+ * confirms the entry when the address matches, and is otherwise listed as a separate server.
+ */
+export function mergeServerList(saved: ServerInfo[], found: ServerInfo[]): ServerEntry[] {
+  const out: ServerEntry[] = saved.map(s => ({ key: s.id, server: s, note: 'Saved' }));
+  for (const f of found) {
+    const i = out.findIndex(o => o.server.id === f.id);
+    if (i < 0) {
+      out.push({ key: f.id, server: f, note: 'Found on network' });
+    } else if (out[i].server.url === f.url) {
+      out[i] = { ...out[i], note: 'Saved · found on network' };
+    } else {
+      out.push({ key: `${f.id}@${f.url}`, server: f, note: 'Found on network · different address' });
+    }
+  }
+  return out;
+}
+
+function ServerTile({ id, server, note, onPress, preferred }: { id: string; server: ServerInfo; note: string; onPress(): void; preferred?: boolean }) {
   return (
     <Focusable
-      testID={`server-${server.id}`}
+      testID={`server-${id}`}
       hasTVPreferredFocus={preferred}
       onPress={onPress}
       style={focused => [styles.tile, focused && styles.tileFocused]}
@@ -39,28 +65,30 @@ export function ServerSelectScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
+  const alive = useRef(true);
+  useEffect(
+    () => () => {
+      alive.current = false;
+    },
+    [],
+  );
+
   const discover = useCallback(() => {
     setSearching(true);
     connector
       .discover(2500, platform.discoveryHints())
-      .then(setFound, () => setFound([]))
-      .finally(() => setSearching(false));
+      .catch(() => [] as DiscoveredServer[])
+      .then(servers => {
+        if (alive.current) {
+          setFound(servers);
+          setSearching(false);
+        }
+      });
   }, [connector, platform]);
 
   useEffect(discover, [discover]);
 
-  const list = useMemo(() => {
-    const out: { server: ServerInfo; note: string }[] = saved.map(s => ({ server: s, note: 'Saved' }));
-    for (const f of found) {
-      const i = out.findIndex(o => o.server.id === f.id);
-      if (i >= 0) {
-        out[i] = { server: f, note: 'Saved · found on network' };
-      } else {
-        out.push({ server: f, note: 'Found on network' });
-      }
-    }
-    return out;
-  }, [found, saved]);
+  const list = useMemo(() => mergeServerList(saved, found), [found, saved]);
 
   const choose = (server: ServerInfo) => nav.push({ name: 'login', server });
 
@@ -81,7 +109,7 @@ export function ServerSelectScreen() {
       <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
         <View style={styles.tiles}>
           {list.map((s, i) => (
-            <ServerTile key={s.server.id} server={s.server} note={s.note} onPress={() => choose(s.server)} preferred={i === 0} />
+            <ServerTile key={s.key} id={s.key} server={s.server} note={s.note} onPress={() => choose(s.server)} preferred={i === 0} />
           ))}
           {list.length === 0 ? (
             <Text style={styles.dim} testID="discovery-status">

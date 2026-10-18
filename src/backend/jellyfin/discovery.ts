@@ -34,7 +34,7 @@ interface ReplyDto {
 /**
  * Parses replies and merges duplicates by server id. The advertised Address is often unusable
  * (Docker bridge IP, wrong interface), so a candidate built from the datagram's source IP with
- * the advertised port and scheme is added too.
+ * the advertised port and scheme is added too. Anything that is not an http or https URL is dropped.
  */
 export function parseDiscoveryReplies(replies: UdpReply[]): DiscoveryAnswer[] {
   const byId = new Map<string, DiscoveryAnswer>();
@@ -50,7 +50,8 @@ export function parseDiscoveryReplies(replies: UdpReply[]): DiscoveryAnswer[] {
     }
     const cands: string[] = [];
     const add = (u?: string | null) => {
-      if (u) {
+      // Replies are unauthenticated, so only plain web addresses are worth probing.
+      if (u && /^https?:\/\//i.test(u)) {
         const clean = u.replace(/\/+$/, '');
         if (!cands.includes(clean)) {
           cands.push(clean);
