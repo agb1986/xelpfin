@@ -116,6 +116,9 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   const positionRef = useRef(startPositionMs);
   const pausedRef = useRef(false);
   const started = useRef(false);
+  // Bumped by every plan request; a reply for an older request is dropped. The track pickers
+  // already wait for the current plan, so this only guards against later callers.
+  const planRequest = useRef(0);
   // False once the screen unmounts; true once the current plan has played to its end. Late
   // native callbacks and the async next-episode lookup check these so they cannot act on a
   // screen the user already left.
@@ -180,9 +183,15 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
     [backend, isFinished],
   );
 
-  /** Asks the backend for a (new) plan. Stops the session of the previous plan first. */
+  /**
+   * Asks the backend for a (new) plan. Stops the session of the previous plan first. A plan that
+   * arrives after a newer request or after the screen closed is dropped; it was never loaded, so
+   * the server has not started streaming it.
+   */
   const requestPlan = useCallback(
     async (fromMs: number, audioIndex: number | undefined, subtitleIndex: number) => {
+      const request = ++planRequest.current;
+      const current = () => alive.current && request === planRequest.current;
       if (planRef.current && started.current) {
         report('stop');
       }
@@ -197,13 +206,18 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
           { itemId, startPositionMs: fromMs, audioStreamIndex: audioIndex, subtitleStreamIndex: subtitleIndex },
           caps,
         );
+        if (!current()) {
+          return;
+        }
         positionRef.current = fromMs;
         setPosition(fromMs);
         setAudio(next.selectedAudioIndex ?? audioIndex);
         setSubtitle(subtitleIndex);
         setPlan(next);
       } catch (e) {
-        setError(e);
+        if (current()) {
+          setError(e);
+        }
       }
     },
     [app, backend, itemId, report],
