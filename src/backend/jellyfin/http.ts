@@ -125,11 +125,7 @@ export class JellyfinHttp {
       } catch {
         // ignore
       }
-      throw new BackendError(
-        `${opts.method ?? 'GET'} ${path} failed: HTTP ${res.status}${detail ? ` ${detail}` : ''}`,
-        kind,
-        res.status,
-      );
+      throw new BackendError(`${opts.method ?? 'GET'} ${path} failed: HTTP ${res.status}`, kind, res.status, detail || undefined);
     }
     if (res.status === 204) {
       return undefined as T;

@@ -6,7 +6,7 @@ import { BackendError } from './src/backend/types';
 import { getPlatform, getOrCreateDeviceId, type PlatformServices } from './src/platform';
 import { AppStateProvider, loadBoot, useApp, type Boot } from './src/state/AppState';
 import { NavigationStack, useNavigation, type Route } from './src/state/navigation';
-import { LoadingView, ScreenBoundary } from './src/ui/components';
+import { describeError, LoadingView, ScreenBoundary } from './src/ui/components';
 import {
   DetailScreen,
   HomeScreen,
@@ -117,7 +117,7 @@ export default function App({ platform, connector }: { platform?: PlatformServic
   const services = platform ?? getPlatform();
 
   useEffect(() => {
-    bootstrap(services, connector).then(setReady, e => setFailure(String(e)));
+    bootstrap(services, connector).then(setReady, e => setFailure(describeError(e)));
     // Bootstrap once per process.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

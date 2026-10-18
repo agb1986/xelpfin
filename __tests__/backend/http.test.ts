@@ -50,7 +50,7 @@ describe('JellyfinHttp', () => {
     const http = new JellyfinHttp('http://s', CLIENT, undefined, f.fetch);
     await expect(http.get('/a')).rejects.toMatchObject({ kind: 'auth', status: 401 });
     await expect(http.get('/c')).rejects.toMatchObject({ kind: 'forbidden', status: 403 });
-    await expect(http.get('/b')).rejects.toMatchObject({ kind: 'server', status: 500 });
+    await expect(http.get('/b')).rejects.toMatchObject({ kind: 'server', status: 500, message: 'GET /b failed: HTTP 500', detail: 'boom' });
     await expect(http.get('/missing')).rejects.toMatchObject({ kind: 'notFound' });
   });
 
