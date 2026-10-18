@@ -99,11 +99,25 @@ def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
  * signing/keystore.properties fails unless -Pxelpfin.allowDebugSignedRelease=true is passed.
  */
 def allowDebugSignedRelease = findProperty("xelpfin.allowDebugSignedRelease") == "true"
+
+// package.json is the single source of truth. versionCode is derived so it always rises
+// with the semver: 1.2.3 -> 10203 (minor and patch must stay below 100).
+def pkgVersion = new groovy.json.JsonSlurper().parse(file("../../package.json")).version
+def (vMajor, vMinor, vPatch) = pkgVersion.split("-")[0].tokenize(".").collect { it.toInteger() }
+
 tasks.matching { it.name == "preReleaseBuild" }.configureEach {
     doFirst {
         if (!releaseProps.getProperty("storeFile") && !allowDebugSignedRelease) {
             throw new GradleException("xelpfin: signing/keystore.properties not found. Run scripts/release.sh to create a release key, " +
                 "or pass -Pxelpfin.allowDebugSignedRelease=true to sign this build with the debug key.")
+        }
+        // A prerelease such as 1.2.3-rc.1 would get the same versionCode as 1.2.3, so Android
+        // would refuse to update one to the other.
+        if (pkgVersion.contains("-")) {
+            throw new GradleException("xelpfin: version ${pkgVersion} is a prerelease. Release builds need a plain X.Y.Z version.")
+        }
+        if (vMinor > 99 || vPatch > 99) {
+            throw new GradleException("xelpfin: version ${pkgVersion} does not fit versionCode; minor and patch must stay below 100.")
         }
     }
 }
@@ -118,10 +132,6 @@ android {
         applicationId "com.xelpfin.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // package.json is the single source of truth. versionCode is derived so it always rises
-        // with the semver: 1.2.3 -> 10203 (minor and patch must stay below 100).
-        def pkgVersion = new groovy.json.JsonSlurper().parse(file("../../package.json")).version
-        def (vMajor, vMinor, vPatch) = pkgVersion.split("-")[0].tokenize(".").collect { it.toInteger() }
         versionCode vMajor * 10000 + vMinor * 100 + vPatch
         versionName pkgVersion
         buildConfigField "boolean", "XELPFIN_DEV_SUPPORT", project.hasProperty("xelpfinDev") ? "true" : "false"
