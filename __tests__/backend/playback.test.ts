@@ -1,4 +1,4 @@
-import { buildPlan, directPlayBlockers, withQueryParams } from '../../src/backend/jellyfin/playback';
+import { buildPlan, directPlayBlockers, originOf, withQueryParams } from '../../src/backend/jellyfin/playback';
 import type { MediaSourceDto } from '../../src/backend/jellyfin/dto';
 import { BASELINE_CAPABILITIES, type DeviceCapabilities } from '../../src/player/capabilities';
 
@@ -158,5 +158,25 @@ describe('withQueryParams', () => {
     expect(withQueryParams('http://s/a?x=1&subtitlemethod=Hls', { SubtitleMethod: 'Encode', y: 'a b' })).toBe(
       'http://s/a?x=1&SubtitleMethod=Encode&y=a%20b',
     );
+  });
+});
+
+describe('transcoding URL origin', () => {
+  it('keeps an absolute stream address on the signed-in server', () => {
+    const same = { ...aviOld, TranscodingUrl: 'HTTP://SRV:8096/videos/i3/master.m3u8?MediaSourceId=ms3' };
+    expect(buildPlan({ itemId: 'i3' }, [same], 'p', BASELINE_CAPABILITIES, ctx).url).toMatch(/^HTTP:\/\/SRV:8096\/.*api_key=tok/);
+  });
+
+  it('refuses to send the token to another host', () => {
+    for (const TranscodingUrl of ['http://evil.example/videos/i3/master.m3u8', 'https://srv:8096/videos/i3/master.m3u8', 'http://srv:9000/x.m3u8']) {
+      expect(() => buildPlan({ itemId: 'i3' }, [{ ...aviOld, TranscodingUrl }], 'p', BASELINE_CAPABILITIES, ctx)).toThrow(/different host/);
+    }
+  });
+
+  it('normalises default ports and case', () => {
+    expect(originOf('HTTP://Media.Lan:80/jf')).toBe('http://media.lan');
+    expect(originOf('https://media.lan:443?x')).toBe('https://media.lan');
+    expect(originOf('https://media.lan:8920/jf')).toBe('https://media.lan:8920');
+    expect(originOf('ftp://media.lan')).toBeUndefined();
   });
 });

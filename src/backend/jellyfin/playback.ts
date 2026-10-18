@@ -172,6 +172,10 @@ export function buildPlan(
     throw new BackendError(`This item cannot be played on this device (${reasons.join(', ')})`, 'unsupported');
   }
   let url = /^https?:/i.test(source.TranscodingUrl) ? source.TranscodingUrl : `${ctx.baseUrl}${source.TranscodingUrl}`;
+  // The access token is appended below, so it must not be sent to a host the user did not sign in to.
+  if (originOf(url) !== originOf(ctx.baseUrl)) {
+    throw new BackendError('The server sent a stream address on a different host, so it was not opened.', 'unsupported');
+  }
   if (!/[?&]api_key=/i.test(url)) {
     url += `${url.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(ctx.token)}`;
   }
@@ -192,6 +196,17 @@ export function buildPlan(
     container: source.TranscodingContainer ?? 'ts',
     subtitleTracks: subtitleTracksFor(req.itemId, source, ctx, burn),
   };
+}
+
+/** Scheme, host and port of an http(s) URL, lower-cased; undefined for anything else. */
+export function originOf(url: string): string | undefined {
+  const m = /^(https?):\/\/([^/?#]+)/i.exec(url);
+  if (!m) {
+    return undefined;
+  }
+  const scheme = m[1].toLowerCase();
+  const host = m[2].toLowerCase().replace(scheme === 'http' ? /:80$/ : /:443$/, '');
+  return `${scheme}://${host}`;
 }
 
 /** Sets (or replaces) query parameters on a URL, matching existing names case-insensitively. */
