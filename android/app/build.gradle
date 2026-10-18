@@ -94,6 +94,20 @@ def packagedAbis = (findProperty("reactNativeArchitectures") ?: "armeabi-v7a,x86
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+/**
+ * A release signed with the public debug key can be replaced by anyone, so a release build without
+ * signing/keystore.properties fails unless -Pxelpfin.allowDebugSignedRelease=true is passed.
+ */
+def allowDebugSignedRelease = findProperty("xelpfin.allowDebugSignedRelease") == "true"
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    doFirst {
+        if (!releaseProps.getProperty("storeFile") && !allowDebugSignedRelease) {
+            throw new GradleException("xelpfin: signing/keystore.properties not found. Run scripts/release.sh to create a release key, " +
+                "or pass -Pxelpfin.allowDebugSignedRelease=true to sign this build with the debug key.")
+        }
+    }
+}
+
 android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
@@ -141,7 +155,7 @@ android {
         release {
             if (releaseProps.getProperty("storeFile")) {
                 signingConfig signingConfigs.release
-            } else {
+            } else if (allowDebugSignedRelease) {
                 logger.warn("xelpfin: signing/keystore.properties not found, signing the release with the debug key")
                 signingConfig signingConfigs.debug
             }

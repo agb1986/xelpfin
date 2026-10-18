@@ -93,8 +93,9 @@ On first use the script creates `signing/xelpfin-release.keystore` and
 `signing/keystore.properties`, with a random password. git ignores `signing/` and `dist/`.
 **Back up `signing/`.** Android only accepts an update signed with the same key as the installed
 app. If the key is lost, you have to uninstall the app (losing its settings and sign-in) before
-installing a build signed with a new key. Without `keystore.properties` the release build is
-signed with the debug key and Gradle prints a warning.
+installing a build signed with a new key. Without `keystore.properties` a release build fails;
+pass `-Pxelpfin.allowDebugSignedRelease=true` to Gradle to sign a throwaway release build with the
+debug key instead.
 
 The keep rules for R8 are in `android/app/proguard-rules.pro`. If you add a native module, add
 its package there too, and check `adb logcat` for `ClassNotFoundException` on a release build.
