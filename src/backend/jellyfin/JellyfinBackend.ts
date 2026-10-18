@@ -130,7 +130,7 @@ export class JellyfinConnector implements ServerConnector {
       name: u.Name,
       hasPassword: !!(u.HasPassword ?? u.HasConfiguredPassword),
       imageUrl: u.PrimaryImageTag
-        ? `${server.url}/Users/${u.Id}/Images/Primary${buildQuery({ tag: u.PrimaryImageTag, maxWidth: 200 })}`
+        ? `${server.url}/Users/${encodeURIComponent(u.Id)}/Images/Primary${buildQuery({ tag: u.PrimaryImageTag, maxWidth: 200 })}`
         : undefined,
     }));
   }

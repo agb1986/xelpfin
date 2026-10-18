@@ -13,6 +13,12 @@ describe('authHeader', () => {
     expect(h).not.toContain('Token');
     expect(h).toContain(`Device="Bob's TV"`);
   });
+  it('keeps line breaks and backslashes out of the header', () => {
+    const h = authHeader({ ...CLIENT, device: 'TV\r\nX-Evil: 1', deviceId: 'a\\", Token="x' });
+    expect(h).not.toMatch(/[\r\n\\]/);
+    expect(h).toContain('Device="TV  X-Evil: 1"');
+    expect(h).toContain(`DeviceId="a/', Token='x"`);
+  });
 });
 
 describe('buildQuery', () => {
@@ -61,10 +67,15 @@ describe('JellyfinHttp', () => {
     await expect(new JellyfinHttp('http://s', CLIENT, undefined, failing).get('/x')).rejects.toMatchObject({
       kind: 'network',
     });
-    const hanging = jest.fn(() => new Promise<Response>(() => {})) as unknown as typeof fetch;
+    let signal: AbortSignal | undefined;
+    const hanging = jest.fn((_url: string, init?: RequestInit) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>(() => {});
+    }) as unknown as typeof fetch;
     const err = await new JellyfinHttp('http://s', CLIENT, undefined, hanging, 20).get('/x').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(BackendError);
     expect(err).toMatchObject({ kind: 'timeout' });
+    expect(signal?.aborted).toBe(true);
   });
 
   it('treats 204 and empty bodies as undefined', async () => {

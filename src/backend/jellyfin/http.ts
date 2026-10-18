@@ -10,8 +10,9 @@ export interface ClientInfo {
 
 export type FetchFn = typeof fetch;
 
+/** Makes a value safe inside a quoted header parameter: no line breaks, quotes or backslashes. */
 function quote(v: string): string {
-  return v.replace(/"/g, "'");
+  return v.replace(/[\r\n]/g, ' ').replace(/\\/g, '/').replace(/"/g, "'");
 }
 
 /** Jellyfin's `Authorization: MediaBrowser ...` header value. */
@@ -84,17 +85,20 @@ export class JellyfinHttp {
       body = JSON.stringify(opts.body);
     }
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
+    // The abort cancels the request itself, so a server that never answers does not keep a
+    // connection open after the caller has been told it timed out.
+    const abort = typeof AbortController === 'function' ? new AbortController() : undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () => reject(new BackendError(`Request timed out: ${path}`, 'timeout')),
-        timeoutMs,
-      );
+      timer = setTimeout(() => {
+        reject(new BackendError(`Request timed out: ${path}`, 'timeout'));
+        abort?.abort();
+      }, timeoutMs);
     });
     let res: Response;
     try {
       res = await Promise.race([
-        this.fetchFn(url, { method: opts.method ?? 'GET', headers, body }),
+        this.fetchFn(url, { method: opts.method ?? 'GET', headers, body, signal: abort?.signal }),
         timeout,
       ]);
     } catch (e) {
