@@ -1,6 +1,7 @@
 import {
   buildPlan,
   directPlayBlockers,
+  mediaHeaders,
   originOf,
   withQueryParams,
 } from '../../src/backend/jellyfin/playback';
@@ -165,9 +166,14 @@ describe('buildPlan', () => {
     );
     expect(plan.method).toBe('DirectPlay');
     expect(plan.streamType).toBe('progressive');
+    // The token travels in the Authorization header, never in the URL (issue #11).
     expect(plan.url).toBe(
-      'http://srv:8096/Videos/i1/stream?static=true&mediaSourceId=ms1&playSessionId=ps1&deviceId=dev-1&api_key=tok',
+      'http://srv:8096/Videos/i1/stream?static=true&mediaSourceId=ms1&playSessionId=ps1&deviceId=dev-1',
     );
+    expect(plan.url).not.toMatch(/api_key|tok/);
+    expect(plan.headers).toEqual({
+      Authorization: 'MediaBrowser Token="tok"',
+    });
     expect(plan.durationMs).toBe(40_000);
     expect(plan.startPositionMs).toBe(5000);
     expect(plan.selectedAudioIndex).toBe(1);
@@ -185,8 +191,34 @@ describe('buildPlan', () => {
       index: 2,
       delivery: 'external',
       mimeType: 'text/vtt',
-      url: 'http://srv:8096/Videos/i1/ms1/Subtitles/2/0/Stream.vtt?api_key=tok',
+      url: 'http://srv:8096/Videos/i1/ms1/Subtitles/2/0/Stream.vtt',
     });
+  });
+
+  it('keeps api_key only on HLS transcode URLs, where segment requests follow the playlist', () => {
+    const plan = buildPlan(
+      { itemId: 'i2' },
+      [hevcMkv],
+      'ps2',
+      { ...BASELINE_CAPABILITIES, video: [BASELINE_CAPABILITIES.video[0]] },
+      ctx,
+    );
+    expect(plan.streamType).toBe('hls');
+    expect(plan.url).toMatch(/[?&]api_key=tok(&|$)/);
+    // The header is still there for the playlist request itself.
+    expect(plan.headers).toEqual({
+      Authorization: 'MediaBrowser Token="tok"',
+    });
+    // Subtitle URLs never carry the token, whatever the play method.
+    for (const t of plan.subtitleTracks) {
+      expect(t.url ?? '').not.toContain('api_key');
+    }
+  });
+
+  it('sanitises the token inside the quoted header value', () => {
+    expect(mediaHeaders({ ...ctx, token: 'a"b\\c\r\nd' }).Authorization).toBe(
+      'MediaBrowser Token="a\'b/c  d"',
+    );
   });
 
   it('transcodes over HLS when the codec is not supported', () => {
