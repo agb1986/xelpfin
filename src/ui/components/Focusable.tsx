@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { useScreenState } from '../../state/navigation';
 
-const DOUBLE_PRESS_MS = 400;
 const RESTORE_TRIES = 8;
 const RESTORE_RETRY_MS = 80;
 
@@ -42,6 +41,9 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable(
     onFocus,
     onBlur,
     onPress,
+    onPressIn,
+    onPressOut,
+    onLongPress,
     focusable = true,
     hasTVPreferredFocus,
     ...rest
@@ -51,19 +53,37 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable(
   const [focused, setFocused] = useState(false);
   const inner = useRef<View>(null);
   useImperativeHandle(ref, () => inner.current as View);
-  // react-native-tvos on Android reports one remote "select" twice: once as the TV press
-  // (onPressOut) and once as a view click (onClick). Collapse the pair into a single press.
-  const lastPress = useRef(0);
-  const press: PressableProps['onPress'] = onPress
+  // One remote "select" reaches JS by two routes in react-native-tvos (0.81.5-2, ReactAndroid):
+  // ReactViewGroup.onKeyUp dispatches topPressOut for DPAD_CENTER/ENTER and then lets Android's
+  // View.onKeyUp performClick(), where the OnClickListener that ReactViewManager.setFocusable
+  // installs dispatches topClick. Pressability.js turns the first into onPressOut followed by
+  // onPress, and the second into onPress again, unless Platform.isTV is true, in which case it
+  // drops the click outright. That flag follows the device's UI mode: true on a Fire TV stick,
+  // false on the project's tv_1080p emulator, which is where the double press was seen. A time
+  // window cannot tell the two routes apart from two deliberate presses, so the press is taken
+  // from onPressOut, which fires exactly once per key release on both, and onPress is not given
+  // to the Pressable, which leaves the click route unhandled. Click-only sources (a mouse, the
+  // keyboard space bar, a TalkBack click) therefore do not press, which a remote-driven app can
+  // live with; Pressability's touch sound is skipped too, though the native click sound still
+  // plays.
+  const longPressed = useRef(false);
+  const pressIn: PressableProps['onPressIn'] = e => {
+    longPressed.current = false;
+    onPressIn?.(e);
+  };
+  const longPress: PressableProps['onLongPress'] = onLongPress
     ? e => {
-        const now = Date.now();
-        if (now - lastPress.current < DOUBLE_PRESS_MS) {
-          return;
-        }
-        lastPress.current = now;
-        onPress(e);
+        longPressed.current = true;
+        onLongPress(e);
       }
     : undefined;
+  const pressOut: PressableProps['onPressOut'] = e => {
+    onPressOut?.(e);
+    // Pressability's own rule: a long press that was delivered consumes the release.
+    if (onPress && !longPressed.current) {
+      onPress(e);
+    }
+  };
   const screen = useScreenState();
   const { active, lastFocused } = screen;
   const key = rest.testID;
@@ -108,7 +128,9 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable(
       focusable={focusable && active}
       hasTVPreferredFocus={hasTVPreferredFocus && active}
       {...rest}
-      onPress={press}
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      onLongPress={longPress}
       onFocus={e => {
         hasFocus.current = true;
         setFocused(true);
