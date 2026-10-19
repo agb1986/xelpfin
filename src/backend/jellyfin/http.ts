@@ -59,6 +59,40 @@ export interface RequestOptions {
   allow?: number[];
 }
 
+/** Options for `send`, which can also make a conditional request. */
+export interface SendOptions extends RequestOptions {
+  /**
+   * ETag from an earlier response. It is sent as `If-None-Match`, and a 304 answer is
+   * reported through `HttpResponse.notModified` instead of being parsed or thrown.
+   */
+  etag?: string;
+}
+
+/** A parsed response plus the metadata a cache needs. */
+export interface HttpResponse<T> {
+  status: number;
+  /**
+   * Parsed JSON body. Undefined on 304, 204, an empty body or a status listed in `allow`.
+   */
+  data: T | undefined;
+  /** ETag the server attached to this answer, if any. Pass it back as `etag` next time. */
+  etag?: string;
+  /** True when the server answered 304 to the supplied ETag: the cached copy is still current. */
+  notModified: boolean;
+}
+
+/**
+ * Only GET is retried: it is idempotent, so a second attempt after a dropped connection or a
+ * 5xx cannot double-apply anything. 4xx answers are never retried, and neither is a timeout,
+ * because the request already waited the full timeout and a repeat would double it.
+ */
+const RETRY_DELAY_MS = 200;
+const RETRY_JITTER_MS = 300;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /** Thin JSON-over-HTTP client bound to one server base URL and (optionally) a user token. */
 export class JellyfinHttp {
   constructor(
@@ -84,54 +118,68 @@ export class JellyfinHttp {
   }
 
   async request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+    const r = await this.send<T>(path, opts);
+    return r.data as T;
+  }
+
+  /**
+   * Like `request`, but returns the status and ETag with the body and accepts a conditional
+   * `etag`. GET is retried once, after a short jittered delay, when the connection fails or
+   * the server answers 5xx.
+   */
+  async send<T>(
+    path: string,
+    opts: SendOptions = {},
+  ): Promise<HttpResponse<T>> {
+    const method = opts.method ?? 'GET';
     const url = this.url(path, opts.query);
     const headers: Record<string, string> = {
       Accept: 'application/json',
       Authorization: authHeader(this.client, this.token),
     };
+    if (opts.etag) {
+      headers['If-None-Match'] = opts.etag;
+    }
     let body: string | undefined;
     if (opts.body !== undefined) {
       headers['Content-Type'] = 'application/json';
       body = JSON.stringify(opts.body);
     }
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
-    // The abort cancels the request itself, so a server that never answers does not keep a
-    // connection open after the caller has been told it timed out.
-    const abort =
-      typeof AbortController === 'function' ? new AbortController() : undefined;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        reject(new BackendError(`Request timed out: ${path}`, 'timeout'));
-        abort?.abort();
-      }, timeoutMs);
-    });
+    const attempt = () =>
+      this.fetchOnce(path, url, method, headers, body, timeoutMs);
+
     let res: Response;
-    try {
-      res = await Promise.race([
-        this.fetchFn(url, {
-          method: opts.method ?? 'GET',
-          headers,
-          body,
-          signal: abort?.signal,
-        }),
-        timeout,
-      ]);
-    } catch (e) {
-      if (e instanceof BackendError) {
+    for (let tries = 0; ; tries++) {
+      const mayRetry = tries === 0 && method === 'GET';
+      try {
+        res = await attempt();
+      } catch (e) {
+        if (mayRetry && e instanceof BackendError && e.kind === 'network') {
+          await sleep(RETRY_DELAY_MS + Math.random() * RETRY_JITTER_MS);
+          continue;
+        }
         throw e;
       }
-      throw new BackendError(
-        `Cannot reach server: ${(e as Error)?.message ?? e}`,
-        'network',
-      );
-    } finally {
-      if (timer !== undefined) {
-        clearTimeout(timer);
+      if (mayRetry && res.status >= 500 && !opts.allow?.includes(res.status)) {
+        await sleep(RETRY_DELAY_MS + Math.random() * RETRY_JITTER_MS);
+        continue;
       }
+      break;
+    }
+
+    const etag = res.headers.get('ETag') ?? undefined;
+    const base = { status: res.status, etag, notModified: false };
+    if (opts.etag && res.status === 304) {
+      return {
+        ...base,
+        etag: etag ?? opts.etag,
+        data: undefined,
+        notModified: true,
+      };
     }
     if (opts.allow?.includes(res.status)) {
-      return undefined as T;
+      return { ...base, data: undefined };
     }
     if (!res.ok) {
       const kind =
@@ -149,23 +197,63 @@ export class JellyfinHttp {
         // ignore
       }
       throw new BackendError(
-        `${opts.method ?? 'GET'} ${path} failed: HTTP ${res.status}`,
+        `${method} ${path} failed: HTTP ${res.status}`,
         kind,
         res.status,
         detail || undefined,
       );
     }
     if (res.status === 204) {
-      return undefined as T;
+      return { ...base, data: undefined };
     }
     const text = await res.text();
     if (!text) {
-      return undefined as T;
+      return { ...base, data: undefined };
     }
     try {
-      return JSON.parse(text) as T;
+      return { ...base, data: JSON.parse(text) as T };
     } catch {
       throw new BackendError(`Invalid JSON from ${path}`, 'server', res.status);
+    }
+  }
+
+  /** One attempt with its own timeout; a timeout aborts the request itself. */
+  private async fetchOnce(
+    path: string,
+    url: string,
+    method: string,
+    headers: Record<string, string>,
+    body: string | undefined,
+    timeoutMs: number,
+  ): Promise<Response> {
+    // The abort cancels the request itself, so a server that never answers does not keep a
+    // connection open after the caller has been told it timed out.
+    const abort =
+      typeof AbortController === 'function' ? new AbortController() : undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new BackendError(`Request timed out: ${path}`, 'timeout'));
+        abort?.abort();
+      }, timeoutMs);
+    });
+    try {
+      return await Promise.race([
+        this.fetchFn(url, { method, headers, body, signal: abort?.signal }),
+        timeout,
+      ]);
+    } catch (e) {
+      if (e instanceof BackendError) {
+        throw e;
+      }
+      throw new BackendError(
+        `Cannot reach server: ${(e as Error)?.message ?? e}`,
+        'network',
+      );
+    } finally {
+      if (timer !== undefined) {
+        clearTimeout(timer);
+      }
     }
   }
 
