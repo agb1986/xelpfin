@@ -35,6 +35,29 @@ interface Entry {
   route: Route;
 }
 
+/**
+ * How many screens stay mounted, counted from the top of the stack. A long browse chain
+ * (library, series, episode, series, episode, ...) would otherwise keep every list and its
+ * images alive. Deeper entries keep their route and last focused element and are rendered
+ * again when the stack pops back to them.
+ */
+export const MAX_MOUNTED_SCREENS = 4;
+
+/**
+ * Pushing a detail route for an item that is already open further down the stack (series ->
+ * episode -> series) pops back to that entry instead of stacking a copy, so a browse chain
+ * cannot grow without bound. Returns the popped stack, or null when nothing collapses.
+ */
+function collapseTo(stack: Entry[], route: Route): Entry[] | null {
+  if (route.name !== 'detail') {
+    return null;
+  }
+  const i = stack.findIndex(
+    e => e.route.name === 'detail' && e.route.itemId === route.itemId,
+  );
+  return i >= 0 ? stack.slice(0, i + 1) : null;
+}
+
 export interface Navigation {
   push(route: Route): void;
   replace(route: Route): void;
@@ -75,9 +98,13 @@ export function useScreenState(): ScreenState {
 
 /**
  * Minimal stack navigator for a TV app: one screen visible at a time, BACK pops.
- * Screens below the top stay mounted (hidden) so their data, scroll position and last
- * focused element survive a round trip to a detail page. The player is the exception: it is
- * always the top entry and is unmounted when popped, which stops playback.
+ * The top MAX_MOUNTED_SCREENS screens stay mounted (hidden below the top) so their data,
+ * scroll position and last focused element survive a round trip to a detail page. Screens
+ * deeper than that are unmounted to bound memory; they keep their route and last focused
+ * element and are mounted again when popped back to. Pushing a detail route for an item that
+ * is already in the stack pops back to that entry instead of stacking a copy. The player is
+ * the exception to all of this: it is always the top entry and is unmounted when popped, which
+ * stops playback.
  */
 export function NavigationStack({
   initial,
@@ -110,7 +137,8 @@ export function NavigationStack({
 
   const nav = useMemo<Navigation>(
     () => ({
-      push: route => setStack(s => [...s, entry(route)]),
+      push: route =>
+        setStack(s => collapseTo(s, route) ?? [...s, entry(route)]),
       replace: route => setStack(s => [...s.slice(0, -1), entry(route)]),
       back,
       reset: routes => setStack(routes.map(entry)),
@@ -124,6 +152,8 @@ export function NavigationStack({
   // Stable context values per entry, so screens only re-render when they become (in)active.
   // Hidden screens stay mounted, and Android keeps their views focusable, so Focusable turns
   // itself off on inactive screens and puts focus back on the remembered element on return.
+  // The state outlives the screen's mount: an entry unmounted by the depth cap keeps its
+  // lastFocused, and Focusable matches the remembered testID when the screen mounts again.
   const states = useRef(
     new Map<
       number,
@@ -157,9 +187,13 @@ export function NavigationStack({
     return () => sub.remove();
   }, [back, onBackAtRoot]);
 
+  const firstMounted = Math.max(0, stack.length - MAX_MOUNTED_SCREENS);
   return (
     <NavContext.Provider value={nav}>
       {stack.map((e, i) => {
+        if (i < firstMounted) {
+          return null;
+        }
         const active = i === stack.length - 1;
         return (
           <ScreenContext.Provider

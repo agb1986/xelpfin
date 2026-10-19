@@ -143,10 +143,13 @@ Nothing outside `src/platform` imports `NativeModules`.
     offered. Jellyfin has no call that removes a Next Up entry without marking something watched,
     so the entry is only hidden on this device, and it returns when the series offers a
     different episode.
-- `navigation.tsx` is a minimal stack navigator for TV. Screens below the top stay mounted but
-  hidden, so their data, scroll position and last focused element survive a round trip to a
-  detail page. The player is always on top and unmounts when it is popped, which stops playback.
-  The hardware BACK key pops the stack.
+- `navigation.tsx` is a minimal stack navigator for TV. The top four screens stay mounted
+  (hidden below the top), so their data, scroll position and last focused element survive a
+  round trip to a detail page. Deeper screens are unmounted to bound memory on a long browse
+  chain; they keep their route and last focused element and mount again when popped back to,
+  where `Focusable` restores focus by the remembered `testID`. Pushing a detail route for an
+  item already in the stack pops back to it instead of stacking a copy. The player is always on
+  top and unmounts when it is popped, which stops playback. The hardware BACK key pops the stack.
 
 ## UI (`src/ui`)
 
