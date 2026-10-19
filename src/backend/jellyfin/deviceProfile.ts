@@ -1,9 +1,20 @@
-import type { DeviceCapabilities } from '../../player/capabilities';
+import type {
+  DeviceCapabilities,
+  HdrFormat,
+  VideoCodecCap,
+} from '../../player/capabilities';
 
 /**
  * Translates {@link DeviceCapabilities} into a Jellyfin DeviceProfile for POST /Items/{id}/PlaybackInfo.
- * Direct play is offered for every container ExoPlayer can demux with the decodable codecs; anything
- * else is transcoded to HLS (MPEG-TS segments) with h264 (or hevc when the device has it) + aac/ac3.
+ *
+ * - Direct play: every container ExoPlayer demuxes, with every decodable codec.
+ * - Direct stream (remux): the first transcoding profile is HLS with fMP4 segments and lists every
+ *   codec ExoPlayer plays from fMP4, so when the codecs are fine the server only rewraps the
+ *   container (PlayMethod DirectStream). When it has to encode it takes the first codec of each
+ *   list: h264 and aac.
+ * - Transcode fallback: HLS with MPEG-TS segments, for a server that cannot produce fMP4.
+ * - CodecProfiles limit resolution, bit depth and the HDR formats (VideoRangeType) per video codec,
+ *   and the audio channel count.
  */
 export interface JellyfinDeviceProfile {
   Name: string;
@@ -60,6 +71,52 @@ export const TEXT_SUBTITLE_FORMATS = [
 /** Bitmap subtitles: rendered by ExoPlayer when embedded in mkv/ts, otherwise burned in. */
 export const IMAGE_SUBTITLE_FORMATS = ['pgssub', 'dvdsub', 'dvbsub'];
 
+/** Video codecs ExoPlayer plays from fMP4 HLS segments, so the server can stream-copy them. h264 first: it is the encode target. */
+export const FMP4_VIDEO_CODECS = ['h264', 'hevc', 'av1'];
+/** Audio codecs ExoPlayer plays from fMP4 HLS segments. aac first: it is the encode target. */
+export const FMP4_AUDIO_CODECS = [
+  'aac',
+  'mp3',
+  'ac3',
+  'eac3',
+  'opus',
+  'flac',
+  'dts',
+];
+/** What ffmpeg muxes into MPEG-TS and ExoPlayer reads back from it. */
+export const TS_VIDEO_CODECS = ['h264', 'hevc'];
+export const TS_AUDIO_CODECS = ['aac', 'mp3', 'ac3', 'eac3'];
+
+/**
+ * Jellyfin VideoRangeType values a codec may carry on this display. Every display shows SDR
+ * streams, including Dolby Vision profiles with an SDR base layer (the enhancement is skipped).
+ * HDR10+ and the Dolby Vision profiles with an HDR10 base layer decode as plain HDR10, HLG
+ * likewise, so they follow the static formats. Profile 5 (DOVI) has no compatible base layer
+ * and needs a Dolby Vision display.
+ */
+export function videoRangeTypes(
+  cap: Pick<VideoCodecCap, 'maxBitDepth'>,
+  hdr: HdrFormat[],
+): string[] {
+  const types = ['SDR', 'DOVIWithSDR'];
+  if (cap.maxBitDepth < 10) {
+    return types;
+  }
+  if (hdr.includes('hdr10') || hdr.includes('hdr10plus')) {
+    types.push('HDR10', 'HDR10Plus', 'DOVIWithHDR10');
+  }
+  if (hdr.includes('hlg')) {
+    types.push('HLG', 'DOVIWithHLG');
+  }
+  if (hdr.includes('dolbyvision')) {
+    types.push('DOVI');
+  }
+  return types;
+}
+
+const keep = (order: string[], available: string[]) =>
+  order.filter(c => available.includes(c));
+
 export function buildDeviceProfile(
   caps: DeviceCapabilities,
   name = 'xelpfin',
@@ -68,15 +125,7 @@ export function buildDeviceProfile(
   const audioCodecs = caps.audio;
   const vc = videoCodecs.join(',');
   const ac = audioCodecs.join(',');
-  const hlsVideo = [
-    'h264',
-    ...(videoCodecs.includes('hevc') ? ['hevc'] : []),
-  ].join(',');
-  const hlsAudio = [
-    'aac',
-    ...(audioCodecs.includes('ac3') ? ['ac3'] : []),
-    ...(audioCodecs.includes('eac3') ? ['eac3'] : []),
-  ].join(',');
+  const channels = String(caps.maxAudioChannels);
 
   const codecProfiles: JellyfinDeviceProfile['CodecProfiles'] = caps.video.map(
     v => ({
@@ -101,6 +150,12 @@ export function buildDeviceProfile(
           Value: String(v.maxBitDepth),
           IsRequired: false,
         },
+        {
+          Condition: 'EqualsAny',
+          Property: 'VideoRangeType',
+          Value: videoRangeTypes(v, caps.hdr).join('|'),
+          IsRequired: false,
+        },
       ],
     }),
   );
@@ -110,16 +165,25 @@ export function buildDeviceProfile(
       {
         Condition: 'LessThanEqual',
         Property: 'AudioChannels',
-        Value: String(caps.maxAudioChannels),
+        Value: channels,
         IsRequired: false,
       },
     ],
   });
 
+  const hls = {
+    Type: 'Video' as const,
+    Protocol: 'hls' as const,
+    Context: 'Streaming' as const,
+    MaxAudioChannels: channels,
+    MinSegments: 1,
+    BreakOnNonKeyFrames: true,
+  };
+
   return {
     Name: name,
     MaxStreamingBitrate: caps.maxStreamingBitrate,
-    MaxStaticBitrate: caps.maxStreamingBitrate,
+    MaxStaticBitrate: caps.maxStaticBitrate,
     MusicStreamingTranscodingBitrate: 192000,
     DirectPlayProfiles: caps.containers.map(c => ({
       Container: c,
@@ -129,15 +193,16 @@ export function buildDeviceProfile(
     })),
     TranscodingProfiles: [
       {
+        ...hls,
+        Container: 'mp4',
+        VideoCodec: keep(FMP4_VIDEO_CODECS, videoCodecs).join(','),
+        AudioCodec: keep(FMP4_AUDIO_CODECS, audioCodecs).join(','),
+      },
+      {
+        ...hls,
         Container: 'ts',
-        Type: 'Video',
-        VideoCodec: hlsVideo,
-        AudioCodec: hlsAudio,
-        Protocol: 'hls',
-        Context: 'Streaming',
-        MaxAudioChannels: String(caps.maxAudioChannels),
-        MinSegments: 1,
-        BreakOnNonKeyFrames: true,
+        VideoCodec: keep(TS_VIDEO_CODECS, videoCodecs).join(','),
+        AudioCodec: keep(TS_AUDIO_CODECS, audioCodecs).join(','),
       },
     ],
     ContainerProfiles: [],

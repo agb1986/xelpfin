@@ -1,8 +1,13 @@
 package com.xelpfin.app.platform
 
+import android.content.Context
+import android.hardware.display.DisplayManager
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Build
+import android.view.Display
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -17,9 +22,10 @@ import kotlin.concurrent.thread
 
 /**
  * Fire TV / Android TV platform services used by the shared TypeScript code
- * (src/platform/firetv). Only three things live natively:
+ * (src/platform/firetv). Only a few things live natively:
  *  - a UDP broadcast round trip for server discovery (the payload and reply parsing are in TS),
  *  - the list of hardware/software video and audio decoders, for the playback device profile,
+ *  - the HDR formats of the display and the encodings the audio output accepts, for the same,
  *  - static device info.
  * Nothing here talks to any host except the addresses the caller passes in.
  */
@@ -138,6 +144,54 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
       promise.resolve(out)
     } catch (e: Exception) {
       promise.reject("E_CODECS", e.message, e)
+    }
+  }
+
+  /**
+   * HDR formats of the default display: { hdrTypes: [Display.HdrCapabilities.HDR_TYPE_*] }.
+   * Empty when the display reports none (emulator, SDR TV), never rejected for that.
+   */
+  @ReactMethod
+  fun getDisplayCapabilities(promise: Promise) {
+    try {
+      val types = Arguments.createArray()
+      val dm = reactApplicationContext.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+      val display = dm?.getDisplay(Display.DEFAULT_DISPLAY)
+      val supported = runCatching { display?.hdrCapabilities?.supportedHdrTypes }.getOrNull()
+      supported?.forEach { types.pushInt(it) }
+      val m = Arguments.createMap()
+      m.putArray("hdrTypes", types)
+      promise.resolve(m)
+    } catch (e: Exception) {
+      promise.reject("E_DISPLAY", e.message, e)
+    }
+  }
+
+  /**
+   * Encodings and channel counts the audio outputs accept, over every output device (HDMI, the
+   * TV's own speakers, Bluetooth): { encodings: [AudioFormat.ENCODING_*], maxChannels }. TS
+   * keeps only the compressed encodings a sink can take as a bitstream. Empty and 0 when
+   * nothing is reported.
+   */
+  @ReactMethod
+  fun getAudioCapabilities(promise: Promise) {
+    try {
+      val encodings = LinkedHashSet<Int>()
+      var maxChannels = 0
+      val am = reactApplicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+      val devices = runCatching { am?.getDevices(AudioManager.GET_DEVICES_OUTPUTS) }.getOrNull()
+      devices?.forEach { d: AudioDeviceInfo ->
+        d.encodings.forEach { encodings.add(it) }
+        d.channelCounts.forEach { if (it > maxChannels) maxChannels = it }
+      }
+      val arr = Arguments.createArray()
+      encodings.forEach { arr.pushInt(it) }
+      val m = Arguments.createMap()
+      m.putArray("encodings", arr)
+      m.putInt("maxChannels", maxChannels)
+      promise.resolve(m)
+    } catch (e: Exception) {
+      promise.reject("E_AUDIO", e.message, e)
     }
   }
 

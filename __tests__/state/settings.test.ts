@@ -60,10 +60,28 @@ describe('settings', () => {
     });
   });
 
+  it('keeps audio passthrough off unless stored as a boolean true', () => {
+    expect(DEFAULT_SETTINGS.audioPassthrough).toBe(false);
+    expect(sanitizeSettings({ audioPassthrough: true }).audioPassthrough).toBe(
+      true,
+    );
+    expect(sanitizeSettings({ audioPassthrough: 'yes' }).audioPassthrough).toBe(
+      false,
+    );
+    expect(sanitizeSettings({ audioPassthrough: 1 }).audioPassthrough).toBe(
+      false,
+    );
+  });
+
   it('round-trips through storage and survives corrupt JSON', async () => {
     const store = new MemoryStore();
-    await saveSettings(store, { ...DEFAULT_SETTINGS, showDebugOverlay: true });
+    await saveSettings(store, {
+      ...DEFAULT_SETTINGS,
+      showDebugOverlay: true,
+      audioPassthrough: true,
+    });
     expect((await loadSettings(store)).showDebugOverlay).toBe(true);
+    expect((await loadSettings(store)).audioPassthrough).toBe(true);
     await store.set('xelpfin.settings', '{not json');
     expect(await loadSettings(store)).toEqual(DEFAULT_SETTINGS);
   });
