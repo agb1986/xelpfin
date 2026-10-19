@@ -1,9 +1,22 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { DiscoveredServer, ServerInfo } from '../../backend/types';
 import { useApp } from '../../state/AppState';
 import { useNavigation } from '../../state/navigation';
-import { Button, describeError, Focusable, Screen, TextField, bleed } from '../components';
+import {
+  Button,
+  describeError,
+  Focusable,
+  Screen,
+  TextField,
+  bleed,
+} from '../components';
 import { colors, font, radius, space } from '../theme';
 
 export interface ServerEntry {
@@ -17,8 +30,15 @@ export interface ServerEntry {
  * discovery with a saved server's id, so a reply never replaces a saved entry's address: it only
  * confirms the entry when the address matches, and is otherwise listed as a separate server.
  */
-export function mergeServerList(saved: ServerInfo[], found: ServerInfo[]): ServerEntry[] {
-  const out: ServerEntry[] = saved.map(s => ({ key: s.id, server: s, note: 'Saved' }));
+export function mergeServerList(
+  saved: ServerInfo[],
+  found: ServerInfo[],
+): ServerEntry[] {
+  const out: ServerEntry[] = saved.map(s => ({
+    key: s.id,
+    server: s,
+    note: 'Saved',
+  }));
   for (const f of found) {
     const i = out.findIndex(o => o.server.id === f.id);
     if (i < 0) {
@@ -26,13 +46,29 @@ export function mergeServerList(saved: ServerInfo[], found: ServerInfo[]): Serve
     } else if (out[i].server.url === f.url) {
       out[i] = { ...out[i], note: 'Saved · found on network' };
     } else {
-      out.push({ key: `${f.id}@${f.url}`, server: f, note: 'Found on network · different address' });
+      out.push({
+        key: `${f.id}@${f.url}`,
+        server: f,
+        note: 'Found on network · different address',
+      });
     }
   }
   return out;
 }
 
-function ServerTile({ id, server, note, onPress, preferred }: { id: string; server: ServerInfo; note: string; onPress(): void; preferred?: boolean }) {
+function ServerTile({
+  id,
+  server,
+  note,
+  onPress,
+  preferred,
+}: {
+  id: string;
+  server: ServerInfo;
+  note: string;
+  onPress(): void;
+  preferred?: boolean;
+}) {
   return (
     <Focusable
       testID={`server-${id}`}
@@ -42,13 +78,21 @@ function ServerTile({ id, server, note, onPress, preferred }: { id: string; serv
     >
       {focused => (
         <>
-          <Text style={[styles.tileName, focused && styles.onAccent]} numberOfLines={1}>
+          <Text
+            style={[styles.tileName, focused && styles.onAccent]}
+            numberOfLines={1}
+          >
             {server.name}
           </Text>
-          <Text style={[styles.tileUrl, focused && styles.onAccent]} numberOfLines={1}>
+          <Text
+            style={[styles.tileUrl, focused && styles.onAccent]}
+            numberOfLines={1}
+          >
             {server.url}
           </Text>
-          <Text style={[styles.tileNote, focused && styles.onAccent]}>{note}</Text>
+          <Text style={[styles.tileNote, focused && styles.onAccent]}>
+            {note}
+          </Text>
         </>
       )}
     </Focusable>
@@ -106,14 +150,26 @@ export function ServerSelectScreen() {
 
   return (
     <Screen title="Choose a Jellyfin server" testID="servers">
-      <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
+      <ScrollView
+        style={bleed.outer}
+        contentContainerStyle={[bleed.inner, styles.body]}
+      >
         <View style={styles.tiles}>
           {list.map((s, i) => (
-            <ServerTile key={s.key} id={s.key} server={s.server} note={s.note} onPress={() => choose(s.server)} preferred={i === 0} />
+            <ServerTile
+              key={s.key}
+              id={s.key}
+              server={s.server}
+              note={s.note}
+              onPress={() => choose(s.server)}
+              preferred={i === 0}
+            />
           ))}
           {list.length === 0 ? (
             <Text style={styles.dim} testID="discovery-status">
-              {searching ? 'Looking for servers on your network…' : 'No servers found automatically. Enter the address below.'}
+              {searching
+                ? 'Looking for servers on your network…'
+                : 'No servers found automatically. Enter the address below.'}
             </Text>
           ) : null}
         </View>
@@ -130,8 +186,19 @@ export function ServerSelectScreen() {
             hasTVPreferredFocus={list.length === 0}
           />
           <View style={styles.actions}>
-            <Button label={busy ? 'Connecting…' : 'Connect'} variant="primary" onPress={connect} disabled={busy} testID="connect" />
-            <Button label={searching ? 'Searching…' : 'Search again'} onPress={discover} disabled={searching} testID="rediscover" />
+            <Button
+              label={busy ? 'Connecting…' : 'Connect'}
+              variant="primary"
+              onPress={connect}
+              disabled={busy}
+              testID="connect"
+            />
+            <Button
+              label={searching ? 'Searching…' : 'Search again'}
+              onPress={discover}
+              disabled={searching}
+              testID="rediscover"
+            />
           </View>
           {error ? (
             <Text style={styles.error} testID="server-error">
@@ -157,7 +224,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  tileFocused: { backgroundColor: colors.accent, borderColor: colors.text, transform: [{ scale: 1.04 }] },
+  tileFocused: {
+    backgroundColor: colors.accent,
+    borderColor: colors.text,
+    transform: [{ scale: 1.04 }],
+  },
   tileName: { color: colors.text, fontSize: font.heading, fontWeight: '700' },
   tileUrl: { color: colors.textDim, fontSize: font.small, marginTop: space.xs },
   tileNote: { color: colors.textDim, fontSize: 12, marginTop: space.sm },

@@ -16,7 +16,12 @@ export interface UdpReply {
 
 export interface UdpTransport {
   /** Broadcasts `message` (and unicasts to `extraHosts`), collecting replies until timeout. */
-  broadcast(message: string, port: number, timeoutMs: number, extraHosts?: string[]): Promise<UdpReply[]>;
+  broadcast(
+    message: string,
+    port: number,
+    timeoutMs: number,
+    extraHosts?: string[],
+  ): Promise<UdpReply[]>;
 }
 
 export interface DiscoveryAnswer {
@@ -62,7 +67,9 @@ export function parseDiscoveryReplies(replies: UdpReply[]): DiscoveryAnswer[] {
     };
     add(dto.Address);
     add(dto.EndpointAddress);
-    const m = /^(https?):\/\/(?:\[[^\]]+\]|[^/:]+)(?::(\d+))?(\/.*)?$/i.exec(dto.Address);
+    const m = /^(https?):\/\/(?:\[[^\]]+\]|[^/:]+)(?::(\d+))?(\/.*)?$/i.exec(
+      dto.Address,
+    );
     if (m && r.address) {
       const host = r.address.includes(':') ? `[${r.address}]` : r.address;
       const port = m[2] ? `:${m[2]}` : '';
@@ -83,7 +90,11 @@ export function parseDiscoveryReplies(replies: UdpReply[]): DiscoveryAnswer[] {
         }
       }
     } else {
-      byId.set(dto.Id, { id: dto.Id, name: dto.Name ?? 'Jellyfin', candidates: cands });
+      byId.set(dto.Id, {
+        id: dto.Id,
+        name: dto.Name ?? 'Jellyfin',
+        candidates: cands,
+      });
     }
   }
   return [...byId.values()];

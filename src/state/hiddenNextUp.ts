@@ -20,11 +20,18 @@ export function sanitizeHidden(raw: unknown): HiddenNextUp {
  * Leaves out the entries that were cleared. An entry comes back by itself once the series
  * offers a different episode, that is, after something in it has been watched.
  */
-export function withoutHidden(items: MediaItem[], hidden: HiddenNextUp): MediaItem[] {
+export function withoutHidden(
+  items: MediaItem[],
+  hidden: HiddenNextUp,
+): MediaItem[] {
   return items.filter(i => !(i.seriesId && hidden[i.seriesId] === i.id));
 }
 
 export function useHiddenNextUp() {
-  const { value, list } = useLocalList<HiddenNextUp>('hidden-next-up', () => ({}), sanitizeHidden);
+  const { value, list } = useLocalList<HiddenNextUp>(
+    'hidden-next-up',
+    () => ({}),
+    sanitizeHidden,
+  );
   return { hidden: value, list };
 }

@@ -1,13 +1,27 @@
 import type { DeviceCapabilities } from '../../player/capabilities';
-import { BackendError, type PlaybackPlan, type PlaybackRequest, type SubtitleTrack } from '../types';
-import { mapAudio, mapSubtitle, ticksToMs, type MediaSourceDto, type MediaStreamDto } from './dto';
+import {
+  BackendError,
+  type PlaybackPlan,
+  type PlaybackRequest,
+  type SubtitleTrack,
+} from '../types';
+import {
+  mapAudio,
+  mapSubtitle,
+  ticksToMs,
+  type MediaSourceDto,
+  type MediaStreamDto,
+} from './dto';
 import { buildQuery } from './http';
 import { IMAGE_SUBTITLE_FORMATS } from './deviceProfile';
 
 const norm = (s?: string) => (s ?? '').toLowerCase();
 
 /** Containers as Jellyfin reports them can be lists ("mov,mp4,m4a,3gp,3g2,mj2"). */
-function containerSupported(container: string | undefined, caps: DeviceCapabilities): boolean {
+function containerSupported(
+  container: string | undefined,
+  caps: DeviceCapabilities,
+): boolean {
   if (!container) {
     return false;
   }
@@ -38,8 +52,13 @@ export function directPlayBlockers(
     if (!cap) {
       reasons.push(`VideoCodecNotSupported:${video.Codec ?? '?'}`);
     } else {
-      if ((video.Width ?? 0) > cap.maxWidth || (video.Height ?? 0) > cap.maxHeight) {
-        reasons.push(`VideoResolutionNotSupported:${video.Width}x${video.Height}`);
+      if (
+        (video.Width ?? 0) > cap.maxWidth ||
+        (video.Height ?? 0) > cap.maxHeight
+      ) {
+        reasons.push(
+          `VideoResolutionNotSupported:${video.Width}x${video.Height}`,
+        );
       }
       if ((video.BitDepth ?? 8) > cap.maxBitDepth) {
         reasons.push(`VideoBitDepthNotSupported:${video.BitDepth}`);
@@ -66,7 +85,12 @@ export function directPlayBlockers(
   return reasons;
 }
 
-const VIDEO_REASONS = ['VideoCodecNotSupported', 'VideoResolutionNotSupported', 'VideoBitDepthNotSupported', 'ContainerBitrateExceedsLimit'];
+const VIDEO_REASONS = [
+  'VideoCodecNotSupported',
+  'VideoResolutionNotSupported',
+  'VideoBitDepthNotSupported',
+  'ContainerBitrateExceedsLimit',
+];
 
 export interface PlanContext {
   baseUrl: string;
@@ -81,12 +105,16 @@ export function subtitleTracksFor(
   ctx: PlanContext,
   burnInIndex?: number,
 ): SubtitleTrack[] {
-  const inFile = (source.MediaStreams ?? []).filter(s => s.Type === 'Subtitle' && !s.IsExternal).map(s => s.Index);
+  const inFile = (source.MediaStreams ?? [])
+    .filter(s => s.Type === 'Subtitle' && !s.IsExternal)
+    .map(s => s.Index);
   return (source.MediaStreams ?? [])
     .filter(s => s.Type === 'Subtitle')
     .map((s: MediaStreamDto) => {
       const t = mapSubtitle(s, ctx.baseUrl);
-      const isImage = IMAGE_SUBTITLE_FORMATS.includes(norm(s.Codec)) || s.IsTextSubtitleStream === false;
+      const isImage =
+        IMAGE_SUBTITLE_FORMATS.includes(norm(s.Codec)) ||
+        s.IsTextSubtitleStream === false;
       if (!isImage) {
         const url =
           `${ctx.baseUrl}/Videos/${encodeURIComponent(itemId)}/${encodeURIComponent(source.Id)}` +
@@ -94,10 +122,21 @@ export function subtitleTracksFor(
         return { ...t, delivery: 'external', url, mimeType: 'text/vtt' };
       }
       if (s.Index === burnInIndex) {
-        return { ...t, delivery: 'burn-in', url: undefined, mimeType: undefined };
+        return {
+          ...t,
+          delivery: 'burn-in',
+          url: undefined,
+          mimeType: undefined,
+        };
       }
       const at = inFile.indexOf(s.Index);
-      return { ...t, delivery: 'embedded', url: undefined, mimeType: undefined, containerPosition: at < 0 ? undefined : at };
+      return {
+        ...t,
+        delivery: 'embedded',
+        url: undefined,
+        mimeType: undefined,
+        containerPosition: at < 0 ? undefined : at,
+      };
     });
 }
 
@@ -112,19 +151,37 @@ export function buildPlan(
   caps: DeviceCapabilities,
   ctx: PlanContext,
 ): PlaybackPlan {
-  const source = (req.mediaSourceId && sources.find(s => s.Id === req.mediaSourceId)) || sources[0];
+  const source =
+    (req.mediaSourceId && sources.find(s => s.Id === req.mediaSourceId)) ||
+    sources[0];
   if (!source) {
-    throw new BackendError('Server returned no playable media source', 'unsupported');
+    throw new BackendError(
+      'Server returned no playable media source',
+      'unsupported',
+    );
   }
   const streams = source.MediaStreams ?? [];
-  const audioIndex = req.audioStreamIndex ?? source.DefaultAudioStreamIndex ?? streams.find(s => s.Type === 'Audio')?.Index;
+  const audioIndex =
+    req.audioStreamIndex ??
+    source.DefaultAudioStreamIndex ??
+    streams.find(s => s.Type === 'Audio')?.Index;
   const subIndex = req.subtitleStreamIndex ?? source.DefaultSubtitleStreamIndex;
-  const selectedSub = streams.find(s => s.Type === 'Subtitle' && s.Index === subIndex);
+  const selectedSub = streams.find(
+    s => s.Type === 'Subtitle' && s.Index === subIndex,
+  );
 
   const reasons = directPlayBlockers(source, caps, audioIndex, req.maxBitrate);
   // A selected bitmap subtitle in a container ExoPlayer cannot read it from needs burning in.
-  const imageSubSelected = !!selectedSub && (IMAGE_SUBTITLE_FORMATS.includes(norm(selectedSub.Codec)) || selectedSub.IsTextSubtitleStream === false);
-  if (imageSubSelected && !['mkv', 'matroska', 'ts', 'mpegts'].some(c => norm(source.Container).split(',').includes(c))) {
+  const imageSubSelected =
+    !!selectedSub &&
+    (IMAGE_SUBTITLE_FORMATS.includes(norm(selectedSub.Codec)) ||
+      selectedSub.IsTextSubtitleStream === false);
+  if (
+    imageSubSelected &&
+    !['mkv', 'matroska', 'ts', 'mpegts'].some(c =>
+      norm(source.Container).split(',').includes(c),
+    )
+  ) {
     reasons.push(`SubtitleCodecNotSupported:${selectedSub?.Codec}`);
   }
   const canDirect = reasons.length === 0 && source.SupportsDirectPlay !== false;
@@ -144,7 +201,8 @@ export function buildPlan(
     container: source.Container,
     audioTracks: streams.filter(s => s.Type === 'Audio').map(mapAudio),
     selectedAudioIndex: audioIndex,
-    selectedSubtitleIndex: subIndex !== undefined && subIndex >= 0 ? subIndex : undefined,
+    selectedSubtitleIndex:
+      subIndex !== undefined && subIndex >= 0 ? subIndex : undefined,
     headers,
   };
 
@@ -169,12 +227,20 @@ export function buildPlan(
   }
 
   if (!source.TranscodingUrl || source.SupportsTranscoding === false) {
-    throw new BackendError(`This item cannot be played on this device (${reasons.join(', ')})`, 'unsupported');
+    throw new BackendError(
+      `This item cannot be played on this device (${reasons.join(', ')})`,
+      'unsupported',
+    );
   }
-  let url = /^https?:/i.test(source.TranscodingUrl) ? source.TranscodingUrl : `${ctx.baseUrl}${source.TranscodingUrl}`;
+  let url = /^https?:/i.test(source.TranscodingUrl)
+    ? source.TranscodingUrl
+    : `${ctx.baseUrl}${source.TranscodingUrl}`;
   // The access token is appended below, so it must not be sent to a host the user did not sign in to.
   if (originOf(url) !== originOf(ctx.baseUrl)) {
-    throw new BackendError('The server sent a stream address on a different host, so it was not opened.', 'unsupported');
+    throw new BackendError(
+      'The server sent a stream address on a different host, so it was not opened.',
+      'unsupported',
+    );
   }
   if (!/[?&]api_key=/i.test(url)) {
     url += `${url.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(ctx.token)}`;
@@ -184,7 +250,10 @@ export function buildPlan(
   // explicit in the URL in case the server picked another delivery method.
   const burn = imageSubSelected ? subIndex : undefined;
   if (burn !== undefined) {
-    url = withQueryParams(url, { SubtitleMethod: 'Encode', SubtitleStreamIndex: String(burn) });
+    url = withQueryParams(url, {
+      SubtitleMethod: 'Encode',
+      SubtitleStreamIndex: String(burn),
+    });
   }
   const videoOk = !reasons.some(r => VIDEO_REASONS.includes(r.split(':')[0]));
   return {
@@ -192,7 +261,10 @@ export function buildPlan(
     method: videoOk && burn === undefined ? 'DirectStream' : 'Transcode',
     reasons,
     url,
-    streamType: norm(source.TranscodingSubProtocol) === 'hls' || /\.m3u8/i.test(url) ? 'hls' : 'progressive',
+    streamType:
+      norm(source.TranscodingSubProtocol) === 'hls' || /\.m3u8/i.test(url)
+        ? 'hls'
+        : 'progressive',
     container: source.TranscodingContainer ?? 'ts',
     subtitleTracks: subtitleTracksFor(req.itemId, source, ctx, burn),
   };
@@ -205,16 +277,23 @@ export function originOf(url: string): string | undefined {
     return undefined;
   }
   const scheme = m[1].toLowerCase();
-  const host = m[2].toLowerCase().replace(scheme === 'http' ? /:80$/ : /:443$/, '');
+  const host = m[2]
+    .toLowerCase()
+    .replace(scheme === 'http' ? /:80$/ : /:443$/, '');
   return `${scheme}://${host}`;
 }
 
 /** Sets (or replaces) query parameters on a URL, matching existing names case-insensitively. */
-export function withQueryParams(url: string, params: Record<string, string>): string {
+export function withQueryParams(
+  url: string,
+  params: Record<string, string>,
+): string {
   const [path, query = ''] = url.split('?', 2);
   const parts = query ? query.split('&') : [];
   for (const [key, value] of Object.entries(params)) {
-    const at = parts.findIndex(p => p.split('=')[0].toLowerCase() === key.toLowerCase());
+    const at = parts.findIndex(
+      p => p.split('=')[0].toLowerCase() === key.toLowerCase(),
+    );
     const pair = `${key}=${encodeURIComponent(value)}`;
     if (at >= 0) {
       parts[at] = pair;

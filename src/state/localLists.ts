@@ -42,7 +42,9 @@ export class LocalList<T> {
             parsed = raw ? JSON.parse(raw) : undefined;
           } catch {
             // Keep the unreadable document aside instead of silently overwriting it.
-            await this.storage.set(`${this.key}.corrupt`, raw ?? '').catch(() => undefined);
+            await this.storage
+              .set(`${this.key}.corrupt`, raw ?? '')
+              .catch(() => undefined);
           }
           // An update made before the first read finished wins over what was stored. After a failed
           // read, what is stored wins over changes that were only ever kept in memory.
@@ -93,7 +95,11 @@ export class LocalList<T> {
 const lists = new Map<string, LocalList<unknown>>();
 
 /** The shared list `name` of the signed-in user on this server. */
-export function useLocalList<T>(name: string, empty: () => T, sanitize: (raw: unknown) => T): { value: T; list: LocalList<T> } {
+export function useLocalList<T>(
+  name: string,
+  empty: () => T,
+  sanitize: (raw: unknown) => T,
+): { value: T; list: LocalList<T> } {
   const { platform, backend } = useApp();
   const key = `xelpfin.${name}.${backend?.session.server.id ?? 'none'}.${backend?.session.userId ?? 'none'}`;
   let list = lists.get(key) as LocalList<T> | undefined;

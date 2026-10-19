@@ -12,8 +12,11 @@ describe('APP_VERSION', () => {
   });
 
   it('is rewritten by the release updater', () => {
-    const src = "export const APP_NAME = 'xelpfin';\nexport const APP_VERSION = '0.1.1';\n";
+    const src =
+      "export const APP_NAME = 'xelpfin';\nexport const APP_VERSION = '0.1.1';\n";
     expect(updater.readVersion(src)).toBe('0.1.1');
-    expect(updater.writeVersion(src, '0.2.0')).toBe("export const APP_NAME = 'xelpfin';\nexport const APP_VERSION = '0.2.0';\n");
+    expect(updater.writeVersion(src, '0.2.0')).toBe(
+      "export const APP_NAME = 'xelpfin';\nexport const APP_VERSION = '0.2.0';\n",
+    );
   });
 });

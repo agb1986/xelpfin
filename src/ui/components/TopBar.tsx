@@ -5,22 +5,59 @@ import { useNavigation } from '../../state/navigation';
 import { colors, font, radius, space } from '../theme';
 import { Focusable } from './Focusable';
 
-function Tab({ label, onPress, testID, active }: { label: string; onPress(): void; testID: string; active?: boolean }) {
+function Tab({
+  label,
+  onPress,
+  testID,
+  active,
+}: {
+  label: string;
+  onPress(): void;
+  testID: string;
+  active?: boolean;
+}) {
   return (
-    <Focusable testID={testID} onPress={onPress} style={focused => [styles.tab, focused && styles.tabFocused]}>
-      {focused => <Text style={[styles.tabText, active && styles.tabActive, focused && styles.tabTextFocused]}>{label}</Text>}
+    <Focusable
+      testID={testID}
+      onPress={onPress}
+      style={focused => [styles.tab, focused && styles.tabFocused]}
+    >
+      {focused => (
+        <Text
+          style={[
+            styles.tabText,
+            active && styles.tabActive,
+            focused && styles.tabTextFocused,
+          ]}
+        >
+          {label}
+        </Text>
+      )}
     </Focusable>
   );
 }
 
 /** Wordmark plus the main destinations. Shown on home; other screens are reached from it. */
-export function TopBar({ libraries, current, onRandomizer }: { libraries: Library[]; current?: string; onRandomizer?: () => void }) {
+export function TopBar({
+  libraries,
+  current,
+  onRandomizer,
+}: {
+  libraries: Library[];
+  current?: string;
+  onRandomizer?: () => void;
+}) {
   const nav = useNavigation();
   // Trap left/right so the ends of the bar do not jump focus down into the rows below.
   return (
     <TVFocusGuideView style={styles.bar} trapFocusLeft trapFocusRight>
       <Text style={styles.logo}>xelpfin</Text>
-      <Tab label="Home" testID="tab-home" active={current === 'home'} onPress={() => nav.reset([{ name: 'home' }])} />
+      <Tab
+        label="Home"
+        testID="tab-home"
+        active={current === 'home'}
+        onPress={() => nav.reset([{ name: 'home' }])}
+      />
       {libraries.map(lib => (
         <Tab
           key={lib.id}
@@ -30,19 +67,50 @@ export function TopBar({ libraries, current, onRandomizer }: { libraries: Librar
           onPress={() => nav.push({ name: 'library', library: lib })}
         />
       ))}
-      {onRandomizer ? <Tab label="Randomizer" testID="tab-randomizer" onPress={onRandomizer} /> : null}
+      {onRandomizer ? (
+        <Tab
+          label="Randomizer"
+          testID="tab-randomizer"
+          onPress={onRandomizer}
+        />
+      ) : null}
       <View style={styles.spacer} />
-      <Tab label="Search" testID="tab-search" onPress={() => nav.push({ name: 'search' })} />
-      <Tab label="Settings" testID="tab-settings" onPress={() => nav.push({ name: 'settings' })} />
+      <Tab
+        label="Search"
+        testID="tab-search"
+        onPress={() => nav.push({ name: 'search' })}
+      />
+      <Tab
+        label="Settings"
+        testID="tab-settings"
+        onPress={() => nav.push({ name: 'settings' })}
+      />
     </TVFocusGuideView>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.safeX, paddingTop: space.safeY, paddingBottom: space.sm },
-  logo: { color: colors.accent, fontSize: 28, fontWeight: '800', marginRight: space.xl, letterSpacing: 1 },
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: space.safeX,
+    paddingTop: space.safeY,
+    paddingBottom: space.sm,
+  },
+  logo: {
+    color: colors.accent,
+    fontSize: 28,
+    fontWeight: '800',
+    marginRight: space.xl,
+    letterSpacing: 1,
+  },
   spacer: { flex: 1 },
-  tab: { paddingHorizontal: space.md, paddingVertical: space.xs + 2, borderRadius: radius.lg, marginRight: space.xs },
+  tab: {
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs + 2,
+    borderRadius: radius.lg,
+    marginRight: space.xs,
+  },
   tabFocused: { backgroundColor: colors.accent },
   tabText: { color: colors.textDim, fontSize: font.body, fontWeight: '600' },
   tabActive: { color: colors.text },

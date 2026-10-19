@@ -1,15 +1,28 @@
-import { activeSegment, currentSceneIndex, episodeCode, playedToEnd, scenesFor, skipLabel, tapOffsetMs } from '../../src/player/seeking';
+import {
+  activeSegment,
+  currentSceneIndex,
+  episodeCode,
+  playedToEnd,
+  scenesFor,
+  skipLabel,
+  tapOffsetMs,
+} from '../../src/player/seeking';
 
 describe('tapOffsetMs', () => {
   it('climbs 10 s, 30 s, 1 min, then 5 min per further tap', () => {
-    expect([1, 2, 3, 4, 5].map(tapOffsetMs)).toEqual([10_000, 30_000, 60_000, 360_000, 660_000]);
+    expect([1, 2, 3, 4, 5].map(tapOffsetMs)).toEqual([
+      10_000, 30_000, 60_000, 360_000, 660_000,
+    ]);
     expect(tapOffsetMs(0)).toBe(0);
   });
 });
 
 describe('scenesFor', () => {
   it('uses chapters when there is more than one', () => {
-    const chapters = [{ name: 'B', startMs: 60_000 }, { name: 'A', startMs: 0 }];
+    const chapters = [
+      { name: 'B', startMs: 60_000 },
+      { name: 'A', startMs: 0 },
+    ];
     expect(scenesFor(chapters, 600_000).map(s => s.name)).toEqual(['A', 'B']);
   });
   it('falls back to five-minute marks', () => {
@@ -35,7 +48,9 @@ describe('activeSegment', () => {
     expect(activeSegment(segs, 10_000)?.kind).toBe('intro');
     expect(activeSegment(segs, 70_000)).toBeUndefined();
     expect(activeSegment(segs, 520_000)).toBeUndefined();
-    expect(skipLabel(activeSegment(segs, 1_250_000)!.kind)).toBe('Skip Credits');
+    expect(skipLabel(activeSegment(segs, 1_250_000)!.kind)).toBe(
+      'Skip Credits',
+    );
   });
 });
 
@@ -48,7 +63,9 @@ describe('episodeCode', () => {
 });
 
 describe('playedToEnd', () => {
-  const outro = [{ kind: 'outro' as const, startMs: 1_300_000, endMs: 1_500_000 }];
+  const outro = [
+    { kind: 'outro' as const, startMs: 1_300_000, endMs: 1_500_000 },
+  ];
   it('is true at the end and in the last 15 s', () => {
     expect(playedToEnd(1_490_000, 1_500_000, [])).toBe(true);
     expect(playedToEnd(1_485_000, 1_500_000, [])).toBe(true);

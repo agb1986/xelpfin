@@ -19,13 +19,35 @@ interface MediaRowProps {
  * Horizontal, virtualised row of cards. Fixed card sizes let FlatList skip measuring
  * (getItemLayout), which keeps D-pad scrolling smooth on low-end Fire TV hardware.
  */
-export function MediaRow({ title, items, variant, onPress, titleFor, preferFirst, testID }: MediaRowProps) {
+export function MediaRow({
+  title,
+  items,
+  variant,
+  onPress,
+  titleFor,
+  preferFirst,
+  testID,
+}: MediaRowProps) {
   const stride = cardStride(variant);
   const count = items.length;
-  const getItemLayout = useCallback((_: unknown, index: number) => ({ length: stride, offset: stride * index, index }), [stride]);
+  const getItemLayout = useCallback(
+    (_: unknown, index: number) => ({
+      length: stride,
+      offset: stride * index,
+      index,
+    }),
+    [stride],
+  );
   const renderItem = useCallback(
     ({ item, index }: { item: MediaItem; index: number }) => (
-      <Card item={item} variant={variant} onPress={onPress} title={titleFor?.(item)} hasTVPreferredFocus={preferFirst && index === 0} lastInRow={index === count - 1} />
+      <Card
+        item={item}
+        variant={variant}
+        onPress={onPress}
+        title={titleFor?.(item)}
+        hasTVPreferredFocus={preferFirst && index === 0}
+        lastInRow={index === count - 1}
+      />
     ),
     [variant, onPress, titleFor, preferFirst, count],
   );
@@ -55,6 +77,12 @@ export function MediaRow({ title, items, variant, onPress, titleFor, preferFirst
 
 const styles = StyleSheet.create({
   row: { marginBottom: space.sm },
-  title: { color: colors.text, fontSize: font.heading, fontWeight: '700', marginLeft: space.safeX, marginBottom: space.xs },
+  title: {
+    color: colors.text,
+    fontSize: font.heading,
+    fontWeight: '700',
+    marginLeft: space.safeX,
+    marginBottom: space.xs,
+  },
   content: { paddingHorizontal: space.safeX, paddingVertical: card.focusPad },
 });

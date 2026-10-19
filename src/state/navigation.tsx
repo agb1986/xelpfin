@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { BackHandler, StyleSheet, View } from 'react-native';
 import type { Library, ServerInfo } from '../backend/types';
 
@@ -7,11 +15,20 @@ export type Route =
   | { name: 'login'; server: ServerInfo; expired?: boolean }
   | { name: 'home' }
   | { name: 'library'; library: Library }
-  | { name: 'detail'; itemId: string; /** Series page: the season to show first. */ seasonId?: string }
+  | {
+      name: 'detail';
+      itemId: string;
+      /** Series page: the season to show first. */ seasonId?: string;
+    }
   | { name: 'search' }
   | { name: 'settings' }
   | { name: 'randomizerHistory' }
-  | { name: 'player'; itemId: string; startPositionMs?: number; /** Playing from the Randomizer: next is a random episode. */ shuffle?: boolean };
+  | {
+      name: 'player';
+      itemId: string;
+      startPositionMs?: number;
+      /** Playing from the Randomizer: next is a random episode. */ shuffle?: boolean;
+    };
 
 interface Entry {
   key: number;
@@ -34,7 +51,10 @@ export interface ScreenState {
   /** The element that last had focus on this screen, restored when the screen is shown again. */
   lastFocused: { current: unknown };
 }
-const ScreenContext = createContext<ScreenState>({ active: true, lastFocused: { current: null } });
+const ScreenContext = createContext<ScreenState>({
+  active: true,
+  lastFocused: { current: null },
+});
 
 export function useNavigation(): Navigation {
   const nav = useContext(NavContext);
@@ -72,7 +92,9 @@ export function NavigationStack({
   children?: React.ReactNode;
 }) {
   const nextKey = useRef(initial.length);
-  const [stack, setStack] = useState<Entry[]>(() => initial.map((route, key) => ({ key, route })));
+  const [stack, setStack] = useState<Entry[]>(() =>
+    initial.map((route, key) => ({ key, route })),
+  );
   const stackRef = useRef(stack);
   stackRef.current = stack;
 
@@ -102,12 +124,21 @@ export function NavigationStack({
   // Stable context values per entry, so screens only re-render when they become (in)active.
   // Hidden screens stay mounted, and Android keeps their views focusable, so Focusable turns
   // itself off on inactive screens and puts focus back on the remembered element on return.
-  const states = useRef(new Map<number, { focus: { current: unknown }; on: ScreenState; off: ScreenState }>());
+  const states = useRef(
+    new Map<
+      number,
+      { focus: { current: unknown }; on: ScreenState; off: ScreenState }
+    >(),
+  );
   const screenState = (key: number, active: boolean): ScreenState => {
     let s = states.current.get(key);
     if (!s) {
       const focus = { current: null as unknown };
-      s = { focus, on: { active: true, lastFocused: focus }, off: { active: false, lastFocused: focus } };
+      s = {
+        focus,
+        on: { active: true, lastFocused: focus },
+        off: { active: false, lastFocused: focus },
+      };
       states.current.set(key, s);
     }
     for (const k of states.current.keys()) {
@@ -119,7 +150,10 @@ export function NavigationStack({
   };
 
   useEffect(() => {
-    const sub = BackHandler.addEventListener('hardwareBackPress', () => back() || (onBackAtRoot?.() ?? false));
+    const sub = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => back() || (onBackAtRoot?.() ?? false),
+    );
     return () => sub.remove();
   }, [back, onBackAtRoot]);
 
@@ -128,8 +162,14 @@ export function NavigationStack({
       {stack.map((e, i) => {
         const active = i === stack.length - 1;
         return (
-          <ScreenContext.Provider key={e.key} value={screenState(e.key, active)}>
-            <View style={active ? styles.screen : styles.hidden} testID={active ? `screen-${e.route.name}` : undefined}>
+          <ScreenContext.Provider
+            key={e.key}
+            value={screenState(e.key, active)}
+          >
+            <View
+              style={active ? styles.screen : styles.hidden}
+              testID={active ? `screen-${e.route.name}` : undefined}
+            >
               {render(e.route)}
             </View>
           </ScreenContext.Provider>
@@ -139,7 +179,6 @@ export function NavigationStack({
     </NavContext.Provider>
   );
 }
-
 
 const styles = StyleSheet.create({
   screen: { ...StyleSheet.absoluteFillObject },

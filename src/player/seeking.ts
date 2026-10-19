@@ -15,7 +15,9 @@ export function tapOffsetMs(taps: number): number {
   if (taps <= LADDER_MS.length) {
     return LADDER_MS[taps - 1];
   }
-  return LADDER_MS[LADDER_MS.length - 1] + (taps - LADDER_MS.length) * LADDER_TAIL_MS;
+  return (
+    LADDER_MS[LADDER_MS.length - 1] + (taps - LADDER_MS.length) * LADDER_TAIL_MS
+  );
 }
 
 export interface Scene {
@@ -30,7 +32,10 @@ const SYNTHETIC_SCENE_MS = 300_000;
  * The marks the scene navigator offers: the item's chapters when it has any, otherwise evenly
  * spaced marks so files without chapters can still be jumped around.
  */
-export function scenesFor(chapters: Chapter[] | undefined, durationMs: number): Scene[] {
+export function scenesFor(
+  chapters: Chapter[] | undefined,
+  durationMs: number,
+): Scene[] {
   if (chapters && chapters.length > 1) {
     return [...chapters].sort((a, b) => a.startMs - b.startMs);
   }
@@ -58,8 +63,16 @@ export function currentSceneIndex(scenes: Scene[], positionMs: number): number {
 const SKIPPABLE = new Set(['intro', 'outro', 'recap', 'preview']);
 
 /** The skippable segment the playhead is inside, if any. */
-export function activeSegment(segments: MediaSegment[], positionMs: number): MediaSegment | undefined {
-  return segments.find(s => SKIPPABLE.has(s.kind) && positionMs >= s.startMs && positionMs < s.endMs - 1000);
+export function activeSegment(
+  segments: MediaSegment[],
+  positionMs: number,
+): MediaSegment | undefined {
+  return segments.find(
+    s =>
+      SKIPPABLE.has(s.kind) &&
+      positionMs >= s.startMs &&
+      positionMs < s.endMs - 1000,
+  );
 }
 
 export function skipLabel(kind: MediaSegment['kind']): string {
@@ -76,7 +89,10 @@ export function skipLabel(kind: MediaSegment['kind']): string {
 }
 
 /** `S01E04`, or undefined when the item has no season/episode numbers. */
-export function episodeCode(season?: number, episode?: number): string | undefined {
+export function episodeCode(
+  season?: number,
+  episode?: number,
+): string | undefined {
   if (season === undefined || episode === undefined) {
     return undefined;
   }
@@ -92,12 +108,21 @@ const FINISH_TAIL_MS = 15_000;
  * run to the end. The server alone only clears the resume point past its own percentage, which
  * leaves episodes on Continue Watching after the viewer skipped the intro and watched it all.
  */
-export function playedToEnd(positionMs: number, totalMs: number, segments: MediaSegment[]): boolean {
+export function playedToEnd(
+  positionMs: number,
+  totalMs: number,
+  segments: MediaSegment[],
+): boolean {
   if (totalMs <= 0) {
     return false;
   }
   if (positionMs >= totalMs * 0.97 || totalMs - positionMs <= FINISH_TAIL_MS) {
     return true;
   }
-  return segments.some(g => g.kind === 'outro' && positionMs >= g.startMs && g.endMs >= totalMs - FINISH_TAIL_MS);
+  return segments.some(
+    g =>
+      g.kind === 'outro' &&
+      positionMs >= g.startMs &&
+      g.endMs >= totalMs - FINISH_TAIL_MS,
+  );
 }

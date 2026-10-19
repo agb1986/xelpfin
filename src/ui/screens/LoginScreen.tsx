@@ -1,17 +1,31 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import type { PublicUser, ServerInfo, Session } from '../../backend/types';
 import { useApp } from '../../state/AppState';
 import { useIsActive, useNavigation } from '../../state/navigation';
 import { watchQuickConnect } from '../../state/quickConnect';
-import { Button, describeError, Focusable, Screen, TextField, bleed } from '../components';
+import {
+  Button,
+  describeError,
+  Focusable,
+  Screen,
+  TextField,
+  bleed,
+} from '../components';
 import { useAsync } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 
-const UserTile = React.forwardRef<View, { user: PublicUser; onPress(): void; preferred?: boolean }>(function UserTile(
-  { user, onPress, preferred },
-  ref,
-) {
+const UserTile = React.forwardRef<
+  View,
+  { user: PublicUser; onPress(): void; preferred?: boolean }
+>(function UserTile({ user, onPress, preferred }, ref) {
   return (
     <Focusable
       ref={ref}
@@ -26,10 +40,15 @@ const UserTile = React.forwardRef<View, { user: PublicUser; onPress(): void; pre
             {user.imageUrl ? (
               <Image source={{ uri: user.imageUrl }} style={styles.avatarImg} />
             ) : (
-              <Text style={styles.avatarText}>{user.name.slice(0, 1).toUpperCase()}</Text>
+              <Text style={styles.avatarText}>
+                {user.name.slice(0, 1).toUpperCase()}
+              </Text>
             )}
           </View>
-          <Text style={[styles.userName, focused && styles.onAccent]} numberOfLines={1}>
+          <Text
+            style={[styles.userName, focused && styles.onAccent]}
+            numberOfLines={1}
+          >
             {user.name}
           </Text>
         </>
@@ -39,11 +58,20 @@ const UserTile = React.forwardRef<View, { user: PublicUser; onPress(): void; pre
 });
 
 /** User picker, password sign-in and Quick Connect for one server. */
-export function LoginScreen({ server, expired }: { server: ServerInfo; expired?: boolean }) {
+export function LoginScreen({
+  server,
+  expired,
+}: {
+  server: ServerInfo;
+  expired?: boolean;
+}) {
   const { connector, signIn } = useApp();
   const nav = useNavigation();
   const active = useIsActive();
-  const users = useAsync(() => connector.publicUsers(server), [connector, server]);
+  const users = useAsync(
+    () => connector.publicUsers(server),
+    [connector, server],
+  );
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -123,24 +151,29 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
       setQcCode(undefined);
       setQcSecret(undefined);
     };
-    return watchQuickConnect(() => connector.quickConnectPoll(server, qcSecret), {
-      onAuthorized: () => {
-        connector.quickConnectLogin(server, qcSecret).then(done, e => {
-          if (mounted.current) {
-            stopQc();
-            setError(describeError(e));
-          }
-        });
+    return watchQuickConnect(
+      () => connector.quickConnectPoll(server, qcSecret),
+      {
+        onAuthorized: () => {
+          connector.quickConnectLogin(server, qcSecret).then(done, e => {
+            if (mounted.current) {
+              stopQc();
+              setError(describeError(e));
+            }
+          });
+        },
+        onExpired: () => {
+          stopQc();
+          setError(
+            'The Quick Connect code has expired. Start Quick Connect again.',
+          );
+        },
+        onError: e => {
+          stopQc();
+          setError(describeError(e));
+        },
       },
-      onExpired: () => {
-        stopQc();
-        setError('The Quick Connect code has expired. Start Quick Connect again.');
-      },
-      onError: e => {
-        stopQc();
-        setError(describeError(e));
-      },
-    });
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qcSecret, active, connector, server]);
 
@@ -153,7 +186,10 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
 
   return (
     <Screen title={`Sign in to ${server.name}`} testID="login">
-      <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
+      <ScrollView
+        style={bleed.outer}
+        contentContainerStyle={[bleed.inner, styles.body]}
+      >
         {expired ? (
           <Text style={styles.notice} testID="login-expired">
             Your session on this server has ended. Sign in again to continue.
@@ -161,12 +197,29 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
         ) : null}
         <View style={styles.users}>
           {users.data?.map((u, i) => (
-            <UserTile key={u.id} ref={i === 0 ? firstUser : undefined} user={u} onPress={() => pickUser(u)} preferred={i === 0} />
+            <UserTile
+              key={u.id}
+              ref={i === 0 ? firstUser : undefined}
+              user={u}
+              onPress={() => pickUser(u)}
+              preferred={i === 0}
+            />
           ))}
-          {users.status === 'error' ? <Text style={styles.dim}>Could not load the user list: {describeError(users.error)}</Text> : null}
+          {users.status === 'error' ? (
+            <Text style={styles.dim}>
+              Could not load the user list: {describeError(users.error)}
+            </Text>
+          ) : null}
         </View>
         <View style={styles.form}>
-          <TextField label="User name" testID="username" value={username} onChangeText={setUsername} returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()} />
+          <TextField
+            label="User name"
+            testID="username"
+            value={username}
+            onChangeText={setUsername}
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+          />
           <TextField
             ref={passwordRef}
             label="Password (leave empty if the account has none)"
@@ -178,13 +231,32 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
             onSubmitEditing={() => login()}
           />
           <View style={styles.actions}>
-            <Button label={busy ? 'Signing in…' : 'Sign in'} variant="primary" onPress={() => login()} disabled={busy} testID="signin" />
-            <Button label="Quick Connect" onPress={startQuickConnect} testID="quickconnect" />
-            <Button label="Other server" onPress={() => (nav.depth > 1 ? nav.back() : nav.reset([{ name: 'servers' }]))} testID="change-server" />
+            <Button
+              label={busy ? 'Signing in…' : 'Sign in'}
+              variant="primary"
+              onPress={() => login()}
+              disabled={busy}
+              testID="signin"
+            />
+            <Button
+              label="Quick Connect"
+              onPress={startQuickConnect}
+              testID="quickconnect"
+            />
+            <Button
+              label="Other server"
+              onPress={() =>
+                nav.depth > 1 ? nav.back() : nav.reset([{ name: 'servers' }])
+              }
+              testID="change-server"
+            />
           </View>
           {qcCode ? (
             <View style={styles.qc} testID="qc-code">
-              <Text style={styles.dim}>On a device where you are signed in, open Quick Connect and enter</Text>
+              <Text style={styles.dim}>
+                On a device where you are signed in, open Quick Connect and
+                enter
+              </Text>
               <Text style={styles.code}>{qcCode}</Text>
               <Text style={styles.dim}>Waiting for approval…</Text>
             </View>
@@ -203,17 +275,48 @@ export function LoginScreen({ server, expired }: { server: ServerInfo; expired?:
 const styles = StyleSheet.create({
   body: { paddingBottom: space.xl },
   users: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: space.md },
-  user: { width: 120, alignItems: 'center', padding: space.md, marginRight: space.md, borderRadius: radius.lg, borderWidth: 2, borderColor: 'transparent' },
-  userFocused: { backgroundColor: colors.accent, borderColor: colors.text, transform: [{ scale: 1.05 }] },
-  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surfaceHi, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  user: {
+    width: 120,
+    alignItems: 'center',
+    padding: space.md,
+    marginRight: space.md,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  userFocused: {
+    backgroundColor: colors.accent,
+    borderColor: colors.text,
+    transform: [{ scale: 1.05 }],
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.surfaceHi,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   avatarImg: { width: 72, height: 72 },
   avatarText: { color: colors.text, fontSize: 30, fontWeight: '700' },
   userName: { color: colors.text, fontSize: font.body, marginTop: space.sm },
   onAccent: { color: colors.accentText },
   form: { maxWidth: 560 },
   actions: { flexDirection: 'row', marginTop: space.xs },
-  qc: { marginTop: space.lg, padding: space.lg, backgroundColor: colors.surface, borderRadius: radius.lg },
-  code: { color: colors.accent, fontSize: 40, fontWeight: '800', letterSpacing: 8, marginVertical: space.sm },
+  qc: {
+    marginTop: space.lg,
+    padding: space.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+  },
+  code: {
+    color: colors.accent,
+    fontSize: 40,
+    fontWeight: '800',
+    letterSpacing: 8,
+    marginVertical: space.sm,
+  },
   dim: { color: colors.textDim, fontSize: font.body },
   error: { color: colors.danger, fontSize: font.body, marginTop: space.md },
   notice: { color: colors.text, fontSize: font.body, marginBottom: space.md },

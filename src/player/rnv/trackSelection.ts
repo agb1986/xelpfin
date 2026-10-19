@@ -8,7 +8,10 @@ export type TrackSelection =
   | { type: 'system' };
 
 /** Maps a backend audio stream index onto the player's audio track list. */
-export function audioSelection(plan: PlaybackPlan, streamIndex?: number): TrackSelection {
+export function audioSelection(
+  plan: PlaybackPlan,
+  streamIndex?: number,
+): TrackSelection {
   if (streamIndex === undefined || plan.method !== 'DirectPlay') {
     // A transcode carries exactly the audio track the server was asked for.
     return { type: 'system' };
@@ -21,7 +24,10 @@ export function audioSelection(plan: PlaybackPlan, streamIndex?: number): TrackS
  * Maps a backend subtitle stream index onto the player's own text tracks. Side-loaded
  * (external) tracks are drawn by the app, so the native renderer is turned off for them.
  */
-export function subtitleSelection(plan: PlaybackPlan, streamIndex?: number): TrackSelection {
+export function subtitleSelection(
+  plan: PlaybackPlan,
+  streamIndex?: number,
+): TrackSelection {
   if (streamIndex === undefined || streamIndex < 0) {
     return { type: 'disabled' };
   }
@@ -47,20 +53,33 @@ export function canSwitchInStream(
   plan: PlaybackPlan,
   change: { audioStreamIndex?: number; subtitleStreamIndex?: number },
 ): boolean {
-  if (change.audioStreamIndex !== undefined && change.audioStreamIndex !== plan.selectedAudioIndex) {
+  if (
+    change.audioStreamIndex !== undefined &&
+    change.audioStreamIndex !== plan.selectedAudioIndex
+  ) {
     if (plan.method !== 'DirectPlay') {
       return false;
     }
   }
-  if (change.subtitleStreamIndex !== undefined && change.subtitleStreamIndex >= 0) {
-    const track = plan.subtitleTracks.find(s => s.index === change.subtitleStreamIndex);
+  if (
+    change.subtitleStreamIndex !== undefined &&
+    change.subtitleStreamIndex >= 0
+  ) {
+    const track = plan.subtitleTracks.find(
+      s => s.index === change.subtitleStreamIndex,
+    );
     if (!track || track.delivery === 'burn-in') {
       return false;
     }
   }
   // Leaving burned-in subtitles needs a clean stream.
-  const current = plan.subtitleTracks.find(s => s.index === plan.selectedSubtitleIndex);
-  if (current?.delivery === 'burn-in' && change.subtitleStreamIndex !== plan.selectedSubtitleIndex) {
+  const current = plan.subtitleTracks.find(
+    s => s.index === plan.selectedSubtitleIndex,
+  );
+  if (
+    current?.delivery === 'burn-in' &&
+    change.subtitleStreamIndex !== plan.selectedSubtitleIndex
+  ) {
     return false;
   }
   return true;

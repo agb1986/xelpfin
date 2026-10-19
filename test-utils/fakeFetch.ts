@@ -7,7 +7,9 @@ export interface Call {
   body: any;
 }
 
-type Handler = (call: Call) => { status?: number; json?: unknown; text?: string } | Promise<never>;
+type Handler = (
+  call: Call,
+) => { status?: number; json?: unknown; text?: string } | Promise<never>;
 type Route = Handler | object | boolean | string | number;
 
 /** Route table fake for `fetch`: keys are "METHOD /path" (query ignored). Records every call. */
@@ -38,7 +40,10 @@ export function fakeFetch(routes: Record<string, Route>) {
     if (route === undefined) {
       return new Response('not found', { status: 404 });
     }
-    const r = typeof route === 'function' ? await (route as Handler)(call) : { json: route };
+    const r =
+      typeof route === 'function'
+        ? await (route as Handler)(call)
+        : { json: route };
     const status = r.status ?? 200;
     const body = r.text ?? (r.json === undefined ? '' : JSON.stringify(r.json));
     return new Response(status === 204 ? null : body, { status });
@@ -46,4 +51,9 @@ export function fakeFetch(routes: Record<string, Route>) {
   return { fetch: fn as unknown as typeof fetch, calls };
 }
 
-export const CLIENT = { client: 'xelpfin', device: 'Test TV', deviceId: 'dev-1', version: '0.1.0' };
+export const CLIENT = {
+  client: 'xelpfin',
+  device: 'Test TV',
+  deviceId: 'dev-1',
+  version: '0.1.0',
+};

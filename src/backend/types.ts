@@ -121,7 +121,8 @@ export interface Chapter {
   imageUrl?: string;
 }
 
-export type SegmentKind = 'intro' | 'outro' | 'recap' | 'preview' | 'commercial' | 'unknown';
+export type SegmentKind =
+  'intro' | 'outro' | 'recap' | 'preview' | 'commercial' | 'unknown';
 
 /** A stretch of an item the server has tagged, such as the opening titles or the end credits. */
 export interface MediaSegment {
@@ -206,7 +207,10 @@ export interface PlaybackPlan {
 }
 
 export interface ProgressReport {
-  plan: Pick<PlaybackPlan, 'itemId' | 'mediaSourceId' | 'playSessionId' | 'method'>;
+  plan: Pick<
+    PlaybackPlan,
+    'itemId' | 'mediaSourceId' | 'playSessionId' | 'method'
+  >;
   positionMs: number;
   isPaused: boolean;
   audioStreamIndex?: number;
@@ -222,7 +226,14 @@ export type QuickConnectState =
 export class BackendError extends Error {
   constructor(
     message: string,
-    readonly kind: 'network' | 'auth' | 'forbidden' | 'notFound' | 'server' | 'unsupported' | 'timeout',
+    readonly kind:
+      | 'network'
+      | 'auth'
+      | 'forbidden'
+      | 'notFound'
+      | 'server'
+      | 'unsupported'
+      | 'timeout',
     readonly status?: number,
     /** Text the server sent with the failure. For logs only: it is never shown to the user. */
     readonly detail?: string,

@@ -8,7 +8,10 @@ import { parseWebVtt, type Cue } from './webvtt';
  * and HLS sources directly, which drops side-loaded subtitle configurations, and drawing them in
  * shared code also gives Vega OS the same subtitles for free.
  */
-export function useSubtitleCues(track: SubtitleTrack | undefined, headers?: Record<string, string>): Cue[] {
+export function useSubtitleCues(
+  track: SubtitleTrack | undefined,
+  headers?: Record<string, string>,
+): Cue[] {
   const [cues, setCues] = useState<Cue[]>([]);
   const url = track?.delivery === 'external' ? track.url : undefined;
   useEffect(() => {
@@ -18,7 +21,9 @@ export function useSubtitleCues(track: SubtitleTrack | undefined, headers?: Reco
     }
     let cancelled = false;
     fetch(url, { headers })
-      .then(r => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then(r =>
+        r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`)),
+      )
       .then(text => !cancelled && setCues(parseWebVtt(text)))
       .catch(() => !cancelled && setCues([]));
     return () => {

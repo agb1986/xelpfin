@@ -2,4 +2,5 @@
 const PATTERN = /(APP_VERSION = ')([^']*)(')/;
 
 module.exports.readVersion = contents => PATTERN.exec(contents)[2];
-module.exports.writeVersion = (contents, version) => contents.replace(PATTERN, `$1${version}$3`);
+module.exports.writeVersion = (contents, version) =>
+  contents.replace(PATTERN, `$1${version}$3`);

@@ -12,7 +12,10 @@ export type FetchFn = typeof fetch;
 
 /** Makes a value safe inside a quoted header parameter: no line breaks, quotes or backslashes. */
 function quote(v: string): string {
-  return v.replace(/[\r\n]/g, ' ').replace(/\\/g, '/').replace(/"/g, "'");
+  return v
+    .replace(/[\r\n]/g, ' ')
+    .replace(/\\/g, '/')
+    .replace(/"/g, "'");
 }
 
 /** Jellyfin's `Authorization: MediaBrowser ...` header value. */
@@ -29,7 +32,8 @@ export function authHeader(info: ClientInfo, token?: string): string {
   return `MediaBrowser ${parts.join(', ')}`;
 }
 
-export type QueryValue = string | number | boolean | undefined | null | string[];
+export type QueryValue =
+  string | number | boolean | undefined | null | string[];
 
 export function buildQuery(params: Record<string, QueryValue>): string {
   const out: string[] = [];
@@ -66,7 +70,13 @@ export class JellyfinHttp {
   ) {}
 
   withToken(token: string): JellyfinHttp {
-    return new JellyfinHttp(this.baseUrl, this.client, token, this.fetchFn, this.defaultTimeoutMs);
+    return new JellyfinHttp(
+      this.baseUrl,
+      this.client,
+      token,
+      this.fetchFn,
+      this.defaultTimeoutMs,
+    );
   }
 
   url(path: string, query: Record<string, QueryValue> = {}): string {
@@ -87,7 +97,8 @@ export class JellyfinHttp {
     const timeoutMs = opts.timeoutMs ?? this.defaultTimeoutMs;
     // The abort cancels the request itself, so a server that never answers does not keep a
     // connection open after the caller has been told it timed out.
-    const abort = typeof AbortController === 'function' ? new AbortController() : undefined;
+    const abort =
+      typeof AbortController === 'function' ? new AbortController() : undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
@@ -98,14 +109,22 @@ export class JellyfinHttp {
     let res: Response;
     try {
       res = await Promise.race([
-        this.fetchFn(url, { method: opts.method ?? 'GET', headers, body, signal: abort?.signal }),
+        this.fetchFn(url, {
+          method: opts.method ?? 'GET',
+          headers,
+          body,
+          signal: abort?.signal,
+        }),
         timeout,
       ]);
     } catch (e) {
       if (e instanceof BackendError) {
         throw e;
       }
-      throw new BackendError(`Cannot reach server: ${(e as Error)?.message ?? e}`, 'network');
+      throw new BackendError(
+        `Cannot reach server: ${(e as Error)?.message ?? e}`,
+        'network',
+      );
     } finally {
       if (timer !== undefined) {
         clearTimeout(timer);
@@ -119,17 +138,22 @@ export class JellyfinHttp {
         res.status === 401
           ? 'auth'
           : res.status === 403
-          ? 'forbidden'
-          : res.status === 404
-          ? 'notFound'
-          : 'server';
+            ? 'forbidden'
+            : res.status === 404
+              ? 'notFound'
+              : 'server';
       let detail = '';
       try {
         detail = (await res.text()).slice(0, 200);
       } catch {
         // ignore
       }
-      throw new BackendError(`${opts.method ?? 'GET'} ${path} failed: HTTP ${res.status}`, kind, res.status, detail || undefined);
+      throw new BackendError(
+        `${opts.method ?? 'GET'} ${path} failed: HTTP ${res.status}`,
+        kind,
+        res.status,
+        detail || undefined,
+      );
     }
     if (res.status === 204) {
       return undefined as T;
@@ -145,11 +169,19 @@ export class JellyfinHttp {
     }
   }
 
-  get<T>(path: string, query?: Record<string, QueryValue>, timeoutMs?: number): Promise<T> {
+  get<T>(
+    path: string,
+    query?: Record<string, QueryValue>,
+    timeoutMs?: number,
+  ): Promise<T> {
     return this.request<T>(path, { query, timeoutMs });
   }
 
-  post<T>(path: string, body?: unknown, query?: Record<string, QueryValue>): Promise<T> {
+  post<T>(
+    path: string,
+    body?: unknown,
+    query?: Record<string, QueryValue>,
+  ): Promise<T> {
     return this.request<T>(path, { method: 'POST', body, query });
   }
 
@@ -182,5 +214,9 @@ export function candidateUrls(input: string): string[] {
       ? [`https://${host}:${port}${path}`, `http://${host}:${port}${path}`]
       : [`http://${host}:${port}${path}`, `https://${host}:${port}${path}`];
   }
-  return [`http://${host}:8096${path}`, `https://${host}:8920${path}`, `http://${host}${path}`];
+  return [
+    `http://${host}:8096${path}`,
+    `https://${host}:8920${path}`,
+    `http://${host}${path}`,
+  ];
 }

@@ -9,16 +9,29 @@ export interface SubtitleLook {
   background: SubtitleBackground;
 }
 
-const DEFAULT_LOOK: SubtitleLook = { size: 22, color: '#ffffff', background: 'box' };
+const DEFAULT_LOOK: SubtitleLook = {
+  size: 22,
+  color: '#ffffff',
+  background: 'box',
+};
 
 /** Text style for a subtitle look; exported for tests. */
 export function subtitleTextStyle(look: SubtitleLook): TextStyle {
-  const base: TextStyle = { color: look.color, fontSize: look.size, lineHeight: Math.round(look.size * 1.35) };
+  const base: TextStyle = {
+    color: look.color,
+    fontSize: look.size,
+    lineHeight: Math.round(look.size * 1.35),
+  };
   switch (look.background) {
     case 'solid':
       return { ...base, backgroundColor: '#000' };
     case 'shadow':
-      return { ...base, textShadowColor: '#000', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 4 };
+      return {
+        ...base,
+        textShadowColor: '#000',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 4,
+      };
     default:
       return { ...base, backgroundColor: 'rgba(0,0,0,0.6)' };
   }
@@ -44,14 +57,25 @@ export function SubtitleText({
     return null;
   }
   return (
-    <View style={[styles.wrap, lift > 0 && { bottom: lift + 12 }]} pointerEvents="none" testID="player-subtitle-text">
+    <View
+      style={[styles.wrap, lift > 0 && { bottom: lift + 12 }]}
+      pointerEvents="none"
+      testID="player-subtitle-text"
+    >
       <Text style={[styles.text, subtitleTextStyle(look)]}>{text}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 0, right: 0, bottom: 36, alignItems: 'center', paddingHorizontal: 48 },
+  wrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 36,
+    alignItems: 'center',
+    paddingHorizontal: 48,
+  },
   text: {
     fontWeight: '600',
     textAlign: 'center',

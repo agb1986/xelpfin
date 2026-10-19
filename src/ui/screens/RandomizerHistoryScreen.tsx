@@ -3,8 +3,19 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import { episodeCode } from '../../player/seeking';
 import { useBackend } from '../../state/AppState';
 import { useNavigation } from '../../state/navigation';
-import { loadHistory, recentDraws, useRandomizer } from '../../state/randomizer';
-import { EmptyView, ErrorView, Focusable, LoadingView, Screen, bleed } from '../components';
+import {
+  loadHistory,
+  recentDraws,
+  useRandomizer,
+} from '../../state/randomizer';
+import {
+  EmptyView,
+  ErrorView,
+  Focusable,
+  LoadingView,
+  Screen,
+  bleed,
+} from '../components';
 import { useAsync } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 import { openItem } from './navigate';
@@ -24,13 +35,23 @@ export function RandomizerHistoryScreen() {
   return (
     <Screen title="Randomizer history" testID="randomizer-history">
       {history.status === 'error' ? (
-        <ErrorView error={history.error} onRetry={history.reload} hasTVPreferredFocus />
+        <ErrorView
+          error={history.error}
+          onRetry={history.reload}
+          hasTVPreferredFocus
+        />
       ) : !ids.length ? (
-        <EmptyView title="Nothing played yet" message="Episodes the Randomizer picks show up here." />
+        <EmptyView
+          title="Nothing played yet"
+          message="Episodes the Randomizer picks show up here."
+        />
       ) : !history.data ? (
         <LoadingView />
       ) : (
-        <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
+        <ScrollView
+          style={bleed.outer}
+          contentContainerStyle={[bleed.inner, styles.body]}
+        >
           {history.data.map((ep, i) => {
             const code = episodeCode(ep.parentIndexNumber, ep.indexNumber);
             return (
@@ -39,13 +60,20 @@ export function RandomizerHistoryScreen() {
                 testID={`history-${i}`}
                 hasTVPreferredFocus={i === 0}
                 onPress={() => openItem(nav, ep)}
-                style={focused => [styles.row, focused && styles.rowFocused]}>
+                style={focused => [styles.row, focused && styles.rowFocused]}
+              >
                 {focused => (
                   <>
-                    <Text style={[styles.show, focused && styles.textOn]} numberOfLines={1}>
+                    <Text
+                      style={[styles.show, focused && styles.textOn]}
+                      numberOfLines={1}
+                    >
                       {[ep.seriesName, code].filter(Boolean).join(' · ')}
                     </Text>
-                    <Text style={[styles.name, focused && styles.textOn]} numberOfLines={1}>
+                    <Text
+                      style={[styles.name, focused && styles.textOn]}
+                      numberOfLines={1}
+                    >
                       {ep.name}
                     </Text>
                   </>
@@ -61,7 +89,13 @@ export function RandomizerHistoryScreen() {
 
 const styles = StyleSheet.create({
   body: { paddingBottom: space.xl, maxWidth: 760 },
-  row: { backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, marginBottom: space.xs },
+  row: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.md,
+    marginBottom: space.xs,
+  },
   rowFocused: { backgroundColor: colors.accent },
   show: { color: colors.textDim, fontSize: font.small },
   name: { color: colors.text, fontSize: font.body, marginTop: space.xs },

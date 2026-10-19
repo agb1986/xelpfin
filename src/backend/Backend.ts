@@ -26,13 +26,23 @@ export interface ServerConnector {
    * LAN discovery. Resolves with the servers that answered and could be reached.
    * `extraHosts` are also asked directly (unicast), for networks that drop broadcasts.
    */
-  discover(timeoutMs?: number, extraHosts?: string[]): Promise<DiscoveredServer[]>;
+  discover(
+    timeoutMs?: number,
+    extraHosts?: string[],
+  ): Promise<DiscoveredServer[]>;
   /** Normalises a manually typed address ("192.168.1.5", "nas:8096", "https://x") and checks it. */
   probe(address: string): Promise<ServerInfo>;
   publicUsers(server: ServerInfo): Promise<PublicUser[]>;
-  login(server: ServerInfo, username: string, password: string): Promise<Session>;
+  login(
+    server: ServerInfo,
+    username: string,
+    password: string,
+  ): Promise<Session>;
   quickConnectStart(server: ServerInfo): Promise<QuickConnectState>;
-  quickConnectPoll(server: ServerInfo, secret: string): Promise<QuickConnectState>;
+  quickConnectPoll(
+    server: ServerInfo,
+    secret: string,
+  ): Promise<QuickConnectState>;
   quickConnectLogin(server: ServerInfo, secret: string): Promise<Session>;
   /** Binds a stored or fresh session; does not do network I/O. */
   open(session: Session): Backend;
@@ -63,7 +73,10 @@ export interface Backend {
   imageUrl(itemId: string, kind: ImageKind, maxWidth: number): string;
 
   /** Negotiates how to play an item given what this device can decode. */
-  playback(request: PlaybackRequest, caps: DeviceCapabilities): Promise<PlaybackPlan>;
+  playback(
+    request: PlaybackRequest,
+    caps: DeviceCapabilities,
+  ): Promise<PlaybackPlan>;
   reportStart(report: ProgressReport): Promise<void>;
   reportProgress(report: ProgressReport): Promise<void>;
   reportStop(report: ProgressReport): Promise<void>;

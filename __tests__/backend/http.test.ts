@@ -1,4 +1,9 @@
-import { authHeader, buildQuery, candidateUrls, JellyfinHttp } from '../../src/backend/jellyfin/http';
+import {
+  authHeader,
+  buildQuery,
+  candidateUrls,
+  JellyfinHttp,
+} from '../../src/backend/jellyfin/http';
 import { BackendError } from '../../src/backend/types';
 import { CLIENT, fakeFetch } from '../../test-utils/fakeFetch';
 
@@ -14,7 +19,11 @@ describe('authHeader', () => {
     expect(h).toContain(`Device="Bob's TV"`);
   });
   it('keeps line breaks and backslashes out of the header', () => {
-    const h = authHeader({ ...CLIENT, device: 'TV\r\nX-Evil: 1', deviceId: 'a\\", Token="x' });
+    const h = authHeader({
+      ...CLIENT,
+      device: 'TV\r\nX-Evil: 1',
+      deviceId: 'a\\", Token="x',
+    });
     expect(h).not.toMatch(/[\r\n\\]/);
     expect(h).toContain('Device="TV  X-Evil: 1"');
     expect(h).toContain(`DeviceId="a/', Token='x"`);
@@ -23,17 +32,35 @@ describe('authHeader', () => {
 
 describe('buildQuery', () => {
   it('drops empty values and joins arrays', () => {
-    expect(buildQuery({ a: 1, b: undefined, c: '', d: ['x', 'y'], e: false, f: null })).toBe('?a=1&d=x%2Cy&e=false');
+    expect(
+      buildQuery({
+        a: 1,
+        b: undefined,
+        c: '',
+        d: ['x', 'y'],
+        e: false,
+        f: null,
+      }),
+    ).toBe('?a=1&d=x%2Cy&e=false');
     expect(buildQuery({})).toBe('');
   });
 });
 
 describe('candidateUrls', () => {
   it('adds default ports and schemes', () => {
-    expect(candidateUrls('nas')).toEqual(['http://nas:8096', 'https://nas:8920', 'http://nas']);
-    expect(candidateUrls(' 192.168.1.5:8096 ')).toEqual(['http://192.168.1.5:8096', 'https://192.168.1.5:8096']);
+    expect(candidateUrls('nas')).toEqual([
+      'http://nas:8096',
+      'https://nas:8920',
+      'http://nas',
+    ]);
+    expect(candidateUrls(' 192.168.1.5:8096 ')).toEqual([
+      'http://192.168.1.5:8096',
+      'https://192.168.1.5:8096',
+    ]);
     expect(candidateUrls('host:8920')[0]).toBe('https://host:8920');
-    expect(candidateUrls('HTTPS://x.example/jf/')).toEqual(['https://x.example/jf']);
+    expect(candidateUrls('HTTPS://x.example/jf/')).toEqual([
+      'https://x.example/jf',
+    ]);
     expect(candidateUrls('')).toEqual([]);
   });
 });
@@ -54,17 +81,32 @@ describe('JellyfinHttp', () => {
       'GET /c': () => ({ status: 403 }),
     });
     const http = new JellyfinHttp('http://s', CLIENT, undefined, f.fetch);
-    await expect(http.get('/a')).rejects.toMatchObject({ kind: 'auth', status: 401 });
-    await expect(http.get('/c')).rejects.toMatchObject({ kind: 'forbidden', status: 403 });
-    await expect(http.get('/b')).rejects.toMatchObject({ kind: 'server', status: 500, message: 'GET /b failed: HTTP 500', detail: 'boom' });
-    await expect(http.get('/missing')).rejects.toMatchObject({ kind: 'notFound' });
+    await expect(http.get('/a')).rejects.toMatchObject({
+      kind: 'auth',
+      status: 401,
+    });
+    await expect(http.get('/c')).rejects.toMatchObject({
+      kind: 'forbidden',
+      status: 403,
+    });
+    await expect(http.get('/b')).rejects.toMatchObject({
+      kind: 'server',
+      status: 500,
+      message: 'GET /b failed: HTTP 500',
+      detail: 'boom',
+    });
+    await expect(http.get('/missing')).rejects.toMatchObject({
+      kind: 'notFound',
+    });
   });
 
   it('reports network failures and timeouts', async () => {
     const failing = jest.fn(async () => {
       throw new TypeError('Network request failed');
     }) as unknown as typeof fetch;
-    await expect(new JellyfinHttp('http://s', CLIENT, undefined, failing).get('/x')).rejects.toMatchObject({
+    await expect(
+      new JellyfinHttp('http://s', CLIENT, undefined, failing).get('/x'),
+    ).rejects.toMatchObject({
       kind: 'network',
     });
     let signal: AbortSignal | undefined;
@@ -72,7 +114,15 @@ describe('JellyfinHttp', () => {
       signal = init?.signal ?? undefined;
       return new Promise<Response>(() => {});
     }) as unknown as typeof fetch;
-    const err = await new JellyfinHttp('http://s', CLIENT, undefined, hanging, 20).get('/x').catch((e: unknown) => e);
+    const err = await new JellyfinHttp(
+      'http://s',
+      CLIENT,
+      undefined,
+      hanging,
+      20,
+    )
+      .get('/x')
+      .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(BackendError);
     expect(err).toMatchObject({ kind: 'timeout' });
     expect(signal?.aborted).toBe(true);
@@ -80,7 +130,9 @@ describe('JellyfinHttp', () => {
 
   it('treats 204 and empty bodies as undefined', async () => {
     const f = fakeFetch({ 'POST /p': () => ({ status: 204 }) });
-    await expect(new JellyfinHttp('http://s', CLIENT, 't', f.fetch).post('/p', { a: 1 })).resolves.toBeUndefined();
+    await expect(
+      new JellyfinHttp('http://s', CLIENT, 't', f.fetch).post('/p', { a: 1 }),
+    ).resolves.toBeUndefined();
     expect(f.calls[0].body).toEqual({ a: 1 });
     expect(f.calls[0].headers['Content-Type']).toBe('application/json');
   });

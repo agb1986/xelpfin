@@ -43,7 +43,10 @@ export const SUBTITLE_COLOR_CHOICES: { label: string; value: string }[] = [
   { label: 'Green', value: '#7dff7a' },
 ];
 
-export const SUBTITLE_BACKGROUND_CHOICES: { label: string; value: SubtitleBackground }[] = [
+export const SUBTITLE_BACKGROUND_CHOICES: {
+  label: string;
+  value: SubtitleBackground;
+}[] = [
   { label: 'Translucent box', value: 'box' },
   { label: 'Solid box', value: 'solid' },
   { label: 'Outline only', value: 'shadow' },
@@ -82,13 +85,19 @@ export function sanitizeSettings(raw: unknown): Settings {
     return s;
   }
   const r = raw as Record<string, unknown>;
-  if (typeof r.maxBitrate === 'number' && BITRATE_CHOICES.some(c => c.value === r.maxBitrate)) {
+  if (
+    typeof r.maxBitrate === 'number' &&
+    BITRATE_CHOICES.some(c => c.value === r.maxBitrate)
+  ) {
     s.maxBitrate = r.maxBitrate;
   }
   if (SUBTITLE_CHOICES.some(c => c.value === r.subtitleMode)) {
     s.subtitleMode = r.subtitleMode as SubtitleMode;
   }
-  if (typeof r.preferredLanguage === 'string' && /^[a-z]{0,3}$/.test(r.preferredLanguage)) {
+  if (
+    typeof r.preferredLanguage === 'string' &&
+    /^[a-z]{0,3}$/.test(r.preferredLanguage)
+  ) {
     s.preferredLanguage = r.preferredLanguage;
   }
   if (typeof r.autoplayNext === 'boolean') {
@@ -118,7 +127,10 @@ export async function loadSettings(store: KeyValueStore): Promise<Settings> {
   }
 }
 
-export async function saveSettings(store: KeyValueStore, settings: Settings): Promise<void> {
+export async function saveSettings(
+  store: KeyValueStore,
+  settings: Settings,
+): Promise<void> {
   await store.set(KEY, JSON.stringify(settings)).catch(() => undefined);
 }
 
@@ -132,7 +144,10 @@ const LANGUAGE_ALIASES: Record<string, string[]> = {
   ita: ['ita', 'it'],
 };
 
-export function languageMatches(code: string | undefined, preferred: string): boolean {
+export function languageMatches(
+  code: string | undefined,
+  preferred: string,
+): boolean {
   if (!code || !preferred) {
     return false;
   }

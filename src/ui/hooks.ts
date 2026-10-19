@@ -9,7 +9,10 @@ export type AsyncState<T> =
  * Runs an async loader, re-running when deps change or reload() is called. Results of stale
  * runs are dropped. Keeps the previous data while reloading so lists do not flash empty.
  */
-export function useAsync<T>(load: () => Promise<T>, deps: unknown[]): AsyncState<T> & { reload(): void } {
+export function useAsync<T>(
+  load: () => Promise<T>,
+  deps: unknown[],
+): AsyncState<T> & { reload(): void } {
   const [state, setState] = useState<AsyncState<T>>({ status: 'loading' });
   const [tick, setTick] = useState(0);
   const run = useRef(0);
@@ -21,7 +24,9 @@ export function useAsync<T>(load: () => Promise<T>, deps: unknown[]): AsyncState
     setState(s => ({ status: 'loading', data: s.data }));
     loadRef.current().then(
       data => id === run.current && setState({ status: 'ready', data }),
-      error => id === run.current && setState(s => ({ status: 'error', error, data: s.data })),
+      error =>
+        id === run.current &&
+        setState(s => ({ status: 'error', error, data: s.data })),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick]);
