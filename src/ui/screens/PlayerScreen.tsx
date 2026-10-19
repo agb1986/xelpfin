@@ -1,9 +1,38 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Image, ScrollView, StyleSheet, Text, useTVEventHandler, View, type HWEvent } from 'react-native';
-import type { ItemDetail, MediaItem, MediaSegment, PlaybackPlan } from '../../backend/types';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  BackHandler,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useTVEventHandler,
+  View,
+  type HWEvent,
+} from 'react-native';
+import type {
+  ItemDetail,
+  MediaItem,
+  MediaSegment,
+  PlaybackPlan,
+} from '../../backend/types';
 import { getEngine } from '../../player';
 import { playerError } from '../../player/errors';
-import { activeSegment, currentSceneIndex, episodeCode, playedToEnd, scenesFor, skipLabel, TAP_BURST_MS, tapOffsetMs } from '../../player/seeking';
+import {
+  activeSegment,
+  currentSceneIndex,
+  episodeCode,
+  playedToEnd,
+  scenesFor,
+  skipLabel,
+  TAP_BURST_MS,
+  tapOffsetMs,
+} from '../../player/seeking';
 import { useSubtitleCues } from '../../player/useSubtitleCues';
 import type { PlayerViewHandle } from '../../player/PlayerEngine';
 import { useApp, useBackend } from '../../state/AppState';
@@ -11,7 +40,15 @@ import { useIsActive, useNavigation } from '../../state/navigation';
 import { findNextEpisode } from '../../state/nextEpisode';
 import { drawEpisode, loadPool, useRandomizer } from '../../state/randomizer';
 import { pickAudio, pickSubtitle } from '../../state/trackDefaults';
-import { Button, ErrorView, Focusable, LoadingView, OptionPicker, SubtitleText, type Option } from '../components';
+import {
+  Button,
+  ErrorView,
+  Focusable,
+  LoadingView,
+  OptionPicker,
+  SubtitleText,
+  type Option,
+} from '../components';
 import { formatDuration } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 
@@ -39,7 +76,13 @@ type Overlay = 'hidden' | 'seek' | 'controls';
 function audioOptions(plan: PlaybackPlan): Option<number>[] {
   return plan.audioTracks.map(a => ({
     label: a.label,
-    detail: [a.language, a.codec?.toUpperCase(), a.channels ? `${a.channels} ch` : undefined].filter(Boolean).join(' · '),
+    detail: [
+      a.language,
+      a.codec?.toUpperCase(),
+      a.channels ? `${a.channels} ch` : undefined,
+    ]
+      .filter(Boolean)
+      .join(' · '),
     value: a.index,
   }));
 }
@@ -49,7 +92,12 @@ function subtitleOptions(plan: PlaybackPlan): Option<number>[] {
     { label: 'Off', value: -1 },
     ...plan.subtitleTracks.map(s => ({
       label: s.label,
-      detail: [s.language, s.codec?.toUpperCase(), s.isForced ? 'forced' : undefined, s.delivery === 'burn-in' ? 'burned in by server' : undefined]
+      detail: [
+        s.language,
+        s.codec?.toUpperCase(),
+        s.isForced ? 'forced' : undefined,
+        s.delivery === 'burn-in' ? 'burned in by server' : undefined,
+      ]
         .filter(Boolean)
         .join(' · '),
       value: s.index,
@@ -64,14 +112,24 @@ function shortLabel(label: string | undefined): string | undefined {
     return label;
   }
   const first = label.split(' - ')[0];
-  return first.length <= SHORT_LABEL_CHARS ? first : `${first.slice(0, SHORT_LABEL_CHARS - 1)}…`;
+  return first.length <= SHORT_LABEL_CHARS
+    ? first
+    : `${first.slice(0, SHORT_LABEL_CHARS - 1)}…`;
 }
 
 /**
  * Full-screen playback: negotiates a plan with the backend, renders the engine view, reports
  * progress, and offers seek, audio and subtitle selection with the remote.
  */
-export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: { itemId: string; startPositionMs?: number; shuffle?: boolean }) {
+export function PlayerScreen({
+  itemId,
+  startPositionMs = 0,
+  shuffle = false,
+}: {
+  itemId: string;
+  startPositionMs?: number;
+  shuffle?: boolean;
+}) {
   const backend = useBackend();
   const app = useApp();
   const nav = useNavigation();
@@ -79,8 +137,16 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   const engine = getEngine();
   const { settings } = app;
   const look = useMemo(
-    () => ({ size: settings.subtitleSize, color: settings.subtitleColor, background: settings.subtitleBackground }),
-    [settings.subtitleSize, settings.subtitleColor, settings.subtitleBackground],
+    () => ({
+      size: settings.subtitleSize,
+      color: settings.subtitleColor,
+      background: settings.subtitleBackground,
+    }),
+    [
+      settings.subtitleSize,
+      settings.subtitleColor,
+      settings.subtitleBackground,
+    ],
   );
 
   const [item, setItem] = useState<ItemDetail>();
@@ -101,7 +167,9 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   const [picker, setPicker] = useState<'audio' | 'subtitles'>();
   const [segments, setSegments] = useState<MediaSegment[]>([]);
   // The strip above the controls: the scene navigator (Up) or the next-episodes reel (Down).
-  const [navigator, setNavigator] = useState<'scenes' | 'episodes' | false>(false);
+  const [navigator, setNavigator] = useState<'scenes' | 'episodes' | false>(
+    false,
+  );
   const [upcoming, setUpcoming] = useState<MediaItem[]>([]);
   const [previous, setPrevious] = useState<MediaItem>();
   const randomizer = useRandomizer();
@@ -124,7 +192,9 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   // screen the user already left.
   const alive = useRef(true);
   const ended = useRef(false);
-  const tracksRef = useRef<{ audio?: number; subtitle: number }>({ subtitle: -1 });
+  const tracksRef = useRef<{ audio?: number; subtitle: number }>({
+    subtitle: -1,
+  });
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const overlayRef = useRef<Overlay>('controls');
   const navigatorRef = useRef<'scenes' | 'episodes' | false>(false);
@@ -134,7 +204,13 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   const [dismissed, setDismissed] = useState<string[]>([]);
   const exitArmedUntil = useRef(0);
   const exitTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const burst = useRef<{ dir: 1 | -1; taps: number; base: number; lastAt: number; timer?: ReturnType<typeof setTimeout> }>(undefined);
+  const burst = useRef<{
+    dir: 1 | -1;
+    taps: number;
+    base: number;
+    lastAt: number;
+    timer?: ReturnType<typeof setTimeout>;
+  }>(undefined);
   planRef.current = plan;
   overlayRef.current = overlay;
   navigatorRef.current = navigator;
@@ -142,13 +218,18 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   pausedRef.current = paused;
   tracksRef.current = { audio, subtitle };
   // Side-loaded subtitles are drawn by the app (see useSubtitleCues).
-  const cues = useSubtitleCues(plan?.subtitleTracks.find(t => t.index === subtitle), plan?.headers);
+  const cues = useSubtitleCues(
+    plan?.subtitleTracks.find(t => t.index === subtitle),
+    plan?.headers,
+  );
 
   const reportChain = useRef<Promise<unknown>>(Promise.resolve());
   const segmentsRef = useRef<MediaSegment[]>([]);
   segmentsRef.current = segments;
   const isFinished = useCallback(
-    (p: PlaybackPlan, positionMs: number) => ended.current || playedToEnd(positionMs, p.durationMs ?? 0, segmentsRef.current),
+    (p: PlaybackPlan, positionMs: number) =>
+      ended.current ||
+      playedToEnd(positionMs, p.durationMs ?? 0, segmentsRef.current),
     [],
   );
 
@@ -176,9 +257,15 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
         }
         // The server only clears the resume point past its own threshold; a viewer who watched
         // to the credits or the end expects the episode off Continue Watching.
-        return backend.reportStop(r).then(() => (finished ? backend.setPlayed(p.itemId, true) : undefined));
+        return backend
+          .reportStop(r)
+          .then(() =>
+            finished ? backend.setPlayed(p.itemId, true) : undefined,
+          );
       };
-      reportChain.current = reportChain.current.then(send).catch(() => undefined);
+      reportChain.current = reportChain.current
+        .then(send)
+        .catch(() => undefined);
     },
     [backend, isFinished],
   );
@@ -189,7 +276,11 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
    * the server has not started streaming it.
    */
   const requestPlan = useCallback(
-    async (fromMs: number, audioIndex: number | undefined, subtitleIndex: number) => {
+    async (
+      fromMs: number,
+      audioIndex: number | undefined,
+      subtitleIndex: number,
+    ) => {
       const request = ++planRequest.current;
       const current = () => alive.current && request === planRequest.current;
       if (planRef.current && started.current) {
@@ -203,7 +294,12 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
       try {
         const caps = await app.capabilities();
         const next = await backend.playback(
-          { itemId, startPositionMs: fromMs, audioStreamIndex: audioIndex, subtitleStreamIndex: subtitleIndex },
+          {
+            itemId,
+            startPositionMs: fromMs,
+            audioStreamIndex: audioIndex,
+            subtitleStreamIndex: subtitleIndex,
+          },
           caps,
         );
         if (!current()) {
@@ -269,7 +365,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
 
   // Periodic progress and a final stop when the screen goes away.
   useEffect(() => {
-    const t = setInterval(() => started.current && report('progress'), REPORT_EVERY_MS);
+    const t = setInterval(
+      () => started.current && report('progress'),
+      REPORT_EVERY_MS,
+    );
     alive.current = true;
     return () => {
       alive.current = false;
@@ -292,7 +391,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
     if (hideTimer.current) {
       cancel(hideTimer.current);
     }
-    hideTimer.current = setTimeout(() => !pausedRef.current && !navigatorRef.current && setOverlay('hidden'), HIDE_AFTER_MS);
+    hideTimer.current = setTimeout(
+      () => !pausedRef.current && !navigatorRef.current && setOverlay('hidden'),
+      HIDE_AFTER_MS,
+    );
   }, []);
   useEffect(
     () => () => {
@@ -324,7 +426,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
     },
     [duration],
   );
-  const seekBy = useCallback((delta: number) => seekTo(positionRef.current + delta), [seekTo]);
+  const seekBy = useCallback(
+    (delta: number) => seekTo(positionRef.current + delta),
+    [seekTo],
+  );
 
   /** Commits the rewind/forward burst in progress as a single seek. */
   const commitBurst = useCallback(() => {
@@ -363,7 +468,10 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
       burst.current = b;
       const max = duration || planRef.current?.durationMs || Infinity;
       const delta = dir * tapOffsetMs(b.taps);
-      setPending({ target: Math.max(0, Math.min(max - 1000, b.base + delta)), delta });
+      setPending({
+        target: Math.max(0, Math.min(max - 1000, b.base + delta)),
+        delta,
+      });
     },
     [commitBurst, duration],
   );
@@ -405,7 +513,9 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
       if (evt.eventKeyAction === 1 && evt.eventType.startsWith('long')) {
         return; // The key-up that ends a long press; the press itself was already handled.
       }
-      const type = held ? evt.eventType.charAt(4).toLowerCase() + evt.eventType.slice(5) : evt.eventType;
+      const type = held
+        ? evt.eventType.charAt(4).toLowerCase() + evt.eventType.slice(5)
+        : evt.eventType;
       switch (type) {
         case 'playPause':
           togglePause();
@@ -433,7 +543,11 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
           break;
         case 'down':
           // Controls already up: Down opens the reel of the episodes that follow.
-          if (overlay === 'controls' && !navigatorRef.current && upcomingRef.current.length) {
+          if (
+            overlay === 'controls' &&
+            !navigatorRef.current &&
+            upcomingRef.current.length
+          ) {
             setNavigator('episodes');
           }
           showOverlay('controls');
@@ -534,10 +648,19 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
         return;
       }
       if (next) {
-        nav.replace({ name: 'player', itemId: next.id, startPositionMs: next.userData?.playbackPositionMs ?? 0, shuffle: true });
+        nav.replace({
+          name: 'player',
+          itemId: next.id,
+          startPositionMs: next.userData?.playbackPositionMs ?? 0,
+          shuffle: true,
+        });
         return;
       }
-    } else if (settings.autoplayNext && item?.kind === 'episode' && item.seriesId) {
+    } else if (
+      settings.autoplayNext &&
+      item?.kind === 'episode' &&
+      item.seriesId
+    ) {
       const next = await findNextEpisode(backend, item).catch(() => undefined);
       // BACK during the lookup already popped this screen; replacing now would replace the page
       // below it.
@@ -550,9 +673,23 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
       }
     }
     nav.back();
-  }, [backend, duration, item, nav, randomEpisode, report, settings.autoplayNext, shuffle]);
+  }, [
+    backend,
+    duration,
+    item,
+    nav,
+    randomEpisode,
+    report,
+    settings.autoplayNext,
+    shuffle,
+  ]);
 
-  const goTo = (ep: MediaItem) => nav.replace({ name: 'player', itemId: ep.id, startPositionMs: ep.userData?.playbackPositionMs ?? 0 });
+  const goTo = (ep: MediaItem) =>
+    nav.replace({
+      name: 'player',
+      itemId: ep.id,
+      startPositionMs: ep.userData?.playbackPositionMs ?? 0,
+    });
   const drawing = useRef(false);
   const playRandom = async () => {
     if (drawing.current) {
@@ -565,7 +702,12 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
         drawing.current = false;
       });
     if (next && alive.current) {
-      nav.replace({ name: 'player', itemId: next.id, startPositionMs: next.userData?.playbackPositionMs ?? 0, shuffle: true });
+      nav.replace({
+        name: 'player',
+        itemId: next.id,
+        startPositionMs: next.userData?.playbackPositionMs ?? 0,
+        shuffle: true,
+      });
     }
   };
 
@@ -609,9 +751,17 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   if (error) {
     return (
       <View style={styles.root} testID="player">
-        <ErrorView error={error} onRetry={() => requestPlan(positionRef.current, audio, subtitle)} hasTVPreferredFocus />
+        <ErrorView
+          error={error}
+          onRetry={() => requestPlan(positionRef.current, audio, subtitle)}
+          hasTVPreferredFocus
+        />
         <View style={styles.center}>
-          <Button label="Back" onPress={() => nav.back()} testID="player-back" />
+          <Button
+            label="Back"
+            onPress={() => nav.back()}
+            testID="player-back"
+          />
         </View>
       </View>
     );
@@ -620,20 +770,32 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   const total = duration || plan?.durationMs || item?.runtimeMs || 0;
   const pct = total ? Math.min(1, (pending?.target ?? position) / total) : 0;
   const bufPct = total ? Math.min(1, buffered / total) : 0;
-  const code = item?.kind === 'episode' ? episodeCode(item.parentIndexNumber, item.indexNumber) : undefined;
+  const code =
+    item?.kind === 'episode'
+      ? episodeCode(item.parentIndexNumber, item.indexNumber)
+      : undefined;
   const title = item
     ? item.kind === 'episode' && item.seriesName
       ? [item.seriesName, code, item.name].filter(Boolean).join(' · ')
       : item.name
     : '';
   const shown = pending?.target ?? position;
-  const found = active && plan && !buffering ? activeSegment(segments, position) : undefined;
-  const skip = found && !dismissed.includes(`${found.kind}:${found.startMs}`) ? found : undefined;
+  const found =
+    active && plan && !buffering
+      ? activeSegment(segments, position)
+      : undefined;
+  const skip =
+    found && !dismissed.includes(`${found.kind}:${found.startMs}`)
+      ? found
+      : undefined;
   skipRef.current = skip;
   const scenes = navigator === 'scenes' ? scenesFor(item?.chapters, total) : [];
   const sceneNow = currentSceneIndex(scenes, position);
   const audioLabel = plan?.audioTracks.find(a => a.index === audio)?.label;
-  const subLabel = subtitle >= 0 ? plan?.subtitleTracks.find(s => s.index === subtitle)?.label : 'Off';
+  const subLabel =
+    subtitle >= 0
+      ? plan?.subtitleTracks.find(s => s.index === subtitle)?.label
+      : 'Off';
 
   return (
     <View style={styles.root} testID="player">
@@ -669,11 +831,26 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
           onError={msg => setError(playerError(msg))}
         />
       ) : null}
-      <SubtitleText cues={cues} positionMs={position} lift={overlay !== 'hidden' ? controlsHeight : 0} look={look} />
+      <SubtitleText
+        cues={cues}
+        positionMs={position}
+        lift={overlay !== 'hidden' ? controlsHeight : 0}
+        look={look}
+      />
 
       {/* Holds focus while the controls are hidden so remote keys still reach the player. */}
       {overlay !== 'controls' ? (
-        <Focusable ref={surface} testID="player-surface" hasTVPreferredFocus style={StyleSheet.absoluteFill} onPress={() => (skipRef.current ? skipSegment(skipRef.current) : showOverlay('controls'))}>
+        <Focusable
+          ref={surface}
+          testID="player-surface"
+          hasTVPreferredFocus
+          style={StyleSheet.absoluteFill}
+          onPress={() =>
+            skipRef.current
+              ? skipSegment(skipRef.current)
+              : showOverlay('controls')
+          }
+        >
           <View />
         </Focusable>
       ) : null}
@@ -690,16 +867,25 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
           <Text style={styles.debugText}>
             {plan.method} · {plan.streamType} · {plan.container ?? '?'}
           </Text>
-          {plan.reasons.length ? <Text style={styles.debugText}>{plan.reasons.join(', ')}</Text> : null}
+          {plan.reasons.length ? (
+            <Text style={styles.debugText}>{plan.reasons.join(', ')}</Text>
+          ) : null}
           <Text style={styles.debugText}>
-            audio {audio ?? 'default'} · subtitle {subtitle} · buffered {formatDuration(buffered)}
+            audio {audio ?? 'default'} · subtitle {subtitle} · buffered{' '}
+            {formatDuration(buffered)}
           </Text>
-          <Text style={styles.debugText}>session {plan.playSessionId.slice(0, 8)}</Text>
+          <Text style={styles.debugText}>
+            session {plan.playSessionId.slice(0, 8)}
+          </Text>
         </View>
       ) : null}
 
       {skip && overlay === 'hidden' ? (
-        <View style={styles.skip} pointerEvents="none" testID="player-skip-hint">
+        <View
+          style={styles.skip}
+          pointerEvents="none"
+          testID="player-skip-hint"
+        >
           <Text style={styles.skipText}>
             {skipLabel(skip.kind)} <Text style={styles.skipSub}>· OK</Text>
           </Text>
@@ -707,13 +893,21 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
       ) : null}
 
       {exitHint ? (
-        <View style={styles.hint} pointerEvents="none" testID="player-exit-hint">
+        <View
+          style={styles.hint}
+          pointerEvents="none"
+          testID="player-exit-hint"
+        >
           <Text style={styles.hintText}>Press back again to exit</Text>
         </View>
       ) : null}
 
       {overlay !== 'hidden' ? (
-        <View style={styles.overlay} testID="player-overlay" onLayout={e => setControlsHeight(e.nativeEvent.layout.height)}>
+        <View
+          style={styles.overlay}
+          testID="player-overlay"
+          onLayout={e => setControlsHeight(e.nativeEvent.layout.height)}
+        >
           {navigator === 'scenes' && scenes.length ? (
             <ScrollView
               ref={sceneScroll}
@@ -722,7 +916,13 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
               style={styles.scenes}
               testID="player-scenes"
               // The card with preferred focus can start off-screen; bring it into view once.
-              onContentSizeChange={() => sceneScroll.current?.scrollTo({ x: Math.max(0, sceneNow * (200 + space.sm) - 200), animated: false })}>
+              onContentSizeChange={() =>
+                sceneScroll.current?.scrollTo({
+                  x: Math.max(0, sceneNow * (200 + space.sm) - 200),
+                  animated: false,
+                })
+              }
+            >
               {scenes.map((sc, i) => (
                 <Focusable
                   key={`${sc.startMs}-${i}`}
@@ -732,10 +932,22 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
                     seekTo(sc.startMs);
                     closeNavigator();
                   }}
-                  style={(f: boolean) => [styles.scene, f && styles.sceneFocused]}
+                  style={(f: boolean) => [
+                    styles.scene,
+                    f && styles.sceneFocused,
+                  ]}
                 >
-                  {sc.imageUrl ? <Image source={{ uri: sc.imageUrl }} style={styles.sceneImage} /> : <View style={styles.sceneImage} />}
-                  <Text style={styles.sceneTime}>{formatDuration(sc.startMs)}</Text>
+                  {sc.imageUrl ? (
+                    <Image
+                      source={{ uri: sc.imageUrl }}
+                      style={styles.sceneImage}
+                    />
+                  ) : (
+                    <View style={styles.sceneImage} />
+                  )}
+                  <Text style={styles.sceneTime}>
+                    {formatDuration(sc.startMs)}
+                  </Text>
                   <Text style={styles.sceneName} numberOfLines={1}>
                     {sc.name}
                   </Text>
@@ -754,27 +966,49 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
             <Text style={styles.time} testID="player-position">
               {formatDuration(shown)}
             </Text>
-            <Text style={pending ? styles.timePending : styles.time} testID="player-pending">
+            <Text
+              style={pending ? styles.timePending : styles.time}
+              testID="player-pending"
+            >
               {pending
                 ? `${pending.delta < 0 ? '−' : '+'}${formatDuration(Math.abs(pending.delta))}`
                 : plan
-                ? plan.method.replace(/([a-z])([A-Z])/g, '$1 $2')
-                : ''}
+                  ? plan.method.replace(/([a-z])([A-Z])/g, '$1 $2')
+                  : ''}
             </Text>
             <Text style={styles.time}>{formatDuration(total)}</Text>
           </View>
-          {overlay === 'controls' && navigator === 'episodes' && upcoming.length ? (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.reel} testID="player-episodes">
+          {overlay === 'controls' &&
+          navigator === 'episodes' &&
+          upcoming.length ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.reel}
+              testID="player-episodes"
+            >
               {upcoming.map((ep, i) => (
                 <Focusable
                   key={ep.id}
                   hasTVPreferredFocus={i === 0}
                   testID={`player-episode-${i}`}
                   onPress={() => goTo(ep)}
-                  style={(f: boolean) => [styles.scene, f && styles.sceneFocused]}
+                  style={(f: boolean) => [
+                    styles.scene,
+                    f && styles.sceneFocused,
+                  ]}
                 >
-                  {ep.thumbUrl ?? ep.posterUrl ? <Image source={{ uri: (ep.thumbUrl ?? ep.posterUrl)! }} style={styles.sceneImage} /> : <View style={styles.sceneImage} />}
-                  <Text style={styles.sceneTime}>{episodeCode(ep.parentIndexNumber, ep.indexNumber)}</Text>
+                  {(ep.thumbUrl ?? ep.posterUrl) ? (
+                    <Image
+                      source={{ uri: (ep.thumbUrl ?? ep.posterUrl)! }}
+                      style={styles.sceneImage}
+                    />
+                  ) : (
+                    <View style={styles.sceneImage} />
+                  )}
+                  <Text style={styles.sceneTime}>
+                    {episodeCode(ep.parentIndexNumber, ep.indexNumber)}
+                  </Text>
                   <Text style={styles.sceneName} numberOfLines={1}>
                     {ep.name}
                   </Text>
@@ -785,26 +1019,74 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
           {overlay === 'controls' ? (
             <View style={styles.buttons}>
               {skip ? (
-                <Button variant="primary" hasTVPreferredFocus={claimFocus.current} label={skipLabel(skip.kind)} onPress={() => skipSegment(skip)} testID="player-skip" />
+                <Button
+                  variant="primary"
+                  hasTVPreferredFocus={claimFocus.current}
+                  label={skipLabel(skip.kind)}
+                  onPress={() => skipSegment(skip)}
+                  testID="player-skip"
+                />
               ) : null}
-              <Button variant={skip ? undefined : 'primary'} hasTVPreferredFocus={claimFocus.current && !skip} label={paused ? '▶ Play' : '❚❚ Pause'} onPress={togglePause} testID="player-playpause" />
+              <Button
+                variant={skip ? undefined : 'primary'}
+                hasTVPreferredFocus={claimFocus.current && !skip}
+                label={paused ? '▶ Play' : '❚❚ Pause'}
+                onPress={togglePause}
+                testID="player-playpause"
+              />
               {shuffle ? (
-                <Button label="Next ▶▶" onPress={playRandom} testID="player-next-episode" />
+                <Button
+                  label="Next ▶▶"
+                  onPress={playRandom}
+                  testID="player-next-episode"
+                />
               ) : (
                 <>
                   {previous ? (
-                    <Button label="◀◀ Previous" onPress={() => goTo(previous)} testID="player-prev-episode" />
+                    <Button
+                      label="◀◀ Previous"
+                      onPress={() => goTo(previous)}
+                      testID="player-prev-episode"
+                    />
                   ) : null}
-                  {upcoming[0] ? <Button label="Next ▶▶" onPress={() => goTo(upcoming[0])} testID="player-next-episode" /> : null}
+                  {upcoming[0] ? (
+                    <Button
+                      label="Next ▶▶"
+                      onPress={() => goTo(upcoming[0])}
+                      testID="player-next-episode"
+                    />
+                  ) : null}
                 </>
               )}
-              <Button label="−10 s" onPress={() => { seekBy(-SEEK_STEP_MS); showOverlay('controls'); }} testID="player-rew" />
-              <Button label="+30 s" onPress={() => { seekBy(SKIP_STEP_MS); showOverlay('controls'); }} testID="player-ffwd" />
+              <Button
+                label="−10 s"
+                onPress={() => {
+                  seekBy(-SEEK_STEP_MS);
+                  showOverlay('controls');
+                }}
+                testID="player-rew"
+              />
+              <Button
+                label="+30 s"
+                onPress={() => {
+                  seekBy(SKIP_STEP_MS);
+                  showOverlay('controls');
+                }}
+                testID="player-ffwd"
+              />
               {plan && plan.audioTracks.length > 1 ? (
-                <Button label={`Audio: ${shortLabel(audioLabel) ?? 'default'}`} onPress={() => setPicker('audio')} testID="player-audio" />
+                <Button
+                  label={`Audio: ${shortLabel(audioLabel) ?? 'default'}`}
+                  onPress={() => setPicker('audio')}
+                  testID="player-audio"
+                />
               ) : null}
               {plan && plan.subtitleTracks.length > 0 ? (
-                <Button label={`Subtitles: ${shortLabel(subLabel) ?? 'Off'}`} onPress={() => setPicker('subtitles')} testID="player-subtitles" />
+                <Button
+                  label={`Subtitles: ${shortLabel(subLabel) ?? 'Off'}`}
+                  onPress={() => setPicker('subtitles')}
+                  testID="player-subtitles"
+                />
               ) : null}
             </View>
           ) : null}
@@ -837,10 +1119,15 @@ export function PlayerScreen({ itemId, startPositionMs = 0, shuffle = false }: {
   );
 }
 
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
-  center: { position: 'absolute', bottom: space.xl * 2, left: 0, right: 0, alignItems: 'center' },
+  center: {
+    position: 'absolute',
+    bottom: space.xl * 2,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
   spinner: { ...StyleSheet.absoluteFillObject, justifyContent: 'center' },
   overlay: {
     position: 'absolute',
@@ -852,20 +1139,71 @@ const styles = StyleSheet.create({
     paddingBottom: space.safeY + space.sm,
     backgroundColor: 'rgba(10,6,20,0.78)',
   },
-  title: { color: colors.text, fontSize: font.title, fontWeight: '700', marginBottom: space.md },
-  bar: { height: 6, borderRadius: 3, backgroundColor: colors.surfaceHi, overflow: 'hidden' },
-  barBuffered: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: colors.textDim, opacity: 0.4 },
-  barFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: colors.accent },
-  times: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.xs },
+  title: {
+    color: colors.text,
+    fontSize: font.title,
+    fontWeight: '700',
+    marginBottom: space.md,
+  },
+  bar: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.surfaceHi,
+    overflow: 'hidden',
+  },
+  barBuffered: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.textDim,
+    opacity: 0.4,
+  },
+  barFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: colors.accent,
+  },
+  times: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: space.xs,
+  },
   time: { color: colors.textDim, fontSize: font.small },
   buttons: { flexDirection: 'row', marginTop: space.md },
-  timePending: { color: colors.accent, fontSize: font.small, fontWeight: '700' },
+  timePending: {
+    color: colors.accent,
+    fontSize: font.small,
+    fontWeight: '700',
+  },
   scenes: { marginBottom: space.md },
   reel: { marginTop: space.md },
-  scene: { width: 200, marginRight: space.sm, padding: space.xs, borderRadius: radius.sm, borderWidth: 2, borderColor: 'transparent' },
-  sceneFocused: { borderColor: colors.accent, backgroundColor: colors.surfaceHi },
-  sceneImage: { width: 192, height: 108, borderRadius: radius.sm, backgroundColor: colors.surface },
-  sceneTime: { color: colors.text, fontSize: font.small, fontWeight: '700', marginTop: space.xs },
+  scene: {
+    width: 200,
+    marginRight: space.sm,
+    padding: space.xs,
+    borderRadius: radius.sm,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  sceneFocused: {
+    borderColor: colors.accent,
+    backgroundColor: colors.surfaceHi,
+  },
+  sceneImage: {
+    width: 192,
+    height: 108,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surface,
+  },
+  sceneTime: {
+    color: colors.text,
+    fontSize: font.small,
+    fontWeight: '700',
+    marginTop: space.xs,
+  },
   sceneName: { color: colors.textDim, fontSize: font.small },
   skip: {
     position: 'absolute',
@@ -880,8 +1218,22 @@ const styles = StyleSheet.create({
   },
   skipText: { color: colors.text, fontSize: font.small, fontWeight: '700' },
   skipSub: { color: colors.textDim, fontSize: font.small },
-  hint: { position: 'absolute', bottom: space.safeY + space.lg, alignSelf: 'center', backgroundColor: 'rgba(10,6,20,0.85)', borderRadius: radius.sm, padding: space.sm },
+  hint: {
+    position: 'absolute',
+    bottom: space.safeY + space.lg,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(10,6,20,0.85)',
+    borderRadius: radius.sm,
+    padding: space.sm,
+  },
   hintText: { color: colors.text, fontSize: font.small },
-  debug: { position: 'absolute', top: space.safeY, right: space.safeX, backgroundColor: 'rgba(0,0,0,0.7)', padding: space.sm, borderRadius: radius.sm },
+  debug: {
+    position: 'absolute',
+    top: space.safeY,
+    right: space.safeX,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: space.sm,
+    borderRadius: radius.sm,
+  },
   debugText: { color: '#9EF59E', fontSize: 12, fontFamily: 'monospace' },
 });

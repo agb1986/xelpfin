@@ -149,10 +149,14 @@ const SEGMENT_KINDS: Record<string, SegmentKind> = {
   commercial: 'commercial',
 };
 
-export function mapSegments(dtos: MediaSegmentDto[] | undefined): MediaSegment[] {
+export function mapSegments(
+  dtos: MediaSegmentDto[] | undefined,
+): MediaSegment[] {
   return (dtos ?? [])
     .map(d => ({
-      kind: SEGMENT_KINDS[(d.Type ?? '').toLowerCase()] ?? ('unknown' as SegmentKind),
+      kind:
+        SEGMENT_KINDS[(d.Type ?? '').toLowerCase()] ??
+        ('unknown' as SegmentKind),
       startMs: ticksToMs(d.StartTicks) ?? 0,
       endMs: ticksToMs(d.EndTicks) ?? 0,
     }))
@@ -177,7 +181,8 @@ export const TICKS_PER_MS = 10_000;
 export const ticksToMs = (t?: number): number | undefined =>
   t === undefined || t === null ? undefined : Math.round(t / TICKS_PER_MS);
 
-export const msToTicks = (ms: number): number => Math.max(0, Math.round(ms)) * TICKS_PER_MS;
+export const msToTicks = (ms: number): number =>
+  Math.max(0, Math.round(ms)) * TICKS_PER_MS;
 
 const KIND: Record<string, ItemKind> = {
   Movie: 'movie',
@@ -229,7 +234,12 @@ export function mapUserData(u?: UserDataDto): UserData | undefined {
 export type ImageType = 'Primary' | 'Backdrop' | 'Thumb';
 
 /** Builds an absolute, sized image URL. */
-export type ImageUrlFn = (itemId: string, type: ImageType, maxWidth: number, tag?: string) => string;
+export type ImageUrlFn = (
+  itemId: string,
+  type: ImageType,
+  maxWidth: number,
+  tag?: string,
+) => string;
 
 export const POSTER_WIDTH = 300;
 export const BACKDROP_WIDTH = 1280;
@@ -250,7 +260,12 @@ function backdropOf(i: BaseItemDto, img: ImageUrlFn): string | undefined {
     return img(i.Id, 'Backdrop', BACKDROP_WIDTH, i.BackdropImageTags[0]);
   }
   if (i.ParentBackdropItemId && i.ParentBackdropImageTags?.length) {
-    return img(i.ParentBackdropItemId, 'Backdrop', BACKDROP_WIDTH, i.ParentBackdropImageTags[0]);
+    return img(
+      i.ParentBackdropItemId,
+      'Backdrop',
+      BACKDROP_WIDTH,
+      i.ParentBackdropImageTags[0],
+    );
   }
   return undefined;
 }
@@ -263,13 +278,23 @@ function thumbOf(i: BaseItemDto, img: ImageUrlFn): string | undefined {
     return img(i.Id, 'Thumb', THUMB_WIDTH, i.ImageTags.Thumb);
   }
   if (i.ParentThumbItemId && i.ParentThumbImageTag) {
-    return img(i.ParentThumbItemId, 'Thumb', THUMB_WIDTH, i.ParentThumbImageTag);
+    return img(
+      i.ParentThumbItemId,
+      'Thumb',
+      THUMB_WIDTH,
+      i.ParentThumbImageTag,
+    );
   }
   if (i.BackdropImageTags?.length) {
     return img(i.Id, 'Backdrop', THUMB_WIDTH, i.BackdropImageTags[0]);
   }
   if (i.ParentBackdropItemId && i.ParentBackdropImageTags?.length) {
-    return img(i.ParentBackdropItemId, 'Backdrop', THUMB_WIDTH, i.ParentBackdropImageTags[0]);
+    return img(
+      i.ParentBackdropItemId,
+      'Backdrop',
+      THUMB_WIDTH,
+      i.ParentBackdropImageTags[0],
+    );
   }
   return undefined;
 }
@@ -313,18 +338,23 @@ export function mapAudio(s: MediaStreamDto): AudioTrack {
   };
 }
 
-export function mapSubtitle(s: MediaStreamDto, baseUrl?: string): SubtitleTrack {
+export function mapSubtitle(
+  s: MediaStreamDto,
+  baseUrl?: string,
+): SubtitleTrack {
   const delivery: SubtitleTrack['delivery'] =
     s.DeliveryMethod === 'External'
       ? 'external'
       : s.DeliveryMethod === 'Encode'
-      ? 'burn-in'
-      : s.IsExternal
-      ? 'external'
-      : 'embedded';
+        ? 'burn-in'
+        : s.IsExternal
+          ? 'external'
+          : 'embedded';
   let url: string | undefined;
   if (s.DeliveryUrl) {
-    url = /^https?:/i.test(s.DeliveryUrl) ? s.DeliveryUrl : `${baseUrl ?? ''}${s.DeliveryUrl}`;
+    url = /^https?:/i.test(s.DeliveryUrl)
+      ? s.DeliveryUrl
+      : `${baseUrl ?? ''}${s.DeliveryUrl}`;
   }
   return {
     index: s.Index,
@@ -352,7 +382,10 @@ export function subtitleMime(url: string, codec?: string): string {
   }
 }
 
-export function mapMediaSource(ms: MediaSourceDto, baseUrl?: string): MediaSourceSummary {
+export function mapMediaSource(
+  ms: MediaSourceDto,
+  baseUrl?: string,
+): MediaSourceSummary {
   const streams = ms.MediaStreams ?? [];
   const video = streams.find(s => s.Type === 'Video');
   return {
@@ -365,11 +398,17 @@ export function mapMediaSource(ms: MediaSourceDto, baseUrl?: string): MediaSourc
     width: video?.Width,
     height: video?.Height,
     audioTracks: streams.filter(s => s.Type === 'Audio').map(mapAudio),
-    subtitleTracks: streams.filter(s => s.Type === 'Subtitle').map(s => mapSubtitle(s, baseUrl)),
+    subtitleTracks: streams
+      .filter(s => s.Type === 'Subtitle')
+      .map(s => mapSubtitle(s, baseUrl)),
   };
 }
 
-export function mapDetail(i: BaseItemDto, img: ImageUrlFn, baseUrl?: string): ItemDetail {
+export function mapDetail(
+  i: BaseItemDto,
+  img: ImageUrlFn,
+  baseUrl?: string,
+): ItemDetail {
   return {
     ...mapItem(i, img),
     people: i.People?.map(p => ({ name: p.Name, role: p.Role, type: p.Type })),
@@ -380,21 +419,35 @@ export function mapDetail(i: BaseItemDto, img: ImageUrlFn, baseUrl?: string): It
     chapters: i.Chapters?.map((c, n) => ({
       name: c.Name || `Chapter ${n + 1}`,
       startMs: ticksToMs(c.StartPositionTicks) ?? 0,
-      imageUrl: c.ImageTag && baseUrl ? `${baseUrl}/Items/${encodeURIComponent(i.Id)}/Images/Chapter/${n}${buildQuery({ maxWidth: 320, tag: c.ImageTag })}` : undefined,
+      imageUrl:
+        c.ImageTag && baseUrl
+          ? `${baseUrl}/Items/${encodeURIComponent(i.Id)}/Images/Chapter/${n}${buildQuery({ maxWidth: 320, tag: c.ImageTag })}`
+          : undefined,
     })),
   };
 }
 
-const SUPPORTED_LIBRARY_TYPES = new Set(['movies', 'tvshows', 'homevideos', 'boxsets', 'mixed', '']);
+const SUPPORTED_LIBRARY_TYPES = new Set([
+  'movies',
+  'tvshows',
+  'homevideos',
+  'boxsets',
+  'mixed',
+  '',
+]);
 
 /** Keeps only video libraries (music, photos, live TV are out of scope). */
 export function mapLibraries(items: BaseItemDto[], img: ImageUrlFn): Library[] {
   return items
-    .filter(i => SUPPORTED_LIBRARY_TYPES.has((i.CollectionType ?? '').toLowerCase()))
+    .filter(i =>
+      SUPPORTED_LIBRARY_TYPES.has((i.CollectionType ?? '').toLowerCase()),
+    )
     .map(i => ({
       id: i.Id,
       name: i.Name ?? '',
       collectionType: i.CollectionType ?? 'mixed',
-      imageUrl: i.ImageTags?.Primary ? img(i.Id, 'Primary', THUMB_WIDTH, i.ImageTags.Primary) : undefined,
+      imageUrl: i.ImageTags?.Primary
+        ? img(i.Id, 'Primary', THUMB_WIDTH, i.ImageTags.Primary)
+        : undefined,
     }));
 }

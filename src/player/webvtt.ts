@@ -15,7 +15,9 @@ function parseTime(s: string): number | undefined {
     return undefined;
   }
   const [, h = '0', min, sec, ms] = m;
-  return ((Number(h) * 60 + Number(min)) * 60 + Number(sec)) * 1000 + Number(ms);
+  return (
+    ((Number(h) * 60 + Number(min)) * 60 + Number(sec)) * 1000 + Number(ms)
+  );
 }
 
 /**
@@ -46,7 +48,10 @@ export function cleanText(s: string): string {
  */
 export function parseWebVtt(input: string): Cue[] {
   const cues: Cue[] = [];
-  const blocks = input.replace(/^﻿/, '').replace(/\r\n?/g, '\n').split(/\n{2,}/);
+  const blocks = input
+    .replace(/^﻿/, '')
+    .replace(/\r\n?/g, '\n')
+    .split(/\n{2,}/);
   for (const block of blocks) {
     const lines = block.split('\n').filter(l => l.length > 0);
     const at = lines.findIndex(l => l.includes('-->'));

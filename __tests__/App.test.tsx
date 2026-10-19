@@ -2,7 +2,11 @@
  * Drives the whole app with the mock backend: server picker, login, home, detail, player.
  */
 import React from 'react';
-import ReactTestRenderer, { act, type ReactTestInstance, type ReactTestRenderer as Renderer } from 'react-test-renderer';
+import ReactTestRenderer, {
+  act,
+  type ReactTestInstance,
+  type ReactTestRenderer as Renderer,
+} from 'react-test-renderer';
 import App from '../App';
 import { BackHandler } from 'react-native';
 import { MockBackend, MockConnector } from '../src/backend/mock/MockBackend';
@@ -27,13 +31,16 @@ const flush = async (ms = 0) => {
 
 /** The composite element carrying a testID with an onPress handler (Pressable/TextInput). */
 function byId(root: Renderer, id: string): ReactTestInstance {
-  const all = root.root.findAll(n => n.props.testID === id && typeof n.type !== 'string');
+  const all = root.root.findAll(
+    n => n.props.testID === id && typeof n.type !== 'string',
+  );
   if (!all.length) {
     throw new Error(`no element with testID ${id}`);
   }
   return all[0];
 }
-const has = (root: Renderer, id: string) => root.root.findAll(n => n.props.testID === id).length > 0;
+const has = (root: Renderer, id: string) =>
+  root.root.findAll(n => n.props.testID === id).length > 0;
 const press = async (root: Renderer, id: string) => {
   await act(async () => {
     byId(root, id).props.onPress();
@@ -41,10 +48,15 @@ const press = async (root: Renderer, id: string) => {
   await flush();
 };
 
-async function render(store = new MemoryStore(), connector = new RecordingConnector()) {
+async function render(
+  store = new MemoryStore(),
+  connector = new RecordingConnector(),
+) {
   let root!: Renderer;
   await act(async () => {
-    root = ReactTestRenderer.create(<App platform={testPlatform(store)} connector={connector} />);
+    root = ReactTestRenderer.create(
+      <App platform={testPlatform(store)} connector={connector} />,
+    );
   });
   await flush();
   return { root, connector, store };
@@ -56,7 +68,9 @@ async function signIn(root: Renderer) {
   await press(root, 'server-mock-server');
   expect(has(root, 'screen-login')).toBe(true);
   await press(root, 'user-xelpfin');
-  await act(async () => byId(root, 'password').props.onChangeText('xelpfin-pass'));
+  await act(async () =>
+    byId(root, 'password').props.onChangeText('xelpfin-pass'),
+  );
   await press(root, 'signin');
   await flush();
   expect(has(root, 'screen-home')).toBe(true);
@@ -69,7 +83,9 @@ test('first launch goes from server picker through login to home', async () => {
   await signIn(root);
   expect(has(root, 'row-resume')).toBe(true);
   expect(has(root, 'card-m1')).toBe(true);
-  expect(JSON.parse((await store.get('xelpfin.session'))!).userName).toBe('xelpfin');
+  expect(JSON.parse((await store.get('xelpfin.session'))!).userName).toBe(
+    'xelpfin',
+  );
   await act(async () => root.unmount());
 });
 
@@ -89,7 +105,11 @@ test('a wrong password shows an error and stays on login', async () => {
 test('a stored session starts on home, opens detail and plays with progress reports', async () => {
   const store = new MemoryStore();
   const session: Session = {
-    server: { id: 'mock-server', name: 'Mock Server', url: 'http://mock.local:8096' },
+    server: {
+      id: 'mock-server',
+      name: 'Mock Server',
+      url: 'http://mock.local:8096',
+    },
     userId: 'u1',
     userName: 'xelpfin',
     accessToken: 'tok-u1',
@@ -110,25 +130,36 @@ test('a stored session starts on home, opens detail and plays with progress repo
   const video = root.root.findAll(n => n.props.testID === 'video')[0];
   expect(video.props.source.uri).toBe('http://mock.local:8096/stream/m2');
   await act(async () => video.props.onLoad({ duration: 40 }));
-  await act(async () => video.props.onProgress({ currentTime: 12, playableDuration: 20 }));
+  await act(async () =>
+    video.props.onProgress({ currentTime: 12, playableDuration: 20 }),
+  );
   await act(async () => root.unmount());
 
   const backend = connector.backends[connector.backends.length - 1];
   const types = backend.reports.map(r => r.type);
   expect(types[0]).toBe('start');
   expect(types[types.length - 1]).toBe('stop');
-  expect(backend.reports[backend.reports.length - 1].report.positionMs).toBe(12_000);
+  expect(backend.reports[backend.reports.length - 1].report.positionMs).toBe(
+    12_000,
+  );
 });
 
 const SESSION: Session = {
-  server: { id: 'mock-server', name: 'Mock Server', url: 'http://mock.local:8096' },
+  server: {
+    id: 'mock-server',
+    name: 'Mock Server',
+    url: 'http://mock.local:8096',
+  },
   userId: 'u1',
   userName: 'xelpfin',
   accessToken: 'tok-u1',
   isAdmin: true,
 };
 
-async function signedIn(connector = new RecordingConnector(), settings?: object) {
+async function signedIn(
+  connector = new RecordingConnector(),
+  settings?: object,
+) {
   const store = new MemoryStore();
   await store.set('xelpfin.session', JSON.stringify(SESSION));
   if (settings) {
@@ -140,7 +171,8 @@ async function signedIn(connector = new RecordingConnector(), settings?: object)
   return out;
 }
 
-const video = (root: Renderer) => root.root.findAll(n => n.props.testID === 'video')[0];
+const video = (root: Renderer) =>
+  root.root.findAll(n => n.props.testID === 'video')[0];
 
 test('the end of an episode plays the next one in series order', async () => {
   const { root } = await signedIn();
@@ -157,10 +189,15 @@ test('the end of an episode plays the next one in series order', async () => {
 test('BACK while the next episode is being looked up leaves the player and does not replace the page below', async () => {
   // A hardware BACK stand-in: the newest live listener gets the press first, as on Android.
   const listeners: (() => boolean)[] = [];
-  const spy = jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, fn) => {
-    listeners.push(fn as () => boolean);
-    return { remove: () => listeners.splice(listeners.indexOf(fn as () => boolean), 1) };
-  });
+  const spy = jest
+    .spyOn(BackHandler, 'addEventListener')
+    .mockImplementation((_e, fn) => {
+      listeners.push(fn as () => boolean);
+      return {
+        remove: () =>
+          listeners.splice(listeners.indexOf(fn as () => boolean), 1),
+      };
+    });
   const pressBack = () => [...listeners].reverse().some(fn => fn());
   let release!: () => void;
   const gate = new Promise<void>(r => (release = r));
@@ -194,7 +231,9 @@ test('BACK while the next episode is being looked up leaves the player and does 
   expect(has(root, 'screen-player')).toBe(false);
   expect(has(root, 'screen-home')).toBe(true);
   // One start and exactly one stop: the second end event and the unmount add nothing.
-  const types = connector.backends[connector.backends.length - 1].reports.map(r => r.type);
+  const types = connector.backends[connector.backends.length - 1].reports.map(
+    r => r.type,
+  );
   expect(types.filter(t => t === 'start')).toHaveLength(1);
   expect(types.filter(t => t === 'stop')).toHaveLength(1);
   spy.mockRestore();

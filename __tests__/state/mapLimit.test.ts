@@ -22,6 +22,10 @@ describe('mapLimit', () => {
   });
 
   it('rejects when a call rejects', async () => {
-    await expect(mapLimit([1, 2, 3], 2, async n => (n === 2 ? Promise.reject(new Error('no')) : n))).rejects.toThrow('no');
+    await expect(
+      mapLimit([1, 2, 3], 2, async n =>
+        n === 2 ? Promise.reject(new Error('no')) : n,
+      ),
+    ).rejects.toThrow('no');
   });
 });

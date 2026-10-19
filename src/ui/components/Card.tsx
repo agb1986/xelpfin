@@ -43,8 +43,8 @@ export function imageFor(
   variant: CardVariant,
 ): string | undefined {
   return variant === 'poster'
-    ? item.posterUrl ?? item.thumbUrl
-    : item.thumbUrl ?? item.backdropUrl ?? item.posterUrl;
+    ? (item.posterUrl ?? item.thumbUrl)
+    : (item.thumbUrl ?? item.backdropUrl ?? item.posterUrl);
 }
 
 export const cardSize = (variant: CardVariant) => card[variant];

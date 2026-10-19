@@ -9,6 +9,7 @@ let current: PlatformServices | undefined;
 
 /** Picks the adapter for the running OS. Android (Fire OS, Android TV) is the only real one today. */
 export function getPlatform(): PlatformServices {
-  current ??= Platform.OS === 'android' ? createFireTvPlatform() : createVegaPlatform();
+  current ??=
+    Platform.OS === 'android' ? createFireTvPlatform() : createVegaPlatform();
   return current;
 }

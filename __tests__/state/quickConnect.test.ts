@@ -1,13 +1,21 @@
 import type { QuickConnectState } from '../../src/backend/types';
 import { watchQuickConnect } from '../../src/state/quickConnect';
 
-const pending: QuickConnectState = { status: 'pending', code: '123456', secret: 's' };
+const pending: QuickConnectState = {
+  status: 'pending',
+  code: '123456',
+  secret: 's',
+};
 
 describe('watchQuickConnect', () => {
   beforeEach(() => jest.useFakeTimers());
   afterEach(() => jest.useRealTimers());
 
-  const callbacks = () => ({ onAuthorized: jest.fn(), onExpired: jest.fn(), onError: jest.fn() });
+  const callbacks = () => ({
+    onAuthorized: jest.fn(),
+    onExpired: jest.fn(),
+    onError: jest.fn(),
+  });
 
   it('waits for each poll to answer before sending the next', async () => {
     let inFlight = 0;
@@ -21,7 +29,10 @@ describe('watchQuickConnect', () => {
       inFlight--;
       return pending;
     };
-    const stop = watchQuickConnect(poll, callbacks(), { intervalMs: 1000, ttlMs: 60_000 });
+    const stop = watchQuickConnect(poll, callbacks(), {
+      intervalMs: 1000,
+      ttlMs: 60_000,
+    });
     await jest.advanceTimersByTimeAsync(20_000);
     stop();
     expect(peak).toBe(1);
@@ -30,7 +41,10 @@ describe('watchQuickConnect', () => {
 
   it('reports approval once', async () => {
     const cb = callbacks();
-    const poll = jest.fn<Promise<QuickConnectState>, []>().mockResolvedValueOnce(pending).mockResolvedValue({ status: 'authorized', secret: 's' });
+    const poll = jest
+      .fn<Promise<QuickConnectState>, []>()
+      .mockResolvedValueOnce(pending)
+      .mockResolvedValue({ status: 'authorized', secret: 's' });
     watchQuickConnect(poll, cb, { intervalMs: 1000, ttlMs: 60_000 });
     await jest.advanceTimersByTimeAsync(10_000);
     expect(poll).toHaveBeenCalledTimes(2);
@@ -61,7 +75,10 @@ describe('watchQuickConnect', () => {
     const cb = callbacks();
     let answer!: (s: QuickConnectState) => void;
     const poll = () => new Promise<QuickConnectState>(r => (answer = r));
-    const stop = watchQuickConnect(poll, cb, { intervalMs: 1000, ttlMs: 60_000 });
+    const stop = watchQuickConnect(poll, cb, {
+      intervalMs: 1000,
+      ttlMs: 60_000,
+    });
     await jest.advanceTimersByTimeAsync(1000);
     stop();
     answer({ status: 'authorized', secret: 's' });

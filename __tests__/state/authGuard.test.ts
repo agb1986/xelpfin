@@ -11,7 +11,13 @@ describe('auth guard', () => {
   });
 
   it('reports expiry once, passes results and other errors through', async () => {
-    const inner = new MockBackend({ server: MOCK_SERVER, userId: 'u1', userName: 'xelpfin', accessToken: 't', isAdmin: true });
+    const inner = new MockBackend({
+      server: MOCK_SERVER,
+      userId: 'u1',
+      userName: 'xelpfin',
+      accessToken: 't',
+      isAdmin: true,
+    });
     const onExpired = jest.fn();
     const b = guardBackend(inner, onExpired);
     expect((await b.libraries()).length).toBe(2);

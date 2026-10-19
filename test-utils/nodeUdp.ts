@@ -8,7 +8,12 @@ export function nodeUdp(opts: { broadcast?: boolean } = {}): UdpTransport {
       return new Promise((resolve, reject) => {
         const sock = dgram.createSocket('udp4');
         const replies: UdpReply[] = [];
-        sock.on('message', (buf, rinfo) => replies.push({ address: rinfo.address, payload: buf.toString('utf8') }));
+        sock.on('message', (buf, rinfo) =>
+          replies.push({
+            address: rinfo.address,
+            payload: buf.toString('utf8'),
+          }),
+        );
         sock.on('error', reject);
         sock.bind(0, () => {
           const targets = [...extraHosts];

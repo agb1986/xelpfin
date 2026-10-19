@@ -1,12 +1,27 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Pressable, type PressableProps, type StyleProp, type View, type ViewStyle } from 'react-native';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Pressable,
+  type PressableProps,
+  type StyleProp,
+  type View,
+  type ViewStyle,
+} from 'react-native';
 import { useScreenState } from '../../state/navigation';
 
 const DOUBLE_PRESS_MS = 400;
 const RESTORE_TRIES = 8;
 const RESTORE_RETRY_MS = 80;
 
-export interface FocusableProps extends Omit<PressableProps, 'style' | 'children'> {
+export interface FocusableProps extends Omit<
+  PressableProps,
+  'style' | 'children'
+> {
   style?: StyleProp<ViewStyle> | ((focused: boolean) => StyleProp<ViewStyle>);
   children: React.ReactNode | ((focused: boolean) => React.ReactNode);
   hasTVPreferredFocus?: boolean;
@@ -21,7 +36,16 @@ export interface FocusableProps extends Omit<PressableProps, 'style' | 'children
  * screen comes back, the element that had focus last takes it again.
  */
 export const Focusable = forwardRef<View, FocusableProps>(function Focusable(
-  { style, children, onFocus, onBlur, onPress, focusable = true, hasTVPreferredFocus, ...rest },
+  {
+    style,
+    children,
+    onFocus,
+    onBlur,
+    onPress,
+    focusable = true,
+    hasTVPreferredFocus,
+    ...rest
+  },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -52,8 +76,15 @@ export const Focusable = forwardRef<View, FocusableProps>(function Focusable(
     }
     // The remembered element, or, when that view has been re-created (a list reloaded in a new
     // order), the one with the same testID.
-    const last = lastFocused.current as { ref: typeof inner; key?: string } | null;
-    if (!last || (last.ref !== inner && !(last.key && last.key === key && !last.ref.current))) {
+    const last = lastFocused.current as {
+      ref: typeof inner;
+      key?: string;
+    } | null;
+    if (
+      !last ||
+      (last.ref !== inner &&
+        !(last.key && last.key === key && !last.ref.current))
+    ) {
       return;
     }
     // The screen was just un-hidden: the native view is not laid out or focusable for a few

@@ -10,7 +10,10 @@ interface State {
  * unexpected server answer costs that screen and not the whole app. BACK still leaves the screen,
  * and Retry renders it again from scratch.
  */
-export class ScreenBoundary extends React.Component<{ children: React.ReactNode }, State> {
+export class ScreenBoundary extends React.Component<
+  { children: React.ReactNode },
+  State
+> {
   state: State = {};
 
   static getDerivedStateFromError(error: unknown): State {
@@ -23,7 +26,13 @@ export class ScreenBoundary extends React.Component<{ children: React.ReactNode 
 
   render() {
     if (this.state.error !== undefined) {
-      return <ErrorView error={this.state.error} onRetry={() => this.setState({ error: undefined })} hasTVPreferredFocus />;
+      return (
+        <ErrorView
+          error={this.state.error}
+          onRetry={() => this.setState({ error: undefined })}
+          hasTVPreferredFocus
+        />
+      );
     }
     return this.props.children;
   }

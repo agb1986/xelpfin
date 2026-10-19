@@ -69,15 +69,44 @@ const VP9_PROFILE2 = [0x4, 0x1000, 0x2000]; // Profile2, Profile2HDR, Profile2HD
 const AV1_MAIN10 = [0x2, 0x1000, 0x2000];
 
 function tenBit(codec: string, profiles: number[] = []): boolean {
-  const set = codec === 'hevc' ? HEVC_MAIN10 : codec === 'vp9' ? VP9_PROFILE2 : codec === 'av1' ? AV1_MAIN10 : [];
+  const set =
+    codec === 'hevc'
+      ? HEVC_MAIN10
+      : codec === 'vp9'
+        ? VP9_PROFILE2
+        : codec === 'av1'
+          ? AV1_MAIN10
+          : [];
   return profiles.some(p => set.includes(p));
 }
 
 /** ExoPlayer (media3) extractors that react-native-video ships. */
-export const EXOPLAYER_CONTAINERS = ['mp4', 'm4v', 'mov', 'mkv', 'webm', 'ts', 'mpegts', 'avi', 'flv', 'ogg'];
+export const EXOPLAYER_CONTAINERS = [
+  'mp4',
+  'm4v',
+  'mov',
+  'mkv',
+  'webm',
+  'ts',
+  'mpegts',
+  'avi',
+  'flv',
+  'ogg',
+];
 
 export const EXOPLAYER_SUBTITLES = {
-  embedded: ['srt', 'subrip', 'ass', 'ssa', 'vtt', 'webvtt', 'pgssub', 'dvdsub', 'dvbsub', 'ttml'],
+  embedded: [
+    'srt',
+    'subrip',
+    'ass',
+    'ssa',
+    'vtt',
+    'webvtt',
+    'pgssub',
+    'dvdsub',
+    'dvbsub',
+    'ttml',
+  ],
   external: ['srt', 'subrip', 'vtt', 'webvtt', 'ttml'],
 };
 
@@ -123,9 +152,27 @@ export function capabilitiesFromAndroid(
  */
 export const BASELINE_CAPABILITIES: DeviceCapabilities = {
   video: [
-    { codec: 'h264', maxWidth: 1920, maxHeight: 1080, maxBitDepth: 8, hardware: true },
-    { codec: 'hevc', maxWidth: 3840, maxHeight: 2160, maxBitDepth: 10, hardware: true },
-    { codec: 'vp9', maxWidth: 3840, maxHeight: 2160, maxBitDepth: 10, hardware: true },
+    {
+      codec: 'h264',
+      maxWidth: 1920,
+      maxHeight: 1080,
+      maxBitDepth: 8,
+      hardware: true,
+    },
+    {
+      codec: 'hevc',
+      maxWidth: 3840,
+      maxHeight: 2160,
+      maxBitDepth: 10,
+      hardware: true,
+    },
+    {
+      codec: 'vp9',
+      maxWidth: 3840,
+      maxHeight: 2160,
+      maxBitDepth: 10,
+      hardware: true,
+    },
   ],
   audio: ['aac', 'ac3', 'eac3', 'flac', 'mp3', 'opus', 'vorbis'],
   containers: EXOPLAYER_CONTAINERS,
@@ -135,9 +182,15 @@ export const BASELINE_CAPABILITIES: DeviceCapabilities = {
 };
 
 /** Applies a user bitrate cap (settings) without mutating the input. */
-export function withBitrateCap(caps: DeviceCapabilities, maxBitrate?: number): DeviceCapabilities {
+export function withBitrateCap(
+  caps: DeviceCapabilities,
+  maxBitrate?: number,
+): DeviceCapabilities {
   if (!maxBitrate) {
     return caps;
   }
-  return { ...caps, maxStreamingBitrate: Math.min(caps.maxStreamingBitrate, maxBitrate) };
+  return {
+    ...caps,
+    maxStreamingBitrate: Math.min(caps.maxStreamingBitrate, maxBitrate),
+  };
 }

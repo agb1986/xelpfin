@@ -1,12 +1,30 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import type { Backend, ServerConnector } from '../backend/Backend';
 import type { ServerInfo, Session } from '../backend/types';
 import type { DeviceCapabilities } from '../player/capabilities';
 import { withBitrateCap } from '../player/capabilities';
 import type { PlatformServices } from '../platform/types';
 import { guardBackend } from './authGuard';
-import { loadServers, loadSession, rememberServer, saveServers, saveSession } from './servers';
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings } from './settings';
+import {
+  loadServers,
+  loadSession,
+  rememberServer,
+  saveServers,
+  saveSession,
+} from './servers';
+import {
+  DEFAULT_SETTINGS,
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from './settings';
 
 export interface AppStateValue {
   platform: PlatformServices;
@@ -80,12 +98,19 @@ export function AppStateProvider({
   boot: Boot;
   children: React.ReactNode;
 }) {
-  const [settings, setSettings] = useState<Settings>(boot.settings ?? DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>(
+    boot.settings ?? DEFAULT_SETTINGS,
+  );
   const [servers, setServers] = useState<ServerInfo[]>(boot.servers);
   const [session, setSession] = useState<Session | undefined>(boot.session);
   const [authExpired, setAuthExpired] = useState<ServerInfo>();
   const backend = useMemo(
-    () => (session ? guardBackend(connector.open(session), () => setAuthExpired(session.server)) : undefined),
+    () =>
+      session
+        ? guardBackend(connector.open(session), () =>
+            setAuthExpired(session.server),
+          )
+        : undefined,
     [connector, session],
   );
 
@@ -93,7 +118,10 @@ export function AppStateProvider({
     saveSettings(platform.storage, settings);
   }, [platform, settings]);
 
-  const updateSettings = useCallback((patch: Partial<Settings>) => setSettings(s => ({ ...s, ...patch })), []);
+  const updateSettings = useCallback(
+    (patch: Partial<Settings>) => setSettings(s => ({ ...s, ...patch })),
+    [],
+  );
 
   const signIn = useCallback(
     (s: Session) => {
@@ -138,7 +166,11 @@ export function AppStateProvider({
   );
 
   const capabilities = useCallback(
-    async () => withBitrateCap(await platform.capabilities(), settings.maxBitrate || undefined),
+    async () =>
+      withBitrateCap(
+        await platform.capabilities(),
+        settings.maxBitrate || undefined,
+      ),
     [platform, settings.maxBitrate],
   );
 
@@ -157,7 +189,20 @@ export function AppStateProvider({
       finishExpiry,
       capabilities,
     }),
-    [platform, connector, settings, updateSettings, servers, forgetServer, backend, signIn, signOut, authExpired, finishExpiry, capabilities],
+    [
+      platform,
+      connector,
+      settings,
+      updateSettings,
+      servers,
+      forgetServer,
+      backend,
+      signIn,
+      signOut,
+      authExpired,
+      finishExpiry,
+      capabilities,
+    ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

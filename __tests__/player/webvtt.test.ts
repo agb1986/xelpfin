@@ -26,7 +26,8 @@ describe('parseWebVtt', () => {
   });
 
   it('accepts SRT with CRLF line endings and comma milliseconds', () => {
-    const srt = '1\r\n00:00:01,000 --> 00:00:02,000\r\nOne\r\n\r\n2\r\n01:00:00,250 --> 01:00:01,000\r\nTwo\r\n';
+    const srt =
+      '1\r\n00:00:01,000 --> 00:00:02,000\r\nOne\r\n\r\n2\r\n01:00:00,250 --> 01:00:01,000\r\nTwo\r\n';
     expect(parseWebVtt(srt)).toEqual([
       { startMs: 1000, endMs: 2000, text: 'One' },
       { startMs: 3600250, endMs: 3601000, text: 'Two' },
@@ -34,7 +35,11 @@ describe('parseWebVtt', () => {
   });
 
   it('skips malformed and empty cues', () => {
-    expect(parseWebVtt('WEBVTT\n\nnot a time --> 00:01.000\nx\n\n00:02.000 --> 00:01.000\nbackwards\n\n00:03.000 --> 00:04.000\n<b></b>\n')).toEqual([]);
+    expect(
+      parseWebVtt(
+        'WEBVTT\n\nnot a time --> 00:01.000\nx\n\n00:02.000 --> 00:01.000\nbackwards\n\n00:03.000 --> 00:04.000\n<b></b>\n',
+      ),
+    ).toEqual([]);
   });
 });
 
@@ -53,8 +58,14 @@ describe('cueTextAt', () => {
 
 describe('cleanText', () => {
   it('strips ASS/SSA override tags and drawings so converted subtitles stay readable', () => {
-    expect(cleanText('{\\an8}{\\b1}Top{\\b0} line\\Nsecond\\hpart')).toBe('Top line\nsecond part');
-    expect(cleanText('{\\p1}m 0 0 l 100 0 100 100{\\p0}Visible')).toBe('Visible');
-    expect(cleanText('<i>Hello</i> &amp; {\\c&H00FFFF&}there  ')).toBe('Hello & there');
+    expect(cleanText('{\\an8}{\\b1}Top{\\b0} line\\Nsecond\\hpart')).toBe(
+      'Top line\nsecond part',
+    );
+    expect(cleanText('{\\p1}m 0 0 l 100 0 100 100{\\p0}Visible')).toBe(
+      'Visible',
+    );
+    expect(cleanText('<i>Hello</i> &amp; {\\c&H00FFFF&}there  ')).toBe(
+      'Hello & there',
+    );
   });
 });

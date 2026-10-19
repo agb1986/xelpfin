@@ -3,14 +3,23 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors, font, radius, space } from '../theme';
 import { Focusable, type FocusableProps } from './Focusable';
 
-export interface ButtonProps extends Omit<FocusableProps, 'children' | 'style'> {
+export interface ButtonProps extends Omit<
+  FocusableProps,
+  'children' | 'style'
+> {
   label: string;
   icon?: string;
   variant?: 'primary' | 'secondary' | 'danger';
   compact?: boolean;
 }
 
-export function Button({ label, icon, variant = 'secondary', compact, ...rest }: ButtonProps) {
+export function Button({
+  label,
+  icon,
+  variant = 'secondary',
+  compact,
+  ...rest
+}: ButtonProps) {
   return (
     <Focusable
       accessibilityRole="button"
@@ -27,8 +36,19 @@ export function Button({ label, icon, variant = 'secondary', compact, ...rest }:
     >
       {focused => (
         <View style={styles.row}>
-          {icon ? <Text style={[styles.icon, focused && styles.textFocused]}>{icon}</Text> : null}
-          <Text style={[styles.label, compact && styles.labelCompact, focused && styles.textFocused]} numberOfLines={1}>
+          {icon ? (
+            <Text style={[styles.icon, focused && styles.textFocused]}>
+              {icon}
+            </Text>
+          ) : null}
+          <Text
+            style={[
+              styles.label,
+              compact && styles.labelCompact,
+              focused && styles.textFocused,
+            ]}
+            numberOfLines={1}
+          >
             {label}
           </Text>
         </View>
@@ -49,7 +69,11 @@ const styles = StyleSheet.create({
   },
   compact: { paddingHorizontal: space.md, paddingVertical: space.xs + 2 },
   primary: { backgroundColor: colors.accentDim },
-  focused: { backgroundColor: colors.accent, borderColor: colors.text, transform: [{ scale: 1.05 }] },
+  focused: {
+    backgroundColor: colors.accent,
+    borderColor: colors.text,
+    transform: [{ scale: 1.05 }],
+  },
   dangerFocused: { backgroundColor: colors.danger },
   disabled: { opacity: 0.4 },
   row: { flexDirection: 'row', alignItems: 'center' },

@@ -11,12 +11,18 @@ import type { DeviceInfo, KeyValueStore, PlatformServices } from '../types';
 
 interface XelpfinPlatformNative {
   getConstants?: () => Record<string, unknown>;
-  udpBroadcast(message: string, port: number, timeoutMs: number, extraHosts: string[]): Promise<UdpReply[]>;
+  udpBroadcast(
+    message: string,
+    port: number,
+    timeoutMs: number,
+    extraHosts: string[],
+  ): Promise<UdpReply[]>;
   getDecoders(): Promise<AndroidDecoder[]>;
   [k: string]: unknown;
 }
 
-const native = NativeModules.XelpfinPlatform as XelpfinPlatformNative | undefined;
+const native = NativeModules.XelpfinPlatform as
+  XelpfinPlatformNative | undefined;
 
 function constants(): Record<string, unknown> {
   if (!native) {
@@ -40,14 +46,19 @@ function deviceInfo(): DeviceInfo {
     manufacturer: String(c.manufacturer ?? 'unknown'),
     model,
     osVersion: String(c.sdkInt ?? Platform.Version),
-    abis: String(c.abis ?? '').split(',').filter(Boolean),
+    abis: String(c.abis ?? '')
+      .split(',')
+      .filter(Boolean),
     isEmulator: Boolean(c.isEmulator),
     isFireTv,
   };
 }
 
 const udp: UdpTransport | undefined = native
-  ? { broadcast: (message, port, timeoutMs, extraHosts = []) => native.udpBroadcast(message, port, timeoutMs, extraHosts) }
+  ? {
+      broadcast: (message, port, timeoutMs, extraHosts = []) =>
+        native.udpBroadcast(message, port, timeoutMs, extraHosts),
+    }
   : undefined;
 
 let capsPromise: Promise<DeviceCapabilities> | undefined;
@@ -73,6 +84,7 @@ export function createFireTvPlatform(): PlatformServices {
       return capsPromise;
     },
     discoveryHints: () => (device.isEmulator ? ['10.0.2.2'] : []),
-    addressHint: () => (device.isEmulator ? 'http://10.0.2.2:8096' : '192.168.1.10:8096'),
+    addressHint: () =>
+      device.isEmulator ? 'http://10.0.2.2:8096' : '192.168.1.10:8096',
   };
 }

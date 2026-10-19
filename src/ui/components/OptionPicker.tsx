@@ -20,10 +20,26 @@ interface OptionPickerProps<T> {
 }
 
 /** Modal list for audio/subtitle tracks and settings values. BACK closes it. */
-export function OptionPicker<T>({ visible, title, options, selected, onSelect, onClose, testID }: OptionPickerProps<T>) {
-  const selIndex = Math.max(0, options.findIndex(o => o.value === selected));
+export function OptionPicker<T>({
+  visible,
+  title,
+  options,
+  selected,
+  onSelect,
+  onClose,
+  testID,
+}: OptionPickerProps<T>) {
+  const selIndex = Math.max(
+    0,
+    options.findIndex(o => o.value === selected),
+  );
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
       <View style={styles.scrim}>
         <View style={styles.panel} testID={testID}>
           <Text style={styles.title}>{title}</Text>
@@ -31,7 +47,11 @@ export function OptionPicker<T>({ visible, title, options, selected, onSelect, o
             data={options}
             keyExtractor={(_, i) => String(i)}
             initialScrollIndex={selIndex > 5 ? selIndex : undefined}
-            getItemLayout={(_, index) => ({ length: 52, offset: 52 * index, index })}
+            getItemLayout={(_, index) => ({
+              length: 52,
+              offset: 52 * index,
+              index,
+            })}
             renderItem={({ item, index }) => {
               const isSel = item.value === selected;
               return (
@@ -42,13 +62,26 @@ export function OptionPicker<T>({ visible, title, options, selected, onSelect, o
                     onSelect(item.value);
                     onClose();
                   }}
-                  style={focused => [styles.option, focused && styles.optionFocused]}
+                  style={focused => [
+                    styles.option,
+                    focused && styles.optionFocused,
+                  ]}
                 >
                   {focused => (
                     <View style={styles.optionRow}>
-                      <Text style={[styles.check, (focused || isSel) && styles.textOn]}>{isSel ? '●' : '○'}</Text>
+                      <Text
+                        style={[
+                          styles.check,
+                          (focused || isSel) && styles.textOn,
+                        ]}
+                      >
+                        {isSel ? '●' : '○'}
+                      </Text>
                       <View style={styles.flex}>
-                        <Text style={[styles.label, focused && styles.textOn]} numberOfLines={1}>
+                        <Text
+                          style={[styles.label, focused && styles.textOn]}
+                          numberOfLines={1}
+                        >
                           {item.label}
                         </Text>
                         {item.detail ? (
@@ -71,9 +104,26 @@ export function OptionPicker<T>({ visible, title, options, selected, onSelect, o
 
 const styles = StyleSheet.create({
   scrim: { flex: 1, backgroundColor: colors.scrim, alignItems: 'flex-end' },
-  panel: { width: 380, height: '100%', backgroundColor: colors.surface, paddingVertical: space.xl, paddingHorizontal: space.lg },
-  title: { color: colors.text, fontSize: font.title, fontWeight: '700', marginBottom: space.lg },
-  option: { height: 48, marginBottom: 4, borderRadius: radius.md, paddingHorizontal: space.md, justifyContent: 'center' },
+  panel: {
+    width: 380,
+    height: '100%',
+    backgroundColor: colors.surface,
+    paddingVertical: space.xl,
+    paddingHorizontal: space.lg,
+  },
+  title: {
+    color: colors.text,
+    fontSize: font.title,
+    fontWeight: '700',
+    marginBottom: space.lg,
+  },
+  option: {
+    height: 48,
+    marginBottom: 4,
+    borderRadius: radius.md,
+    paddingHorizontal: space.md,
+    justifyContent: 'center',
+  },
   optionFocused: { backgroundColor: colors.accent },
   optionRow: { flexDirection: 'row', alignItems: 'center' },
   check: { color: colors.textDim, fontSize: font.body, width: 26 },

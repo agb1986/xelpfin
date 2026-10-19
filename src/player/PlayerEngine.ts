@@ -27,11 +27,16 @@ export interface PlayerViewProps {
  */
 export interface PlayerEngine {
   readonly name: string;
-  readonly View: ForwardRefExoticComponent<PlayerViewProps & RefAttributes<PlayerViewHandle>>;
+  readonly View: ForwardRefExoticComponent<
+    PlayerViewProps & RefAttributes<PlayerViewHandle>
+  >;
   /**
    * Whether switching to this audio/subtitle track can happen inside the current stream.
    * When false the caller asks the backend for a new plan (e.g. a transcode with another
    * audio track or burned-in subtitles) and restarts at the current position.
    */
-  canSwitchInStream(plan: PlaybackPlan, change: { audioStreamIndex?: number; subtitleStreamIndex?: number }): boolean;
+  canSwitchInStream(
+    plan: PlaybackPlan,
+    change: { audioStreamIndex?: number; subtitleStreamIndex?: number },
+  ): boolean;
 }

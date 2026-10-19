@@ -14,17 +14,44 @@ import {
   SUBTITLE_SIZE_CHOICES,
 } from '../../state/settings';
 import { APP_NAME, APP_VERSION } from '../../version';
-import { Focusable, OptionPicker, Screen, bleed, type Option } from '../components';
+import {
+  Focusable,
+  OptionPicker,
+  Screen,
+  bleed,
+  type Option,
+} from '../components';
 import { useAsync } from '../hooks';
 import { colors, font, radius, space } from '../theme';
 
-function Row({ label, value, onPress, testID, first }: { label: string; value: string; onPress(): void; testID: string; first?: boolean }) {
+function Row({
+  label,
+  value,
+  onPress,
+  testID,
+  first,
+}: {
+  label: string;
+  value: string;
+  onPress(): void;
+  testID: string;
+  first?: boolean;
+}) {
   return (
-    <Focusable testID={testID} onPress={onPress} hasTVPreferredFocus={first} style={focused => [styles.row, focused && styles.rowFocused]}>
+    <Focusable
+      testID={testID}
+      onPress={onPress}
+      hasTVPreferredFocus={first}
+      style={focused => [styles.row, focused && styles.rowFocused]}
+    >
       {focused => (
         <>
-          <Text style={[styles.rowLabel, focused && styles.textOn]}>{label}</Text>
-          <Text style={[styles.rowValue, focused && styles.textOn]}>{value}</Text>
+          <Text style={[styles.rowLabel, focused && styles.textOn]}>
+            {label}
+          </Text>
+          <Text style={[styles.rowValue, focused && styles.textOn]}>
+            {value}
+          </Text>
         </>
       )}
     </Focusable>
@@ -34,8 +61,10 @@ function Row({ label, value, onPress, testID, first }: { label: string; value: s
 type ActionKey = 'continue' | 'nextup' | 'randomizer';
 const CONFIRM_MS = 5000;
 
-type PickerKey = 'bitrate' | 'subtitles' | 'language' | 'subsize' | 'subcolor' | 'subbg';
-const labelOf = <T,>(choices: Option<T>[], v: T) => choices.find(c => c.value === v)?.label ?? String(v);
+type PickerKey =
+  'bitrate' | 'subtitles' | 'language' | 'subsize' | 'subcolor' | 'subbg';
+const labelOf = <T,>(choices: Option<T>[], v: T) =>
+  choices.find(c => c.value === v)?.label ?? String(v);
 
 /** Playback preferences, account actions and device information. */
 export function SettingsScreen() {
@@ -46,28 +75,59 @@ export function SettingsScreen() {
   const caps = useAsync(() => app.capabilities(), [app.capabilities]);
   const server = backend?.session.server;
 
-  const signOut = () => app.signOut(() => nav.reset(server ? [{ name: 'servers' }, { name: 'login', server }] : [{ name: 'servers' }]));
-  const changeServer = () => app.signOut(() => nav.reset([{ name: 'servers' }]));
+  const signOut = () =>
+    app.signOut(() =>
+      nav.reset(
+        server
+          ? [{ name: 'servers' }, { name: 'login', server }]
+          : [{ name: 'servers' }],
+      ),
+    );
+  const changeServer = () =>
+    app.signOut(() => nav.reset([{ name: 'servers' }]));
 
   // Actions change data, so each asks for a second press. The result replaces the prompt.
   const hiddenNextUp = useHiddenNextUp();
   const randomizer = useRandomizer();
   const [armed, setArmed] = useState<ActionKey>();
-  const [results, setResults] = useState<Partial<Record<ActionKey, string>>>({});
+  const [results, setResults] = useState<Partial<Record<ActionKey, string>>>(
+    {},
+  );
   const armTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const disarm = () => armTimer.current !== undefined && clearTimeout(armTimer.current);
-  useEffect(() => () => (armTimer.current !== undefined ? clearTimeout(armTimer.current) : undefined), []);
+  const disarm = () =>
+    armTimer.current !== undefined && clearTimeout(armTimer.current);
+  useEffect(
+    () => () =>
+      armTimer.current !== undefined
+        ? clearTimeout(armTimer.current)
+        : undefined,
+    [],
+  );
 
   const actions: Record<ActionKey, () => Promise<string>> = {
     continue: async () => {
       const items = await backend!.resume(200);
-      const cleared = await mapLimit(items, SERVER_CONCURRENCY, i => backend!.clearProgress(i.id).then(() => true, () => false));
+      const cleared = await mapLimit(items, SERVER_CONCURRENCY, i =>
+        backend!.clearProgress(i.id).then(
+          () => true,
+          () => false,
+        ),
+      );
       const done = cleared.filter(Boolean).length;
-      return !items.length ? 'Nothing to clear' : done === items.length ? `Cleared ${done}` : `Cleared ${done} of ${items.length}`;
+      return !items.length
+        ? 'Nothing to clear'
+        : done === items.length
+          ? `Cleared ${done}`
+          : `Cleared ${done} of ${items.length}`;
     },
     nextup: async () => {
       const items = await backend!.nextUp(200);
-      hiddenNextUp.list.update(h => ({ ...h, ...Object.fromEntries(items.filter(i => i.seriesId).map(i => [i.seriesId!, i.id])) }));
+      hiddenNextUp.list.update(h => ({
+        ...h,
+        ...Object.fromEntries(
+          items.filter(i => i.seriesId).map(i => [i.seriesId!, i.id]),
+        ),
+      }));
       return items.length ? `Cleared ${items.length}` : 'Nothing to clear';
     },
     randomizer: async () => {
@@ -96,39 +156,126 @@ export function SettingsScreen() {
       .catch(() => setResults(r => ({ ...r, [key]: 'Failed' })))
       .finally(() => running.current.delete(key));
   };
-  const actionValue = (key: ActionKey, idle: string) => (armed === key ? 'Press again to confirm' : results[key] ?? idle);
+  const actionValue = (key: ActionKey, idle: string) =>
+    armed === key ? 'Press again to confirm' : (results[key] ?? idle);
 
   const device = platform.device;
-  const decoders = caps.data?.video.map(v => `${v.codec.toUpperCase()} ${v.maxBitDepth}-bit${v.hardware ? '' : ' (sw)'}`).join(', ');
+  const decoders = caps.data?.video
+    .map(
+      v =>
+        `${v.codec.toUpperCase()} ${v.maxBitDepth}-bit${v.hardware ? '' : ' (sw)'}`,
+    )
+    .join(', ');
 
   return (
     <Screen title="Settings" testID="settings">
-      <ScrollView style={bleed.outer} contentContainerStyle={[bleed.inner, styles.body]}>
+      <ScrollView
+        style={bleed.outer}
+        contentContainerStyle={[bleed.inner, styles.body]}
+      >
         <Text style={styles.section}>Playback</Text>
-        <Row first testID="set-bitrate" label="Maximum streaming quality" value={labelOf(BITRATE_CHOICES, settings.maxBitrate)} onPress={() => setPicker('bitrate')} />
-        <Row testID="set-subtitles" label="Subtitles" value={labelOf(SUBTITLE_CHOICES, settings.subtitleMode)} onPress={() => setPicker('subtitles')} />
-        <Row testID="set-language" label="Preferred audio and subtitle language" value={labelOf(LANGUAGE_CHOICES, settings.preferredLanguage)} onPress={() => setPicker('language')} />
-        <Row testID="set-subsize" label="Subtitle size" value={labelOf(SUBTITLE_SIZE_CHOICES, settings.subtitleSize)} onPress={() => setPicker('subsize')} />
-        <Row testID="set-subcolor" label="Subtitle colour" value={labelOf(SUBTITLE_COLOR_CHOICES, settings.subtitleColor)} onPress={() => setPicker('subcolor')} />
-        <Row testID="set-subbg" label="Subtitle background" value={labelOf(SUBTITLE_BACKGROUND_CHOICES, settings.subtitleBackground)} onPress={() => setPicker('subbg')} />
-        <Row testID="set-autoplay" label="Play next episode automatically" value={settings.autoplayNext ? 'On' : 'Off'} onPress={() => updateSettings({ autoplayNext: !settings.autoplayNext })} />
-        <Row testID="set-debug" label="Show playback information overlay" value={settings.showDebugOverlay ? 'On' : 'Off'} onPress={() => updateSettings({ showDebugOverlay: !settings.showDebugOverlay })} />
+        <Row
+          first
+          testID="set-bitrate"
+          label="Maximum streaming quality"
+          value={labelOf(BITRATE_CHOICES, settings.maxBitrate)}
+          onPress={() => setPicker('bitrate')}
+        />
+        <Row
+          testID="set-subtitles"
+          label="Subtitles"
+          value={labelOf(SUBTITLE_CHOICES, settings.subtitleMode)}
+          onPress={() => setPicker('subtitles')}
+        />
+        <Row
+          testID="set-language"
+          label="Preferred audio and subtitle language"
+          value={labelOf(LANGUAGE_CHOICES, settings.preferredLanguage)}
+          onPress={() => setPicker('language')}
+        />
+        <Row
+          testID="set-subsize"
+          label="Subtitle size"
+          value={labelOf(SUBTITLE_SIZE_CHOICES, settings.subtitleSize)}
+          onPress={() => setPicker('subsize')}
+        />
+        <Row
+          testID="set-subcolor"
+          label="Subtitle colour"
+          value={labelOf(SUBTITLE_COLOR_CHOICES, settings.subtitleColor)}
+          onPress={() => setPicker('subcolor')}
+        />
+        <Row
+          testID="set-subbg"
+          label="Subtitle background"
+          value={labelOf(
+            SUBTITLE_BACKGROUND_CHOICES,
+            settings.subtitleBackground,
+          )}
+          onPress={() => setPicker('subbg')}
+        />
+        <Row
+          testID="set-autoplay"
+          label="Play next episode automatically"
+          value={settings.autoplayNext ? 'On' : 'Off'}
+          onPress={() =>
+            updateSettings({ autoplayNext: !settings.autoplayNext })
+          }
+        />
+        <Row
+          testID="set-debug"
+          label="Show playback information overlay"
+          value={settings.showDebugOverlay ? 'On' : 'Off'}
+          onPress={() =>
+            updateSettings({ showDebugOverlay: !settings.showDebugOverlay })
+          }
+        />
 
         {backend ? (
           <>
             <Text style={styles.section}>Actions</Text>
-            <Row testID="act-clear-continue" label="Clear Continue Watching" value={actionValue('continue', 'Forget resume positions')} onPress={() => runAction('continue')} />
-            <Row testID="act-clear-nextup" label="Clear Next Up" value={actionValue('nextup', 'Hide current entries')} onPress={() => runAction('nextup')} />
-            <Row testID="act-randomizer-history" label="View Randomizer History" value="Latest picks" onPress={() => nav.push({ name: 'randomizerHistory' })} />
-            <Row testID="act-reset-randomizer" label="Reset Randomizer history" value={actionValue('randomizer', 'Start a new cycle')} onPress={() => runAction('randomizer')} />
+            <Row
+              testID="act-clear-continue"
+              label="Clear Continue Watching"
+              value={actionValue('continue', 'Forget resume positions')}
+              onPress={() => runAction('continue')}
+            />
+            <Row
+              testID="act-clear-nextup"
+              label="Clear Next Up"
+              value={actionValue('nextup', 'Hide current entries')}
+              onPress={() => runAction('nextup')}
+            />
+            <Row
+              testID="act-randomizer-history"
+              label="View Randomizer History"
+              value="Latest picks"
+              onPress={() => nav.push({ name: 'randomizerHistory' })}
+            />
+            <Row
+              testID="act-reset-randomizer"
+              label="Reset Randomizer history"
+              value={actionValue('randomizer', 'Start a new cycle')}
+              onPress={() => runAction('randomizer')}
+            />
           </>
         ) : null}
 
         <Text style={styles.section}>Account</Text>
         {backend ? (
           <>
-            <Row testID="set-switch-user" label={`Signed in as ${backend.session.userName}`} value="Switch user" onPress={signOut} />
-            <Row testID="set-change-server" label={`Server ${backend.session.server.name}`} value="Change server" onPress={changeServer} />
+            <Row
+              testID="set-switch-user"
+              label={`Signed in as ${backend.session.userName}`}
+              value="Switch user"
+              onPress={signOut}
+            />
+            <Row
+              testID="set-change-server"
+              label={`Server ${backend.session.server.name}`}
+              value="Change server"
+              onPress={changeServer}
+            />
           </>
         ) : null}
 
@@ -138,7 +285,8 @@ export function SettingsScreen() {
             {APP_NAME} {APP_VERSION} · {platform.id}
           </Text>
           <Text style={styles.aboutText}>
-            {device.manufacturer} {device.model} · Android {device.osVersion} · {device.abis.join(', ')}
+            {device.manufacturer} {device.model} · Android {device.osVersion} ·{' '}
+            {device.abis.join(', ')}
             {device.isEmulator ? ' · emulator' : ''}
           </Text>
           {server ? (
@@ -147,9 +295,18 @@ export function SettingsScreen() {
               {server.version ? ` · Jellyfin ${server.version}` : ''}
             </Text>
           ) : null}
-          {decoders ? <Text style={styles.aboutText}>Video decoders: {decoders}</Text> : null}
-          {caps.data ? <Text style={styles.aboutText}>Audio decoders: {caps.data.audio.join(', ')}</Text> : null}
-          <Text style={styles.aboutDim}>xelpfin talks only to your Jellyfin server. No analytics, no accounts elsewhere.</Text>
+          {decoders ? (
+            <Text style={styles.aboutText}>Video decoders: {decoders}</Text>
+          ) : null}
+          {caps.data ? (
+            <Text style={styles.aboutText}>
+              Audio decoders: {caps.data.audio.join(', ')}
+            </Text>
+          ) : null}
+          <Text style={styles.aboutDim}>
+            xelpfin talks only to your Jellyfin server. No analytics, no
+            accounts elsewhere.
+          </Text>
         </View>
       </ScrollView>
 
@@ -213,7 +370,13 @@ export function SettingsScreen() {
 
 const styles = StyleSheet.create({
   body: { paddingBottom: space.xl, maxWidth: 760 },
-  section: { color: colors.accent, fontSize: font.heading, fontWeight: '700', marginTop: space.lg, marginBottom: space.sm },
+  section: {
+    color: colors.accent,
+    fontSize: font.heading,
+    fontWeight: '700',
+    marginTop: space.lg,
+    marginBottom: space.sm,
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -228,7 +391,19 @@ const styles = StyleSheet.create({
   rowLabel: { color: colors.text, fontSize: font.body },
   rowValue: { color: colors.textDim, fontSize: font.body, fontWeight: '600' },
   textOn: { color: colors.accentText },
-  about: { backgroundColor: colors.surface, borderRadius: radius.md, padding: space.lg },
-  aboutText: { color: colors.text, fontSize: font.body, marginBottom: space.xs },
-  aboutDim: { color: colors.textDim, fontSize: font.small, marginTop: space.sm },
+  about: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: space.lg,
+  },
+  aboutText: {
+    color: colors.text,
+    fontSize: font.body,
+    marginBottom: space.xs,
+  },
+  aboutDim: {
+    color: colors.textDim,
+    fontSize: font.small,
+    marginTop: space.sm,
+  },
 });

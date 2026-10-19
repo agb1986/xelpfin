@@ -44,7 +44,10 @@ export interface PlatformServices {
 const DEVICE_ID_KEY = 'xelpfin.deviceId';
 
 /** Stable per-install id the server uses to tell sessions apart. Created on first launch. */
-export async function getOrCreateDeviceId(storage: KeyValueStore, random: () => number = Math.random): Promise<string> {
+export async function getOrCreateDeviceId(
+  storage: KeyValueStore,
+  random: () => number = Math.random,
+): Promise<string> {
   const existing = await storage.get(DEVICE_ID_KEY).catch(() => null);
   if (existing) {
     return existing;
