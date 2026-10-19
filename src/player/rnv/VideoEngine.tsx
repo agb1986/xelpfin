@@ -52,6 +52,8 @@ const VideoView = forwardRef<PlayerViewHandle, PlayerViewProps>(
       () => ({
         uri: plan.url,
         type: plan.streamType === 'hls' ? 'm3u8' : undefined,
+        // Carries the access token (Authorization) for direct play, so the stream URL itself has
+        // no api_key. HLS transcodes keep api_key in the URL, see playback.ts.
         headers: plan.headers,
         startPosition: plan.startPositionMs,
         // Side-loaded (external) subtitles are drawn by the app, see useSubtitleCues.

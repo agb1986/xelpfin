@@ -98,6 +98,21 @@ export interface PlanContext {
   deviceId: string;
 }
 
+/**
+ * Headers the player sends with every media request. The access token travels in the
+ * `Authorization` header rather than as an `api_key` query parameter, so it does not end up in
+ * server, reverse proxy or CDN access logs. Jellyfin accepts a bare `MediaBrowser Token="..."`
+ * for a signed-in session.
+ */
+export function mediaHeaders(ctx: PlanContext): Record<string, string> {
+  // Same sanitising as http.ts: no line breaks, quotes or backslashes inside the quoted value.
+  const token = ctx.token
+    .replace(/[\r\n]/g, ' ')
+    .replace(/\\/g, '/')
+    .replace(/"/g, "'");
+  return { Authorization: `MediaBrowser Token="${token}"` };
+}
+
 /** Text subtitle tracks are always side-loaded as server-converted WebVTT so switching is instant. */
 export function subtitleTracksFor(
   itemId: string,
@@ -116,9 +131,10 @@ export function subtitleTracksFor(
         IMAGE_SUBTITLE_FORMATS.includes(norm(s.Codec)) ||
         s.IsTextSubtitleStream === false;
       if (!isImage) {
+        // No token in the URL: useSubtitleCues sends the plan's Authorization header.
         const url =
           `${ctx.baseUrl}/Videos/${encodeURIComponent(itemId)}/${encodeURIComponent(source.Id)}` +
-          `/Subtitles/${s.Index}/0/Stream.vtt${buildQuery({ api_key: ctx.token })}`;
+          `/Subtitles/${s.Index}/0/Stream.vtt`;
         return { ...t, delivery: 'external', url, mimeType: 'text/vtt' };
       }
       if (s.Index === burnInIndex) {
@@ -191,7 +207,7 @@ export function buildPlan(
 
   const durationMs = ticksToMs(source.RunTimeTicks);
   const startPositionMs = req.startPositionMs ?? 0;
-  const headers: Record<string, string> = {};
+  const headers = mediaHeaders(ctx);
   const common = {
     itemId: req.itemId,
     mediaSourceId: source.Id,
@@ -207,6 +223,7 @@ export function buildPlan(
   };
 
   if (canDirect) {
+    // One progressive request that ExoPlayer makes itself, so the token goes in `headers`.
     const url =
       `${ctx.baseUrl}/Videos/${encodeURIComponent(req.itemId)}/stream` +
       buildQuery({
@@ -214,7 +231,6 @@ export function buildPlan(
         mediaSourceId: source.Id,
         playSessionId,
         deviceId: ctx.deviceId,
-        api_key: ctx.token,
       });
     return {
       ...common,
@@ -242,6 +258,12 @@ export function buildPlan(
       'unsupported',
     );
   }
+  // HLS is the one place the token stays in the URL. ExoPlayer requests the playlist with the
+  // plan's headers, but the segment and key requests follow the addresses the server writes into
+  // that playlist, and those addresses only carry the token when it arrived as `api_key` on the
+  // playlist request. Without it the segment requests would be anonymous and rejected. Direct
+  // play and subtitles are single requests the player makes itself, so they use the
+  // Authorization header instead (see `mediaHeaders`).
   if (!/[?&]api_key=/i.test(url)) {
     url += `${url.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(ctx.token)}`;
   }
