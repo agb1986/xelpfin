@@ -1,5 +1,6 @@
 import type { ForwardRefExoticComponent, RefAttributes } from 'react';
 import type { PlaybackPlan } from '../backend/types';
+import type { PlayerFailure } from './errors';
 
 export interface PlayerViewHandle {
   seek(positionMs: number): void;
@@ -18,7 +19,8 @@ export interface PlayerViewProps {
   onProgress?(e: { positionMs: number; bufferedMs: number }): void;
   onBuffering?(buffering: boolean): void;
   onEnd?(): void;
-  onError?(message: string): void;
+  /** The engine's error as it came (see `playerError`), or a message for engines without one. */
+  onError?(failure: PlayerFailure): void;
 }
 
 /**
