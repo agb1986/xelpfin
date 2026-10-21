@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { Backend, ServerConnector } from '../backend/Backend';
@@ -12,14 +13,18 @@ import { CachedBackend } from '../backend/CachedBackend';
 import type { ServerInfo, Session } from '../backend/types';
 import type { DeviceCapabilities } from '../player/capabilities';
 import { withAudioPassthrough, withBitrateCap } from '../player/capabilities';
-import type { PlatformServices } from '../platform/types';
+import type { CertificatePin, PlatformServices } from '../platform/types';
 import { guardBackend } from './authGuard';
 import {
   loadServers,
   loadSession,
+  pinForUrl,
+  pinsFor,
   rememberServer,
   saveServers,
   saveSession,
+  sameTlsEndpoint,
+  withCertificate,
 } from './servers';
 import {
   DEFAULT_SETTINGS,
@@ -52,6 +57,14 @@ export interface AppStateValue {
   finishExpiry(): void;
   /** Device capabilities with the user's bitrate cap and audio passthrough choice applied. */
   capabilities(): Promise<DeviceCapabilities>;
+  /**
+   * Trusts this exact certificate for its host and port from now on. Saved servers on that
+   * endpoint take the new pin. Resolves once the platform enforces it, so a retry right after
+   * goes through. Rejects when the platform cannot pin certificates.
+   */
+  trustCertificate(pin: CertificatePin): Promise<void>;
+  /** The certificate pinned for this URL's https host and port, if any. */
+  certificatePin(url: string): string | undefined;
 }
 
 const Ctx = createContext<AppStateValue | null>(null);
@@ -79,14 +92,26 @@ export interface Boot {
   session?: Session;
 }
 
-/** Reads persisted state. Does no network I/O, so the first screen shows immediately. */
+/**
+ * Reads persisted state and hands the saved certificate pins to the platform before anything
+ * connects. Does no network I/O, so the first screen shows immediately.
+ */
 export async function loadBoot(platform: PlatformServices): Promise<Boot> {
   const [settings, servers, session] = await Promise.all([
     loadSettings(platform.storage),
     loadServers(platform.storage),
     loadSession(platform.storage),
   ]);
+  await pushPins(platform, pinsFor([session?.server, ...servers]));
   return { settings, servers, session };
+}
+
+async function pushPins(platform: PlatformServices, pins: CertificatePin[]) {
+  try {
+    await platform.tls?.setPins(pins);
+  } catch {
+    // Without pins a self-signed server fails closed, which is the safe direction.
+  }
 }
 
 export function AppStateProvider({
@@ -108,6 +133,24 @@ export function AppStateProvider({
   const [authExpired, setAuthExpired] = useState<ServerInfo>();
   // Responses are keyed by server and user, and the cache is emptied whenever the session ends.
   const [cache] = useState(() => new ResponseCache());
+  // Certificates accepted in this run for servers not saved yet (the user has not signed in).
+  const accepted = useRef<CertificatePin[]>([]);
+  const latest = useRef({ servers, session });
+  latest.current = { servers, session };
+  const currentPins = useCallback(
+    () =>
+      pinsFor([
+        latest.current.session?.server,
+        ...latest.current.servers,
+        ...accepted.current.map(p => ({
+          id: '',
+          name: '',
+          url: `https://${bracket(p.host)}:${p.port}`,
+          certSha256: p.sha256,
+        })),
+      ]),
+    [],
+  );
   const backend = useMemo(
     () =>
       session
@@ -121,6 +164,10 @@ export function AppStateProvider({
   useEffect(() => {
     saveSettings(platform.storage, settings);
   }, [platform, settings]);
+
+  useEffect(() => {
+    pushPins(platform, currentPins());
+  }, [platform, currentPins, servers, session]);
 
   const updateSettings = useCallback(
     (patch: Partial<Settings>) => setSettings(s => ({ ...s, ...patch })),
@@ -165,11 +212,48 @@ export function AppStateProvider({
   const forgetServer = useCallback(
     (id: string) =>
       setServers(list => {
+        const gone = list.find(s => s.id === id);
+        if (gone) {
+          accepted.current = accepted.current.filter(
+            p =>
+              !sameTlsEndpoint(
+                gone.url,
+                `https://${bracket(p.host)}:${p.port}`,
+              ),
+          );
+        }
         const next = list.filter(s => s.id !== id);
         saveServers(platform.storage, next);
         return next;
       }),
     [platform],
+  );
+
+  const trustCertificate = useCallback(
+    async (pin: CertificatePin) => {
+      const tls = platform.tls;
+      if (!tls) {
+        throw new Error('This device cannot trust self-signed certificates');
+      }
+      const url = `https://${bracket(pin.host)}:${pin.port}`;
+      accepted.current = [
+        ...accepted.current.filter(
+          p => !sameTlsEndpoint(url, `https://${bracket(p.host)}:${p.port}`),
+        ),
+        pin,
+      ];
+      const next = withCertificate(latest.current.servers, url, pin.sha256);
+      latest.current = { ...latest.current, servers: next };
+      await tls.setPins(currentPins());
+      setServers(next);
+      saveServers(platform.storage, next);
+    },
+    [platform, currentPins],
+  );
+
+  const certificatePin = useCallback(
+    (url: string) => pinForUrl(currentPins(), url),
+    [currentPins],
   );
 
   const capabilities = useCallback(
@@ -198,6 +282,8 @@ export function AppStateProvider({
       authExpired,
       finishExpiry,
       capabilities,
+      trustCertificate,
+      certificatePin,
     }),
     [
       platform,
@@ -212,7 +298,11 @@ export function AppStateProvider({
       authExpired,
       finishExpiry,
       capabilities,
+      trustCertificate,
+      certificatePin,
     ],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
+
+const bracket = (host: string) => (host.includes(':') ? `[${host}]` : host);

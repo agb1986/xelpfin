@@ -13,6 +13,7 @@ import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.facebook.react.bridge.ReadableArray
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -26,7 +27,8 @@ import kotlin.concurrent.thread
  *  - a UDP broadcast round trip for server discovery (the payload and reply parsing are in TS),
  *  - the list of hardware/software video and audio decoders, for the playback device profile,
  *  - the HDR formats of the display and the encodings the audio output accepts, for the same,
- *  - static device info.
+ *  - static device info,
+ *  - trust on first use for self-signed HTTPS servers (see [CertificatePins]).
  * Nothing here talks to any host except the addresses the caller passes in.
  */
 class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJavaModule(ctx) {
@@ -195,6 +197,64 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
     }
   }
 
+  /**
+   * Reads the certificate chain [host]:[port] presents, without completing the handshake or
+   * sending any request. Resolves to { host, port, trusted, trustError?, chain: [{ sha256,
+   * subject, issuer, notBefore, notAfter, selfSigned }] }, leaf first; `trusted` is the system
+   * trust store's verdict. The caller shows the leaf fingerprint before calling
+   * [setPinnedCertificates] with it.
+   */
+  @ReactMethod
+  fun inspectCertificate(host: String, port: Int, timeoutMs: Int, promise: Promise) {
+    thread(name = "xelpfin-tls-inspect", isDaemon = true) {
+      try {
+        val r = CertificatePins.inspect(host, port, timeoutMs.coerceIn(500, MAX_INSPECT_MS))
+        val chain = Arguments.createArray()
+        r.chain.forEach { c ->
+          val m = Arguments.createMap()
+          m.putString("sha256", CertificatePins.fingerprint(c))
+          m.putString("subject", c.subjectX500Principal.name)
+          m.putString("issuer", c.issuerX500Principal.name)
+          m.putDouble("notBefore", c.notBefore.time.toDouble())
+          m.putDouble("notAfter", c.notAfter.time.toDouble())
+          m.putBoolean("selfSigned", c.subjectX500Principal == c.issuerX500Principal)
+          chain.pushMap(m)
+        }
+        val out = Arguments.createMap()
+        out.putString("host", host)
+        out.putInt("port", port)
+        out.putBoolean("trusted", r.systemError == null)
+        r.systemError?.let { out.putString("trustError", it) }
+        out.putArray("chain", chain)
+        promise.resolve(out)
+      } catch (e: Exception) {
+        promise.reject("E_TLS", e.message ?: e.javaClass.simpleName, e)
+      }
+    }
+  }
+
+  /**
+   * Replaces the pinned certificates: [{ host, port, sha256 }]. A pin is only consulted when the
+   * system trust store rejects a chain, and only matches that host and port's leaf certificate.
+   */
+  @ReactMethod
+  fun setPinnedCertificates(pins: ReadableArray, promise: Promise) {
+    try {
+      val map = HashMap<String, String>()
+      for (i in 0 until pins.size()) {
+        val p = pins.getMap(i) ?: continue
+        val host = p.getString("host") ?: continue
+        val sha = p.getString("sha256") ?: continue
+        if (!p.hasKey("port")) continue
+        map[CertificatePins.key(host, p.getInt("port"))] = sha
+      }
+      CertificatePins.setPins(map)
+      promise.resolve(null)
+    } catch (e: Exception) {
+      promise.reject("E_TLS", e.message, e)
+    }
+  }
+
   private fun isHardware(info: MediaCodecInfo): Boolean =
       if (Build.VERSION.SDK_INT >= 29) info.isHardwareAccelerated
       else !info.name.startsWith("OMX.google.") && !info.name.startsWith("c2.android.")
@@ -203,5 +263,6 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
     const val NAME = "XelpfinPlatform"
     const val MAX_DISCOVERY_REPLIES = 64
     const val MAX_DISCOVERY_MS = 10_000
+    const val MAX_INSPECT_MS = 15_000
   }
 }

@@ -100,3 +100,31 @@ describe('firetv capabilities()', () => {
     expect(getDecoders).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('firetv tls', () => {
+  it('is undefined when the native module cannot pin certificates', () => {
+    expect(load(undefined).tls).toBeUndefined();
+    expect(load({ inspectCertificate: jest.fn() }).tls).toBeUndefined();
+  });
+
+  it('forwards inspection and pins to the native module', async () => {
+    const inspection = {
+      host: 'jf.lan',
+      port: 8920,
+      trusted: false,
+      chain: [],
+    };
+    const inspectCertificate = jest.fn().mockResolvedValue(inspection);
+    const setPinnedCertificates = jest.fn().mockResolvedValue(undefined);
+    const platform = load({ inspectCertificate, setPinnedCertificates });
+    expect(await platform.tls!.inspect('jf.lan', 8920)).toBe(inspection);
+    expect(inspectCertificate).toHaveBeenCalledWith(
+      'jf.lan',
+      8920,
+      expect.any(Number),
+    );
+    const pins = [{ host: 'jf.lan', port: 8920, sha256: 'AA' }];
+    await platform.tls!.setPins(pins);
+    expect(setPinnedCertificates).toHaveBeenCalledWith(pins);
+  });
+});
