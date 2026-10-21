@@ -9,7 +9,7 @@ import React, {
 import type { Backend, ServerConnector } from '../backend/Backend';
 import type { ServerInfo, Session } from '../backend/types';
 import type { DeviceCapabilities } from '../player/capabilities';
-import { withBitrateCap } from '../player/capabilities';
+import { withAudioPassthrough, withBitrateCap } from '../player/capabilities';
 import type { PlatformServices } from '../platform/types';
 import { guardBackend } from './authGuard';
 import {
@@ -48,7 +48,7 @@ export interface AppStateValue {
   authExpired?: ServerInfo;
   /** Drops the expired session; call after navigating away from signed-in screens. */
   finishExpiry(): void;
-  /** Device capabilities with the user's bitrate cap applied. */
+  /** Device capabilities with the user's bitrate cap and audio passthrough choice applied. */
   capabilities(): Promise<DeviceCapabilities>;
 }
 
@@ -167,11 +167,14 @@ export function AppStateProvider({
 
   const capabilities = useCallback(
     async () =>
-      withBitrateCap(
-        await platform.capabilities(),
-        settings.maxBitrate || undefined,
+      withAudioPassthrough(
+        withBitrateCap(
+          await platform.capabilities(),
+          settings.maxBitrate || undefined,
+        ),
+        settings.audioPassthrough,
       ),
-    [platform, settings.maxBitrate],
+    [platform, settings.maxBitrate, settings.audioPassthrough],
   );
 
   const value = useMemo<AppStateValue>(

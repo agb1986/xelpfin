@@ -4,7 +4,9 @@ import type { UdpReply, UdpTransport } from '../../backend/jellyfin/discovery';
 import {
   BASELINE_CAPABILITIES,
   capabilitiesFromAndroid,
+  type AndroidAudioCapabilities,
   type AndroidDecoder,
+  type AndroidDisplayCapabilities,
   type DeviceCapabilities,
 } from '../../player/capabilities';
 import type { DeviceInfo, KeyValueStore, PlatformServices } from '../types';
@@ -18,6 +20,9 @@ interface XelpfinPlatformNative {
     extraHosts: string[],
   ): Promise<UdpReply[]>;
   getDecoders(): Promise<AndroidDecoder[]>;
+  /** Optional: older builds of the module lack it, so it is called defensively. */
+  getDisplayCapabilities?(): Promise<AndroidDisplayCapabilities>;
+  getAudioCapabilities?(): Promise<AndroidAudioCapabilities>;
   [k: string]: unknown;
 }
 
@@ -61,6 +66,37 @@ const udp: UdpTransport | undefined = native
     }
   : undefined;
 
+/** Calls an optional native query; a missing method or a rejection means "unknown". */
+async function optional<T>(
+  query: (() => Promise<T>) | undefined,
+): Promise<T | undefined> {
+  if (typeof query !== 'function') {
+    return undefined;
+  }
+  try {
+    return await query();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Asks the module for decoders, display HDR formats and audio sink formats. Only the decoder
+ * list is essential: without it (or when it is empty, as on an emulator without video
+ * decoders) the baseline profile is used; the other two degrade to "none".
+ */
+async function queryCapabilities(
+  mod: XelpfinPlatformNative,
+): Promise<DeviceCapabilities> {
+  const [decoders, display, audio] = await Promise.all([
+    mod.getDecoders(),
+    optional(mod.getDisplayCapabilities?.bind(mod)),
+    optional(mod.getAudioCapabilities?.bind(mod)),
+  ]);
+  const caps = capabilitiesFromAndroid(decoders, { display, audio });
+  return caps.video.length ? caps : BASELINE_CAPABILITIES;
+}
+
 let capsPromise: Promise<DeviceCapabilities> | undefined;
 
 /** Fire TV / Android TV implementation of {@link PlatformServices}. */
@@ -73,13 +109,7 @@ export function createFireTvPlatform(): PlatformServices {
     udp,
     capabilities() {
       capsPromise ??= native
-        ? native
-            .getDecoders()
-            .then(d => {
-              const caps = capabilitiesFromAndroid(d);
-              return caps.video.length ? caps : BASELINE_CAPABILITIES;
-            })
-            .catch(() => BASELINE_CAPABILITIES)
+        ? queryCapabilities(native).catch(() => BASELINE_CAPABILITIES)
         : Promise.resolve(BASELINE_CAPABILITIES);
       return capsPromise;
     },

@@ -34,14 +34,19 @@ auth, forbidden (HTTP 403), notFound, server, unsupported, timeout), and the UI 
 ### Jellyfin implementation (`src/backend/jellyfin`)
 
 - `http.ts` is a thin fetch wrapper. It builds the `Authorization: MediaBrowser Client="xelpfin",
-  Device=..., DeviceId=..., Version=..., Token=...` header, applies timeouts, and maps HTTP
+Device=..., DeviceId=..., Version=..., Token=...` header, applies timeouts, and maps HTTP
   failures to `BackendError`. `fetch` is injectable, which is how the unit tests mock it.
 - `discovery.ts` sends `Who is JellyfinServer?` to UDP port 7359 through the platform's
   `UdpTransport` (a broadcast plus optional unicast hints), parses the JSON replies, and
   de-duplicates them by server id.
 - `deviceProfile.ts` turns `DeviceCapabilities` into a Jellyfin DeviceProfile. Direct play is
-  allowed for every container ExoPlayer demuxes with decodable codecs. Anything else transcodes to
-  HLS (MPEG-TS) with h264, or hevc when the device decodes it, plus aac or ac3.
+  allowed for every container ExoPlayer demuxes with decodable codecs, up to `MaxStaticBitrate`.
+  Anything else goes through HLS with fMP4 segments: the profile lists every codec ExoPlayer plays
+  from fMP4 (h264, hevc, av1 when decodable; aac, ac3, eac3, ...), so a file with the right codecs
+  in the wrong container is remuxed (DirectStream) rather than re-encoded, and a real transcode
+  targets h264 and aac. HLS with MPEG-TS segments stays as a fallback. `VideoRangeType` conditions
+  per codec allow HDR10, HLG and Dolby Vision only when the display reports them; an 8-bit codec
+  or an SDR display is limited to SDR, so the server tone-maps.
 - `playback.ts` posts `/Items/{id}/PlaybackInfo` with that profile and then makes its own direct
   play check (`directPlayBlockers`), so the UI can say why a stream is transcoded. It builds
   either a static stream URL (direct play) or the server's HLS transcoding URL. Text subtitle
@@ -65,6 +70,10 @@ and for working on the UI without a server.
   `trackSelection.ts` maps backend stream indexes onto ExoPlayer's tracks.
 - `capabilities.ts` converts the Android decoder list (`MediaCodecList`, read by the platform
   module) into `DeviceCapabilities`, including the maximum resolution and 10-bit support per codec.
+  AV1 and VP9 count only with a hardware decoder. It also maps the display's HDR types
+  (`Display.getHdrCapabilities`) and the encodings the audio output accepts (`AudioManager`); the
+  latter are kept apart as `passthrough` and only merged into the playable audio codecs by
+  `withAudioPassthrough` when the `audioPassthrough` setting is on.
 - Subtitles: text subtitles are drawn by the app, not by the native player.
   - `useSubtitleCues` fetches the WebVTT for the selected track, `webvtt.ts` parses it (the parser
     also accepts SRT), and `ui/components/SubtitleText` draws the cue for the current position.
@@ -104,11 +113,13 @@ and for working on the UI without a server.
 - `device` (model, OS, ABIs, whether it is an emulator or a Fire TV),
 - `storage` (a key/value store),
 - `udp` (a discovery transport, which is optional),
-- `capabilities()` (the decoders),
+- `capabilities()` (the decoders, display HDR formats and audio sink formats),
 - `discoveryHints()` and `addressHint()`.
 
 - `firetv/` implements it with AsyncStorage and a small Kotlin module (`android/app/src/main/java/com/xelpfin/app/platform/XelpfinPlatformModule.kt`).
-  The module sends and receives UDP for discovery and lists the decoders through `MediaCodecList`.
+  The module sends and receives UDP for discovery, lists the decoders through `MediaCodecList`,
+  and reports the display's HDR types and the audio outputs' encodings; the last two degrade to
+  "none" when the query is missing or fails (emulator, tests).
   On the emulator it adds `10.0.2.2` as a unicast discovery hint, because broadcasts do not reach
   the host there.
 - `vega/` is the boundary stub. It keeps storage in memory, has no UDP, and reports the baseline
@@ -226,6 +237,7 @@ reach the screen. Media keys (play/pause, rewind, fast forward) work in every ov
 
   It reads the UI with `uiautomator dump` (`scripts/ui.py`). It compares the result with the
   server's sessions and user data, and samples subtitle pixels (`scripts/pixels.py`).
+
 - Both scripts only talk to `emulator-*` serials and 127.0.0.1. `XELPFIN_APK` selects the APK, so
   they run unchanged against the release build.
 

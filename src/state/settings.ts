@@ -10,6 +10,12 @@ export interface Settings {
   preferredLanguage: string;
   autoplayNext: boolean;
   showDebugOverlay: boolean;
+  /**
+   * Bitstream compressed audio (AC-3, E-AC-3, TrueHD, DTS) to the TV or receiver when it reports
+   * that it decodes the format, instead of asking the server to transcode it. Off by default:
+   * on a sink that lies about its formats the result is silence.
+   */
+  audioPassthrough: boolean;
   /** Font size of text subtitles drawn by the app, in dp. */
   subtitleSize: number;
   subtitleColor: string;
@@ -24,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   preferredLanguage: '',
   autoplayNext: true,
   showDebugOverlay: false,
+  audioPassthrough: false,
   subtitleSize: 22,
   subtitleColor: '#ffffff',
   subtitleBackground: 'box',
@@ -105,6 +112,9 @@ export function sanitizeSettings(raw: unknown): Settings {
   }
   if (typeof r.showDebugOverlay === 'boolean') {
     s.showDebugOverlay = r.showDebugOverlay;
+  }
+  if (typeof r.audioPassthrough === 'boolean') {
+    s.audioPassthrough = r.audioPassthrough;
   }
   if (SUBTITLE_SIZE_CHOICES.some(c => c.value === r.subtitleSize)) {
     s.subtitleSize = r.subtitleSize as number;
