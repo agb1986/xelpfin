@@ -7,6 +7,8 @@ import React, {
   useState,
 } from 'react';
 import type { Backend, ServerConnector } from '../backend/Backend';
+import { ResponseCache } from '../backend/cache';
+import { CachedBackend } from '../backend/CachedBackend';
 import type { ServerInfo, Session } from '../backend/types';
 import type { DeviceCapabilities } from '../player/capabilities';
 import { withAudioPassthrough, withBitrateCap } from '../player/capabilities';
@@ -104,14 +106,16 @@ export function AppStateProvider({
   const [servers, setServers] = useState<ServerInfo[]>(boot.servers);
   const [session, setSession] = useState<Session | undefined>(boot.session);
   const [authExpired, setAuthExpired] = useState<ServerInfo>();
+  // Responses are keyed by server and user, and the cache is emptied whenever the session ends.
+  const [cache] = useState(() => new ResponseCache());
   const backend = useMemo(
     () =>
       session
-        ? guardBackend(connector.open(session), () =>
+        ? guardBackend(new CachedBackend(connector.open(session), cache), () =>
             setAuthExpired(session.server),
           )
         : undefined,
-    [connector, session],
+    [cache, connector, session],
   );
 
   useEffect(() => {
@@ -125,6 +129,7 @@ export function AppStateProvider({
 
   const signIn = useCallback(
     (s: Session) => {
+      cache.clear();
       setAuthExpired(undefined);
       setSession(s);
       saveSession(platform.storage, s);
@@ -134,26 +139,28 @@ export function AppStateProvider({
         return next;
       });
     },
-    [platform],
+    [cache, platform],
   );
 
   const signOut = useCallback(
     async (leave: () => void) => {
       await backend?.logout().catch(() => undefined);
       await saveSession(platform.storage, undefined);
+      cache.clear();
       // Synchronous, so React applies both updates in one render.
       leave();
       setSession(undefined);
     },
-    [backend, platform],
+    [backend, cache, platform],
   );
 
   const finishExpiry = useCallback(() => {
     // The token is already dead on the server, so there is nothing to log out of.
+    cache.clear();
     setAuthExpired(undefined);
     setSession(undefined);
     saveSession(platform.storage, undefined);
-  }, [platform]);
+  }, [cache, platform]);
 
   const forgetServer = useCallback(
     (id: string) =>

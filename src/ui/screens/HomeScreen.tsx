@@ -1,5 +1,7 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
+import type { Backend } from '../../backend/Backend';
+import { peekBackend } from '../../backend/CachedBackend';
 import type { Library, MediaItem } from '../../backend/types';
 import { BackendError } from '../../backend/types';
 import { useApp, useBackend } from '../../state/AppState';
@@ -14,15 +16,45 @@ import {
   MediaRow,
   TopBar,
 } from '../components';
-import { useAsync } from '../hooks';
+import { useAsync, useRefreshOnReturn } from '../hooks';
 import { colors, space } from '../theme';
 import { openItem } from './navigate';
 
-interface HomeData {
+const ROW_LIMIT = 24;
+
+/** The catalogue rows: libraries and the newest items of each. */
+interface Shelves {
   libraries: Library[];
+  latest: { library: Library; items: MediaItem[] }[];
+}
+
+/** The rows that change with every play. */
+interface Progress {
   resume: MediaItem[];
   nextUp: MediaItem[];
-  latest: { library: Library; items: MediaItem[] }[];
+}
+
+/** Shelves straight from the backend's cache, or nothing when any row is missing. */
+function peekShelves(backend: Backend): Shelves | undefined {
+  const libraries = peekBackend(backend, 'libraries');
+  if (!libraries) {
+    return undefined;
+  }
+  const latest: Shelves['latest'] = [];
+  for (const library of libraries) {
+    const items = peekBackend(backend, 'latest', library.id, ROW_LIMIT);
+    if (!items) {
+      return undefined;
+    }
+    latest.push({ library, items });
+  }
+  return { libraries, latest };
+}
+
+function peekProgress(backend: Backend): Progress | undefined {
+  const resume = peekBackend(backend, 'resume', ROW_LIMIT);
+  const nextUp = peekBackend(backend, 'nextUp', ROW_LIMIT);
+  return resume && nextUp ? { resume, nextUp } : undefined;
 }
 
 /** Continue Watching, Next Up and the newest items per library. */
@@ -34,31 +66,43 @@ export function HomeScreen() {
   const randomizer = useRandomizer();
   const { hidden } = useHiddenNextUp();
 
-  const home = useAsync<HomeData>(async () => {
-    const libraries = await backend.libraries();
-    // Rows load in parallel; one failing row should not blank the whole screen.
-    const [resume, nextUp, ...latest] = await Promise.all([
-      backend.resume(24).catch(() => []),
-      backend.nextUp(24).catch(() => []),
-      ...libraries.map(l => backend.latest(l.id, 24).catch(() => [])),
-    ]);
-    return {
-      libraries,
-      resume,
-      nextUp,
-      latest: libraries.map((library, i) => ({ library, items: latest[i] })),
-    };
-  }, [backend]);
+  const shelves = useAsync<Shelves>(
+    async () => {
+      const libraries = await backend.libraries();
+      // Rows load in parallel; one failing row should not blank the whole screen.
+      const latest = await Promise.all(
+        libraries.map(l => backend.latest(l.id, ROW_LIMIT).catch(() => [])),
+      );
+      return {
+        libraries,
+        latest: libraries.map((library, i) => ({ library, items: latest[i] })),
+      };
+    },
+    [backend],
+    { initial: () => peekShelves(backend) },
+  );
+  const progress = useAsync<Progress>(
+    async () => {
+      const [resume, nextUp] = await Promise.all([
+        backend.resume(ROW_LIMIT).catch(() => []),
+        backend.nextUp(ROW_LIMIT).catch(() => []),
+      ]);
+      return { resume, nextUp };
+    },
+    [backend],
+    { initial: () => peekProgress(backend) },
+  );
 
-  // Refresh progress and next-up when coming back from the player or a detail page.
-  const { reload } = home;
-  const wasActive = useRef(active);
-  useEffect(() => {
-    if (active && !wasActive.current) {
-      reload();
-    }
-    wasActive.current = active;
-  }, [active, reload]);
+  // Coming back from the player or a detail page only refreshes the rows that playback changes;
+  // the backend's cache answers from memory when nothing was played in the meantime.
+  const reloadProgress = progress.reload;
+  useRefreshOnReturn(active, backend, reloadProgress);
+
+  const reloadShelves = shelves.reload;
+  const reloadAll = useCallback(() => {
+    reloadShelves();
+    reloadProgress();
+  }, [reloadShelves, reloadProgress]);
 
   const resumeItem = useCallback(
     (item: MediaItem) => openItem(nav, item, { resume: true }),
@@ -68,15 +112,15 @@ export function HomeScreen() {
   // Loading the pool takes a moment; a second press meanwhile would draw and open a second episode.
   const drawing = useRef(false);
 
-  if (!home.data) {
-    if (home.status === 'error') {
+  if (!shelves.data || !progress.data) {
+    if (shelves.status === 'error') {
       const authFailed =
-        home.error instanceof BackendError && home.error.kind === 'auth';
+        shelves.error instanceof BackendError && shelves.error.kind === 'auth';
       return (
         <View style={styles.root}>
           <ErrorView
-            error={home.error}
-            onRetry={home.reload}
+            error={shelves.error}
+            onRetry={reloadAll}
             hasTVPreferredFocus
           />
           {authFailed ? (
@@ -128,8 +172,9 @@ export function HomeScreen() {
     }
   };
 
-  const { libraries, resume, latest } = home.data;
-  const nextUp = withoutHidden(home.data.nextUp, hidden);
+  const { libraries, latest } = shelves.data;
+  const { resume } = progress.data;
+  const nextUp = withoutHidden(progress.data.nextUp, hidden);
   const empty =
     !resume.length && !nextUp.length && latest.every(l => !l.items.length);
   const firstRow = resume.length ? 'resume' : nextUp.length ? 'next' : 'latest';
