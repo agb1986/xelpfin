@@ -48,6 +48,64 @@ export function imageFor(
 }
 
 export const cardSize = (variant: CardVariant) => card[variant];
+
+/**
+ * Device pixels a card's image needs: its dp size at the focus scale, at the given density.
+ * The backend's image boxes are derived from this at density 2 so the server never sends a
+ * bigger image than a focused card shows.
+ */
+export function cardImagePixels(
+  variant: CardVariant,
+  density = 2,
+): { width: number; height: number } {
+  const { width, height } = card[variant];
+  return {
+    width: Math.ceil(width * focusScale * density),
+    height: Math.ceil(height * focusScale * density),
+  };
+}
+
+/** Remembers what has been prefetched so scrolling back and forth does not re-request it. */
+const prefetched = new Set<string>();
+const PREFETCH_MEMORY = 2000;
+
+/**
+ * Warms the image cache with the card images of items that are not on screen yet, such as the
+ * next page of a grid. Failures are ignored: the card simply loads the image itself later.
+ */
+export function prefetchCardImages(
+  items: readonly MediaItem[],
+  variant: CardVariant,
+): number {
+  let started = 0;
+  for (const item of items) {
+    const uri = imageFor(item, variant);
+    if (!uri || prefetched.has(uri)) {
+      continue;
+    }
+    if (prefetched.size >= PREFETCH_MEMORY) {
+      prefetched.clear();
+    }
+    prefetched.add(uri);
+    started++;
+    const forget = () => prefetched.delete(uri);
+    try {
+      Promise.resolve(Image.prefetch(uri)).then(ok => {
+        if (ok === false) {
+          forget();
+        }
+      }, forget);
+    } catch {
+      forget();
+    }
+  }
+  return started;
+}
+
+/** Test hook: forgets what was prefetched. */
+export function resetCardPrefetch(): void {
+  prefetched.clear();
+}
 /** Full width a card takes in a row, for getItemLayout. */
 export const cardStride = (variant: CardVariant) =>
   card[variant].width + card.gap;
