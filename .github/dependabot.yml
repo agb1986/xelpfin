@@ -1,0 +1,51 @@
+# Weekly dependency updates. Minor and patch updates are grouped into one pull request per
+# ecosystem; major updates arrive one per pull request so each can be reviewed on its own.
+# Dependabot commit messages follow Conventional Commits: build(deps) for npm, ci(deps) for
+# GitHub Actions. The repo derives its version from commit types, so neither bumps the release.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: build
+      prefix-development: build
+      include: scope
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # react-native is aliased to react-native-tvos. The TV fork, the @react-native packages,
+      # the CLI and React have to move together (a 0.x minor is a breaking React Native
+      # release), so only their patch updates come from Dependabot; the rest is done by hand.
+      - dependency-name: react-native
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: '@react-native/*'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: '@react-native-community/cli*'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: react
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: react-test-renderer
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      - dependency-name: '@types/react*'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch
