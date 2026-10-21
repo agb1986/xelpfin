@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.3](https://github.com/agb1986/xelpfin/compare/v0.1.2...v0.1.3) (2026-10-21)
+
+### Features
+
+* **backend:** retry idempotent requests and honour ETags ([c6de6e6](https://github.com/agb1986/xelpfin/commit/c6de6e6b1d8ae5bfe7de862b181a9c8d5c5e741e))
+
+### Bug Fixes
+
+* **player:** send the access token as a header instead of api_key in stream URLs ([7df9e87](https://github.com/agb1986/xelpfin/commit/7df9e87ec620a314c4927fd924f012c89ad20a5c))
+* **ui:** cap navigation stack depth to bound memory ([662aa71](https://github.com/agb1986/xelpfin/commit/662aa7184d47df28d0a3e215992b69dd7b2fa06e))
+
 ## [0.1.2](https://github.com/agb1986/xelpfin/compare/v0.1.1...v0.1.2) (2026-10-18)
 
 ### Bug Fixes
