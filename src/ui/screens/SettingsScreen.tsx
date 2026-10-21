@@ -11,6 +11,7 @@ import {
   SUBTITLE_BACKGROUND_CHOICES,
   SUBTITLE_CHOICES,
   SUBTITLE_COLOR_CHOICES,
+  SUBTITLE_LANGUAGE_CHOICES,
   SUBTITLE_SIZE_CHOICES,
 } from '../../state/settings';
 import { APP_NAME, APP_VERSION } from '../../version';
@@ -62,7 +63,13 @@ type ActionKey = 'continue' | 'nextup' | 'randomizer';
 const CONFIRM_MS = 5000;
 
 type PickerKey =
-  'bitrate' | 'subtitles' | 'language' | 'subsize' | 'subcolor' | 'subbg';
+  | 'bitrate'
+  | 'subtitles'
+  | 'language'
+  | 'sublanguage'
+  | 'subsize'
+  | 'subcolor'
+  | 'subbg';
 const labelOf = <T,>(choices: Option<T>[], v: T) =>
   choices.find(c => c.value === v)?.label ?? String(v);
 
@@ -189,9 +196,18 @@ export function SettingsScreen() {
         />
         <Row
           testID="set-language"
-          label="Preferred audio and subtitle language"
+          label="Preferred audio language"
           value={labelOf(LANGUAGE_CHOICES, settings.preferredLanguage)}
           onPress={() => setPicker('language')}
+        />
+        <Row
+          testID="set-sublanguage"
+          label="Preferred subtitle language"
+          value={labelOf(
+            SUBTITLE_LANGUAGE_CHOICES,
+            settings.preferredSubtitleLanguage,
+          )}
+          onPress={() => setPicker('sublanguage')}
         />
         <Row
           testID="set-subsize"
@@ -330,12 +346,21 @@ export function SettingsScreen() {
       />
       <OptionPicker
         visible={picker === 'language'}
-        title="Preferred language"
+        title="Preferred audio language"
         options={LANGUAGE_CHOICES}
         selected={settings.preferredLanguage}
         onSelect={v => updateSettings({ preferredLanguage: v })}
         onClose={() => setPicker(undefined)}
         testID="pick-language"
+      />
+      <OptionPicker
+        visible={picker === 'sublanguage'}
+        title="Preferred subtitle language"
+        options={SUBTITLE_LANGUAGE_CHOICES}
+        selected={settings.preferredSubtitleLanguage}
+        onSelect={v => updateSettings({ preferredSubtitleLanguage: v })}
+        onClose={() => setPicker(undefined)}
+        testID="pick-sublanguage"
       />
       <OptionPicker
         visible={picker === 'subsize'}
