@@ -93,28 +93,13 @@ const VideoView = forwardRef<PlayerViewHandle, PlayerViewProps>(
         }
         onBuffer={e => props.onBuffering?.(e.isBuffering)}
         onEnd={props.onEnd}
-        onError={e => props.onError?.(describeError(e.error))}
+        // The structured error (errorCode, errorString, stack trace) goes through as is, so
+        // playerError can classify it by code instead of parsing the message.
+        onError={e => props.onError?.(e.error)}
       />
     );
   },
 );
-
-function describeError(err: unknown): string {
-  if (err && typeof err === 'object') {
-    const e = err as Record<string, unknown>;
-    const text = String(
-      e.errorString ??
-        e.localizedDescription ??
-        e.errorException ??
-        'Playback failed',
-    );
-    const code = e.errorCode ?? e.code;
-    return code !== undefined && !text.includes(String(code))
-      ? `${text} (${String(code)})`
-      : text;
-  }
-  return 'Playback failed';
-}
 
 /** react-native-video 6 (media3 ExoPlayer on Android). */
 export const VideoEngine: PlayerEngine = {
