@@ -5,6 +5,12 @@ import {
   SubtitleText,
   subtitleTextStyle,
 } from '../../src/ui/components/SubtitleText';
+import {
+  WARM_UP_TIMEOUT_MS,
+  warmUpReactNative,
+} from '../../test-utils/warmUpReactNative';
+
+beforeAll(warmUpReactNative, WARM_UP_TIMEOUT_MS);
 
 describe('SubtitleText', () => {
   it('styles text by size, colour and background', () => {

@@ -3,6 +3,12 @@ import { Text } from 'react-native';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import type { SubtitleTrack } from '../../src/backend/types';
 import { useSubtitleCues } from '../../src/player/useSubtitleCues';
+import {
+  WARM_UP_TIMEOUT_MS,
+  warmUpReactNative,
+} from '../../test-utils/warmUpReactNative';
+
+beforeAll(warmUpReactNative, WARM_UP_TIMEOUT_MS);
 
 const track: SubtitleTrack = {
   index: 3,
