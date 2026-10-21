@@ -374,3 +374,63 @@ describe('watch state (guest user)', () => {
     await guest.setFavorite(movie().id, false);
   });
 });
+
+// The suite runs against several server releases (npm run jellyfin:matrix). Expectations that
+// differ between releases are keyed on the version the server reports.
+describe('server version', () => {
+  const atLeast = (major: number, minor: number) => {
+    const [a, b] = server.version!.split('.').map(Number);
+    return a > major || (a === major && b >= minor);
+  };
+  const authHeader = () => ({
+    Authorization: `MediaBrowser Client="xelpfin", Device="t", DeviceId="t", Version="0", Token="${admin.session.accessToken}"`,
+  });
+
+  it('is the release that was asked for', () => {
+    const wanted = process.env.JF_VERSION;
+    if (wanted) {
+      expect(`${server.version}.`.startsWith(`${wanted}.`)).toBe(true);
+    }
+  });
+
+  it('serves media segments from 10.10 and falls back to none before', async () => {
+    const show = (await admin.search('test show')).find(
+      i => i.kind === 'series',
+    )!;
+    const episode = (await admin.episodes(show.id))[0];
+    const res = await fetch(`${URL_}/MediaSegments/${episode.id}`, {
+      headers: authHeader(),
+    });
+    if (atLeast(10, 10)) {
+      expect(res.status).toBe(200);
+      expect(Array.isArray((await res.json()).Items)).toBe(true);
+    } else {
+      // No such endpoint: the backend swallows the 404, so the player shows no skip button.
+      expect(res.status).toBe(404);
+    }
+    await expect(admin.mediaSegments(episode.id)).resolves.toEqual([]);
+  });
+
+  // #31 asks for images filled to the card size and encoded as WebP. Every supported release
+  // must honour that, and the older maxWidth form must keep working.
+  it.each([
+    [
+      'fill + webp',
+      'fillWidth=253&fillHeight=379&quality=85&format=Webp',
+      /^image\/webp/,
+    ],
+    ['maxWidth', 'maxWidth=253&quality=90', /^image\//],
+  ])('serves a resized primary image (%s)', async (_label, query, type) => {
+    const id = byName('Night Grid').id;
+    const res = await fetch(`${URL_}/Items/${id}/Images/Primary?${query}`, {
+      headers: authHeader(),
+    });
+    const bytes = (await res.arrayBuffer()).byteLength;
+    console.info(
+      `Jellyfin ${server.version} ${query}: ${res.status} ${res.headers.get('content-type')} ${bytes} bytes`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(type);
+    expect(bytes).toBeGreaterThan(0);
+  });
+});
