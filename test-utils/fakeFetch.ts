@@ -7,9 +7,14 @@ export interface Call {
   body: any;
 }
 
-type Handler = (
-  call: Call,
-) => { status?: number; json?: unknown; text?: string } | Promise<never>;
+type Handler = (call: Call) =>
+  | {
+      status?: number;
+      json?: unknown;
+      text?: string;
+      headers?: Record<string, string>;
+    }
+  | Promise<never>;
 type Route = Handler | object | boolean | string | number;
 
 /** Route table fake for `fetch`: keys are "METHOD /path" (query ignored). Records every call. */
@@ -46,7 +51,10 @@ export function fakeFetch(routes: Record<string, Route>) {
         : { json: route };
     const status = r.status ?? 200;
     const body = r.text ?? (r.json === undefined ? '' : JSON.stringify(r.json));
-    return new Response(status === 204 ? null : body, { status });
+    return new Response(status === 204 || status === 304 ? null : body, {
+      status,
+      headers: r.headers,
+    });
   });
   return { fetch: fn as unknown as typeof fetch, calls };
 }

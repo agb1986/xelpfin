@@ -7,6 +7,9 @@ import { parseWebVtt, type Cue } from './webvtt';
  * by the app rather than the native player: react-native-video 6 on Android builds its progressive
  * and HLS sources directly, which drops side-loaded subtitle configurations, and drawing them in
  * shared code also gives Vega OS the same subtitles for free.
+ *
+ * The track URL carries no token: `headers` is the plan's `Authorization` header, sent with the
+ * fetch so the token stays out of the server's access log.
  */
 export function useSubtitleCues(
   track: SubtitleTrack | undefined,

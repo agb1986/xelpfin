@@ -190,13 +190,20 @@ describe('playback', () => {
     );
     expect(plan.method).toBe('DirectPlay');
     expect(plan.durationMs).toBeGreaterThan(30_000);
-    const res = await fetch(plan.url, { headers: { Range: 'bytes=0-1023' } });
+    // The token is sent as a header, so it never appears in the server's access log (#11).
+    expect(plan.url).not.toContain('api_key');
+    expect(plan.url).not.toContain(admin.session.accessToken);
+    expect(plan.headers.Authorization).toContain('MediaBrowser Token=');
+    const res = await fetch(plan.url, {
+      headers: { ...plan.headers, Range: 'bytes=0-1023' },
+    });
     expect([200, 206]).toContain(res.status);
     const buf = new Uint8Array(await res.arrayBuffer());
     expect(new TextDecoder().decode(buf.slice(4, 8))).toBe('ftyp');
-    // The sidecar .srt is offered as server-converted WebVTT.
+    // The sidecar .srt is offered as server-converted WebVTT, fetched with the same header.
     const sub = plan.subtitleTracks.find(s => s.delivery === 'external')!;
-    const vtt = await (await fetch(sub.url!)).text();
+    expect(sub.url).not.toContain('api_key');
+    const vtt = await (await fetch(sub.url!, { headers: plan.headers })).text();
     expect(vtt.startsWith('WEBVTT')).toBe(true);
   });
 
@@ -209,7 +216,9 @@ describe('playback', () => {
     expect(plan.audioTracks).toHaveLength(2);
     expect(plan.selectedAudioIndex).toBe(2);
     const embedded = plan.subtitleTracks[0];
-    const vtt = await (await fetch(embedded.url!)).text();
+    const vtt = await (
+      await fetch(embedded.url!, { headers: plan.headers })
+    ).text();
     expect(vtt.startsWith('WEBVTT')).toBe(true);
   });
 
@@ -260,7 +269,7 @@ describe('subtitles', () => {
     expect(pgs).toMatchObject({ delivery: 'embedded', containerPosition: 0 });
     // Text tracks are converted to WebVTT by the server so the app can style them.
     expect(ass.delivery).toBe('external');
-    const vtt = await (await fetch(ass.url!)).text();
+    const vtt = await (await fetch(ass.url!, { headers: plan.headers })).text();
     expect(vtt).toContain('WEBVTT');
     await admin.reportStop({ plan, positionMs: 0, isPaused: false });
   });
