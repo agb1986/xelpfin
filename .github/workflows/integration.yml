@@ -1,0 +1,71 @@
+# Integration suite against a real Jellyfin server, using the same scripts as a local run:
+# `npm run jellyfin:up` generates the sample media, starts the jellyfin/jellyfin container on
+# 127.0.0.1:8096 and seeds it with scripts/jellyfin-setup.mjs.
+# Runs nightly, on demand, and on pull requests that touch the backend or the test server scripts.
+name: integration
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/backend/**'
+      - 'src/player/capabilities.ts'
+      - 'integration/**'
+      - 'test-utils/**'
+      - 'scripts/jellyfin-*'
+      - 'scripts/gen-media.sh'
+      - 'scripts/*.py'
+      - 'package-lock.json'
+      - 'jest.integration.config.js'
+      - '.github/workflows/integration.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JF_DIR: ${{ github.workspace }}/../jellyfin-test
+
+jobs:
+  integration:
+    name: integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '20.19'
+          cache: npm
+
+      - name: Install media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core python3-pil
+
+      - name: Cache sample media
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.JF_DIR }}/media
+          key: jellyfin-media-${{ hashFiles('scripts/gen-media.sh', 'scripts/*.py') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start and seed Jellyfin
+        run: npm run jellyfin:up
+
+      - name: Integration tests
+        run: npm run test:integration
+
+      - name: Jellyfin log on failure
+        if: failure()
+        run: docker logs xelpfin-jellyfin 2>&1 | tail -n 200 || true
