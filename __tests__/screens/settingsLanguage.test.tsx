@@ -1,10 +1,11 @@
 /**
  * The preferred-language picker on the settings screen offers the whole ISO 639-2 table,
  * so a language outside the common group (Japanese, Polish) can be chosen and is stored,
- * and the subtitle language can differ from the audio language.
+ * and the subtitle language can differ from the audio language. Rewind and fast-forward jump
+ * by initial letter in both language pickers.
  */
 import React from 'react';
-import { FlatList, Modal } from 'react-native';
+import { FlatList, Modal, TVEventHandler } from 'react-native';
 import ReactTestRenderer, {
   act,
   type ReactTestInstance,
@@ -16,6 +17,7 @@ import type { Session } from '../../src/backend/types';
 import { MemoryStore } from '../../src/platform/types';
 import {
   LANGUAGE_CHOICES,
+  SORTED_LANGUAGES_START,
   SUBTITLE_LANGUAGE_CHOICES,
 } from '../../src/state/settings';
 import { testPlatform } from '../../test-utils/testPlatform';
@@ -179,4 +181,145 @@ test('Japanese audio and Polish subtitles can both be set as defaults', async ()
     preferredSubtitleLanguage: 'pol',
   });
   await act(async () => root.unmount());
+});
+
+describe('jumping by letter with rewind and fast-forward', () => {
+  type Listener = (evt: { eventType: string; eventKeyAction: number }) => void;
+  const listeners = new Set<Listener>();
+  beforeEach(() => {
+    listeners.clear();
+    jest.spyOn(TVEventHandler, 'addListener').mockImplementation(cb => {
+      listeners.add(cb);
+      return { remove: () => listeners.delete(cb) } as never;
+    });
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  /** One remote key; Android TV reports it on key-up (eventKeyAction 1). */
+  const key = async (eventType: string, eventKeyAction = 1) => {
+    await act(async () => {
+      listeners.forEach(l => l({ eventType, eventKeyAction }));
+    });
+    await flush();
+  };
+  /** Rows that ask for focus; the picker marks the jump target. */
+  const preferred = (root: Renderer, picker: string) =>
+    byId(root, picker)
+      .findAll(
+        n =>
+          typeof n.props.testID === 'string' &&
+          n.props.testID.startsWith(`${picker}-`) &&
+          typeof n.type !== 'string' &&
+          n.props.hasTVPreferredFocus === true,
+      )
+      .map(n => n.props.testID)
+      .filter((id, i, all) => all.indexOf(id) === i);
+  const initial = (i: number) => LANGUAGE_CHOICES[i].label.charAt(0);
+
+  test('fast-forward skips the common languages and walks the letters to Japanese', async () => {
+    const { root, store } = await openSettings();
+    await press(root, 'set-language');
+    expect(text(byId(root, 'pick-language-hint'))).toContain('jump by letter');
+    const list = byId(root, 'pick-language').findByType(FlatList);
+    const scrollToIndex = jest.spyOn(list.instance, 'scrollToIndex');
+
+    // Focus starts on "File default"; the first fast-forward lands on the first "A" language.
+    await key('fastForward');
+    expect(preferred(root, 'pick-language')).toEqual([
+      `pick-language-${SORTED_LANGUAGES_START}`,
+    ]);
+    expect(initial(SORTED_LANGUAGES_START)).toBe('A');
+    expect(scrollToIndex).toHaveBeenLastCalledWith(
+      expect.objectContaining({ index: SORTED_LANGUAGES_START }),
+    );
+
+    // Key-down reports are ignored, so one press moves one letter.
+    await key('fastForward', 0);
+    expect(preferred(root, 'pick-language')).toEqual([
+      `pick-language-${SORTED_LANGUAGES_START}`,
+    ]);
+
+    // B, C, ... J: nine more presses, each landing on the first language of its letter.
+    let target = SORTED_LANGUAGES_START;
+    for (const letter of 'BCDEFGHIJ') {
+      await key('fastForward');
+      target = LANGUAGE_CHOICES.findIndex(
+        (c, i) => i >= SORTED_LANGUAGES_START && c.label.startsWith(letter),
+      );
+      expect(initial(target - 1)).not.toBe(letter);
+      expect(scrollToIndex).toHaveBeenLastCalledWith(
+        expect.objectContaining({ index: target }),
+      );
+    }
+    await scrollTo(root, target);
+    expect(preferred(root, 'pick-language')).toEqual([
+      `pick-language-${target}`,
+    ]);
+    expect(text(byId(root, `pick-language-${target}`))).toMatch(/^.J/);
+
+    // D-pad down to Japanese from there, then pick it.
+    const jpn = indexOf('jpn');
+    await press(root, `pick-language-${jpn}`);
+    expect(JSON.parse((await store.get('xelpfin.settings'))!)).toMatchObject({
+      preferredLanguage: 'jpn',
+    });
+    await act(async () => root.unmount());
+  });
+
+  test('rewind goes back a letter from the focused row, then to the top', async () => {
+    const { root } = await openSettings({ preferredLanguage: 'pol' });
+    await press(root, 'set-language');
+    const pol = indexOf('pol');
+    // Focus moved by D-pad to a row in the middle of "P".
+    await scrollTo(root, pol + 1);
+    await act(async () => {
+      byId(root, `pick-language-${pol + 1}`).props.onFocus?.({});
+    });
+    expect(initial(pol + 1)).toBe('P');
+
+    await key('rewind');
+    const firstO = LANGUAGE_CHOICES.findIndex(
+      (c, i) => i >= SORTED_LANGUAGES_START && c.label.startsWith('O'),
+    );
+    await scrollTo(root, firstO);
+    expect(preferred(root, 'pick-language')).toEqual([
+      `pick-language-${firstO}`,
+    ]);
+
+    // Back to the first letter, and one more rewind returns to "File default".
+    for (let i = 0; i < 'ABCDEFGHIJKLMN'.length; i++) {
+      await key('rewind');
+    }
+    await scrollTo(root, SORTED_LANGUAGES_START);
+    expect(preferred(root, 'pick-language')).toEqual([
+      `pick-language-${SORTED_LANGUAGES_START}`,
+    ]);
+    await key('rewind');
+    await scrollTo(root, 0);
+    expect(preferred(root, 'pick-language')).toEqual(['pick-language-0']);
+    await act(async () => root.unmount());
+  });
+
+  test('the subtitle language picker jumps too; other pickers ignore the keys', async () => {
+    const { root } = await openSettings();
+    await press(root, 'set-sublanguage');
+    expect(has(root, 'pick-sublanguage-hint')).toBe(true);
+    await key('fastForward');
+    expect(preferred(root, 'pick-sublanguage')).toEqual([
+      `pick-sublanguage-${SORTED_LANGUAGES_START}`,
+    ]);
+    expect(
+      SUBTITLE_LANGUAGE_CHOICES[SORTED_LANGUAGES_START].label.charAt(0),
+    ).toBe('A');
+
+    // Opening another picker closes this one.
+    await press(root, 'set-bitrate');
+    expect(pickerOpen(root, 'pick-sublanguage')).toBe(false);
+    expect(pickerOpen(root, 'pick-bitrate')).toBe(true);
+    expect(has(root, 'pick-bitrate-hint')).toBe(false);
+    const before = preferred(root, 'pick-bitrate');
+    await key('fastForward');
+    expect(preferred(root, 'pick-bitrate')).toEqual(before);
+    await act(async () => root.unmount());
+  });
 });
