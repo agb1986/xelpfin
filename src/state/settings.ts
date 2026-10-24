@@ -1,4 +1,5 @@
 import type { KeyValueStore } from '../platform/types';
+import { LANGUAGES, SPECIAL_LANGUAGE_CODES, type Language } from './languages';
 
 export type SubtitleMode = 'off' | 'default' | 'always';
 
@@ -6,8 +7,10 @@ export interface Settings {
   /** Bits per second; 0 means no cap beyond what the device supports. */
   maxBitrate: number;
   subtitleMode: SubtitleMode;
-  /** ISO 639-2 code preferred for audio and subtitles, '' for the file default. */
+  /** ISO 639-2/B code preferred for audio (and subtitles, unless set below), '' for the file default. */
   preferredLanguage: string;
+  /** ISO 639-2/B code preferred for subtitles, '' to follow `preferredLanguage`. */
+  preferredSubtitleLanguage: string;
   autoplayNext: boolean;
   showDebugOverlay: boolean;
   /**
@@ -28,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   maxBitrate: 0,
   subtitleMode: 'default',
   preferredLanguage: '',
+  preferredSubtitleLanguage: '',
   autoplayNext: true,
   showDebugOverlay: false,
   audioPassthrough: false,
@@ -73,14 +77,70 @@ export const SUBTITLE_CHOICES: { label: string; value: SubtitleMode }[] = [
   { label: 'Always on', value: 'always' },
 ];
 
-export const LANGUAGE_CHOICES: { label: string; value: string }[] = [
+/** Languages listed at the top of the picker, in this order; the rest follow alphabetically. */
+export const COMMON_LANGUAGE_CODES: readonly string[] = [
+  'eng',
+  'ger',
+  'fre',
+  'spa',
+  'ita',
+  'dut',
+];
+
+/** Every code a stream may carry for a language: ISO 639-2/B, 639-2/T and 639-1. */
+export function languageCodes(language: Language): string[] {
+  return [language.code, language.terminologic, language.alpha2].filter(
+    (c): c is string => !!c,
+  );
+}
+
+const LANGUAGE_BY_CODE: ReadonlyMap<string, Language> = new Map(
+  LANGUAGES.flatMap(l => languageCodes(l).map(c => [c, l] as const)),
+);
+
+/**
+ * The ISO 639-2/B code for any B, T or ISO 639-1 code, matched case-insensitively,
+ * or undefined for a code the table does not know.
+ */
+export function canonicalLanguage(
+  code: string | undefined,
+): string | undefined {
+  return code ? LANGUAGE_BY_CODE.get(code.toLowerCase())?.code : undefined;
+}
+
+/** The first published name, so "Dutch; Flemish" is listed as "Dutch". */
+export function languageLabel(language: Language): string {
+  return language.name.split(';')[0].trim();
+}
+
+export interface LanguageChoice {
+  label: string;
+  detail?: string;
+  value: string;
+}
+
+const languageChoice = (language: Language): LanguageChoice => ({
+  label: languageLabel(language),
+  detail: languageCodes(language).join(' / '),
+  value: language.code,
+});
+
+export const LANGUAGE_CHOICES: LanguageChoice[] = [
   { label: 'File default', value: '' },
-  { label: 'English', value: 'eng' },
-  { label: 'German', value: 'ger' },
-  { label: 'French', value: 'fre' },
-  { label: 'Spanish', value: 'spa' },
-  { label: 'Italian', value: 'ita' },
-  { label: 'Dutch', value: 'dut' },
+  ...COMMON_LANGUAGE_CODES.map(c => languageChoice(LANGUAGE_BY_CODE.get(c)!)),
+  ...LANGUAGES.filter(
+    l =>
+      !COMMON_LANGUAGE_CODES.includes(l.code) &&
+      !SPECIAL_LANGUAGE_CODES.includes(l.code),
+  )
+    .map(languageChoice)
+    .sort((a, b) => (a.label < b.label ? -1 : a.label > b.label ? 1 : 0)),
+];
+
+/** The subtitle picker: the same languages, with '' meaning "follow the audio language". */
+export const SUBTITLE_LANGUAGE_CHOICES: LanguageChoice[] = [
+  { label: 'Same as audio', value: '' },
+  ...LANGUAGE_CHOICES.slice(1),
 ];
 
 const KEY = 'xelpfin.settings';
@@ -101,11 +161,13 @@ export function sanitizeSettings(raw: unknown): Settings {
   if (SUBTITLE_CHOICES.some(c => c.value === r.subtitleMode)) {
     s.subtitleMode = r.subtitleMode as SubtitleMode;
   }
-  if (
-    typeof r.preferredLanguage === 'string' &&
-    /^[a-z]{0,3}$/.test(r.preferredLanguage)
-  ) {
-    s.preferredLanguage = r.preferredLanguage;
+  if (typeof r.preferredLanguage === 'string') {
+    // A T or 639-1 code (hand edit, older build) is stored as its B code.
+    s.preferredLanguage = canonicalLanguage(r.preferredLanguage) ?? '';
+  }
+  if (typeof r.preferredSubtitleLanguage === 'string') {
+    s.preferredSubtitleLanguage =
+      canonicalLanguage(r.preferredSubtitleLanguage) ?? '';
   }
   if (typeof r.autoplayNext === 'boolean') {
     s.autoplayNext = r.autoplayNext;
@@ -144,16 +206,11 @@ export async function saveSettings(
   await store.set(KEY, JSON.stringify(settings)).catch(() => undefined);
 }
 
-/** Language codes Jellyfin may use for the same language (it normalises some B codes to T codes). */
-const LANGUAGE_ALIASES: Record<string, string[]> = {
-  ger: ['ger', 'deu', 'de'],
-  fre: ['fre', 'fra', 'fr'],
-  dut: ['dut', 'nld', 'nl'],
-  eng: ['eng', 'en'],
-  spa: ['spa', 'es'],
-  ita: ['ita', 'it'],
-};
-
+/**
+ * Whether a stream's language code names the preferred language. Jellyfin stores some
+ * languages under the T code (deu, fra, nld) and some files carry 639-1 codes, so every
+ * code of the language counts, in any case.
+ */
 export function languageMatches(
   code: string | undefined,
   preferred: string,
@@ -162,5 +219,7 @@ export function languageMatches(
     return false;
   }
   const c = code.toLowerCase();
-  return (LANGUAGE_ALIASES[preferred] ?? [preferred]).includes(c);
+  const p = preferred.toLowerCase();
+  const language = LANGUAGE_BY_CODE.get(p);
+  return language ? languageCodes(language).includes(c) : c === p;
 }

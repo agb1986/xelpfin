@@ -86,11 +86,114 @@ describe('settings', () => {
     expect(await loadSettings(store)).toEqual(DEFAULT_SETTINGS);
   });
 
+  it('stores any known language code as its B code', () => {
+    expect(sanitizeSettings({ preferredLanguage: 'jpn' })).toMatchObject({
+      preferredLanguage: 'jpn',
+    });
+    expect(sanitizeSettings({ preferredLanguage: 'pol' })).toMatchObject({
+      preferredLanguage: 'pol',
+    });
+    expect(sanitizeSettings({ preferredLanguage: 'deu' })).toMatchObject({
+      preferredLanguage: 'ger',
+    });
+    expect(sanitizeSettings({ preferredLanguage: 'NL' })).toMatchObject({
+      preferredLanguage: 'dut',
+    });
+    expect(sanitizeSettings({ preferredLanguage: 'xxx' })).toMatchObject({
+      preferredLanguage: '',
+    });
+    expect(sanitizeSettings({ preferredLanguage: '' })).toMatchObject({
+      preferredLanguage: '',
+    });
+  });
+
+  it('keeps a separate subtitle language, stored as its B code', () => {
+    expect(
+      sanitizeSettings({
+        preferredLanguage: 'ja',
+        preferredSubtitleLanguage: 'pl',
+      }),
+    ).toMatchObject({
+      preferredLanguage: 'jpn',
+      preferredSubtitleLanguage: 'pol',
+    });
+    expect(
+      sanitizeSettings({ preferredSubtitleLanguage: 'xxx' }),
+    ).toMatchObject({ preferredSubtitleLanguage: '' });
+    // Settings saved before the subtitle language existed follow the audio language.
+    expect(sanitizeSettings({ preferredLanguage: 'ger' })).toMatchObject({
+      preferredLanguage: 'ger',
+      preferredSubtitleLanguage: '',
+    });
+  });
+
   it('matches language aliases', () => {
     expect(languageMatches('deu', 'ger')).toBe(true);
     expect(languageMatches('fra', 'fre')).toBe(true);
+    expect(languageMatches('nld', 'dut')).toBe(true);
+    expect(languageMatches('de', 'ger')).toBe(true);
     expect(languageMatches('eng', 'ger')).toBe(false);
     expect(languageMatches(undefined, 'eng')).toBe(false);
+    expect(languageMatches('eng', '')).toBe(false);
+  });
+
+  it('matches either code of a language in any case, for any language in the table', () => {
+    expect(languageMatches('jpn', 'jpn')).toBe(true);
+    expect(languageMatches('JA', 'jpn')).toBe(true);
+    expect(languageMatches('pol', 'pol')).toBe(true);
+    expect(languageMatches('Pol', 'pol')).toBe(true);
+    expect(languageMatches('pl', 'pol')).toBe(true);
+    expect(languageMatches('jpn', 'pol')).toBe(false);
+    // The preference may itself be a T or 639-1 code.
+    expect(languageMatches('ger', 'deu')).toBe(true);
+    expect(languageMatches('zho', 'zh')).toBe(true);
+    // Unknown codes still match themselves.
+    expect(languageMatches('xyz', 'xyz')).toBe(true);
+    expect(languageMatches('xyz', 'abc')).toBe(false);
+  });
+
+  it('picks Japanese audio and Polish subtitles from one set of settings', () => {
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      subtitleMode: 'always' as const,
+      preferredLanguage: 'jpn',
+      preferredSubtitleLanguage: 'pol',
+    };
+    const audio = [
+      { index: 1, label: 'English', language: 'eng', isDefault: true },
+      { index: 2, label: 'Japanese', language: 'jpn', isDefault: false },
+    ];
+    expect(pickAudio(audio, settings)).toBe(2);
+    const subs: SubtitleTrack[] = [
+      {
+        index: 3,
+        label: 'English',
+        language: 'eng',
+        isDefault: true,
+        isForced: false,
+        delivery: 'external',
+      },
+      {
+        index: 4,
+        label: 'Polish',
+        language: 'pl',
+        isDefault: false,
+        isForced: false,
+        delivery: 'external',
+      },
+    ];
+    expect(pickSubtitle(subs, settings)).toBe(4);
+    // Without a subtitle language, subtitles follow the audio language.
+    expect(
+      pickSubtitle(subs, { ...settings, preferredSubtitleLanguage: '' }),
+    ).toBe(3);
+    expect(
+      pickSubtitle(subs, {
+        ...settings,
+        preferredLanguage: 'pol',
+        preferredSubtitleLanguage: '',
+      }),
+    ).toBe(4);
   });
 });
 
