@@ -181,6 +181,19 @@ describe('JellyfinBackend', () => {
     return { f, b };
   }
 
+  it('builds sized WebP image URLs keeping the aspect of each kind', () => {
+    const { b } = setup({});
+    expect(b.imageUrl('m1', 'poster', 200)).toBe(
+      'http://srv:8096/Items/m1/Images/Primary?fillWidth=200&fillHeight=300&quality=85&format=Webp',
+    );
+    expect(b.imageUrl('m1', 'thumb', 400)).toBe(
+      'http://srv:8096/Items/m1/Images/Thumb?fillWidth=400&fillHeight=225&quality=85&format=Webp',
+    );
+    expect(b.imageUrl('m1', 'backdrop', 1280)).toBe(
+      'http://srv:8096/Items/m1/Images/Backdrop?fillWidth=1280&fillHeight=720&quality=85&format=Webp',
+    );
+  });
+
   it('lists only video libraries', async () => {
     const { b } = setup({
       'GET /Users/u1/Views': {
@@ -201,7 +214,7 @@ describe('JellyfinBackend', () => {
     const libs = await b.libraries();
     expect(libs.map(l => l.name)).toEqual(['Movies', 'Shows']);
     expect(libs[0].imageUrl).toBe(
-      'http://srv:8096/Items/l1/Images/Primary?maxWidth=480&quality=90&tag=x',
+      'http://srv:8096/Items/l1/Images/Primary?fillWidth=450&fillHeight=253&quality=85&format=Webp&tag=x',
     );
   });
 
@@ -275,18 +288,18 @@ describe('JellyfinBackend', () => {
         favorite: true,
       },
       posterUrl:
-        'http://srv:8096/Items/m1/Images/Primary?maxWidth=300&quality=90&tag=p1',
+        'http://srv:8096/Items/m1/Images/Primary?fillWidth=253&fillHeight=379&quality=85&format=Webp&tag=p1',
       backdropUrl:
-        'http://srv:8096/Items/m1/Images/Backdrop?maxWidth=1280&quality=90&tag=b1',
+        'http://srv:8096/Items/m1/Images/Backdrop?fillWidth=1280&fillHeight=720&quality=85&format=Webp&tag=b1',
     });
     expect(e).toMatchObject({
       kind: 'episode',
       posterUrl:
-        'http://srv:8096/Items/s1/Images/Primary?maxWidth=300&quality=90&tag=sp',
+        'http://srv:8096/Items/s1/Images/Primary?fillWidth=253&fillHeight=379&quality=85&format=Webp&tag=sp',
       thumbUrl:
-        'http://srv:8096/Items/e1/Images/Primary?maxWidth=480&quality=90&tag=ep',
+        'http://srv:8096/Items/e1/Images/Primary?fillWidth=450&fillHeight=253&quality=85&format=Webp&tag=ep',
       backdropUrl:
-        'http://srv:8096/Items/s1/Images/Backdrop?maxWidth=1280&quality=90&tag=sb',
+        'http://srv:8096/Items/s1/Images/Backdrop?fillWidth=1280&fillHeight=720&quality=85&format=Webp&tag=sb',
     });
   });
 

@@ -1,3 +1,4 @@
+/* global AbortSignal */
 // Idempotent first-run setup for the local Jellyfin test server.
 // Creates admin "xelpfin" (password "xelpfin-pass"), user "guest" (no password), the Movies and
 // Shows libraries with internet metadata providers off, and waits until the scan has finished.
@@ -8,14 +9,27 @@ const AUTH =
   'MediaBrowser Client="xelpfin-setup", Device="setup", DeviceId="xelpfin-setup", Version="0.1.0"';
 export const ADMIN = { user: 'xelpfin', pass: 'xelpfin-pass' };
 
+// Every request has a timeout, so a connection dropped by a restarting server fails instead of
+// leaving a promise that never settles (Node then exits with code 13 and no message). Network
+// errors and 503 "server is loading" are retried.
 async function call(path, { method = 'GET', body, token } = {}) {
   const headers = { Authorization: AUTH + (token ? `, Token="${token}"` : '') };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
-  const res = await fetch(base + path, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      res = await fetch(base + path, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(30000),
+      });
+      if (res.status !== 503 || attempt === 10) break;
+    } catch (e) {
+      if (attempt === 10) throw e;
+    }
+    await new Promise(r => setTimeout(r, 1000));
+  }
   if (!res.ok)
     throw new Error(`${method} ${path} -> ${res.status} ${await res.text()}`);
   const text = await res.text();

@@ -233,37 +233,63 @@ export function mapUserData(u?: UserDataDto): UserData | undefined {
 
 export type ImageType = 'Primary' | 'Backdrop' | 'Thumb';
 
+/** A pixel box an image is scaled to fill, so the server never sends more than the card shows. */
+export interface ImageBox {
+  width: number;
+  height: number;
+}
+
 /** Builds an absolute, sized image URL. */
 export type ImageUrlFn = (
   itemId: string,
   type: ImageType,
-  maxWidth: number,
+  box: ImageBox,
   tag?: string,
 ) => string;
 
-export const POSTER_WIDTH = 300;
-export const BACKDROP_WIDTH = 1280;
-export const THUMB_WIDTH = 480;
+/**
+ * Boxes in device pixels: the card size in `ui/theme` times the focus scale times density 2
+ * (1080p on a 960x540 dp canvas), rounded up, so a focused card is still sharp.
+ * `__tests__/ui/card.test.ts` fails if these drift from the theme.
+ */
+export const POSTER_BOX: ImageBox = { width: 253, height: 379 };
+export const THUMB_BOX: ImageBox = { width: 450, height: 253 };
+export const BACKDROP_BOX: ImageBox = { width: 1280, height: 720 };
+
+/** WebP at 85 is visually indistinguishable on a TV and far smaller than the server's JPEG at 90. */
+export const IMAGE_QUALITY = 85;
+export const IMAGE_FORMAT = 'Webp';
+
+/** Query string for a sized, compressed image request. */
+export function imageQuery(box: ImageBox, tag?: string): string {
+  return buildQuery({
+    fillWidth: Math.round(box.width),
+    fillHeight: Math.round(box.height),
+    quality: IMAGE_QUALITY,
+    format: IMAGE_FORMAT,
+    tag,
+  });
+}
 
 function posterOf(i: BaseItemDto, img: ImageUrlFn): string | undefined {
   const tag = i.ImageTags?.Primary;
   if (i.Type === 'Episode') {
     return i.SeriesId && i.SeriesPrimaryImageTag
-      ? img(i.SeriesId, 'Primary', POSTER_WIDTH, i.SeriesPrimaryImageTag)
+      ? img(i.SeriesId, 'Primary', POSTER_BOX, i.SeriesPrimaryImageTag)
       : undefined;
   }
-  return tag ? img(i.Id, 'Primary', POSTER_WIDTH, tag) : undefined;
+  return tag ? img(i.Id, 'Primary', POSTER_BOX, tag) : undefined;
 }
 
 function backdropOf(i: BaseItemDto, img: ImageUrlFn): string | undefined {
   if (i.BackdropImageTags?.length) {
-    return img(i.Id, 'Backdrop', BACKDROP_WIDTH, i.BackdropImageTags[0]);
+    return img(i.Id, 'Backdrop', BACKDROP_BOX, i.BackdropImageTags[0]);
   }
   if (i.ParentBackdropItemId && i.ParentBackdropImageTags?.length) {
     return img(
       i.ParentBackdropItemId,
       'Backdrop',
-      BACKDROP_WIDTH,
+      BACKDROP_BOX,
       i.ParentBackdropImageTags[0],
     );
   }
@@ -272,27 +298,27 @@ function backdropOf(i: BaseItemDto, img: ImageUrlFn): string | undefined {
 
 function thumbOf(i: BaseItemDto, img: ImageUrlFn): string | undefined {
   if (i.Type === 'Episode' && i.ImageTags?.Primary) {
-    return img(i.Id, 'Primary', THUMB_WIDTH, i.ImageTags.Primary);
+    return img(i.Id, 'Primary', THUMB_BOX, i.ImageTags.Primary);
   }
   if (i.ImageTags?.Thumb) {
-    return img(i.Id, 'Thumb', THUMB_WIDTH, i.ImageTags.Thumb);
+    return img(i.Id, 'Thumb', THUMB_BOX, i.ImageTags.Thumb);
   }
   if (i.ParentThumbItemId && i.ParentThumbImageTag) {
     return img(
       i.ParentThumbItemId,
       'Thumb',
-      THUMB_WIDTH,
+      THUMB_BOX,
       i.ParentThumbImageTag,
     );
   }
   if (i.BackdropImageTags?.length) {
-    return img(i.Id, 'Backdrop', THUMB_WIDTH, i.BackdropImageTags[0]);
+    return img(i.Id, 'Backdrop', THUMB_BOX, i.BackdropImageTags[0]);
   }
   if (i.ParentBackdropItemId && i.ParentBackdropImageTags?.length) {
     return img(
       i.ParentBackdropItemId,
       'Backdrop',
-      THUMB_WIDTH,
+      THUMB_BOX,
       i.ParentBackdropImageTags[0],
     );
   }
@@ -447,7 +473,7 @@ export function mapLibraries(items: BaseItemDto[], img: ImageUrlFn): Library[] {
       name: i.Name ?? '',
       collectionType: i.CollectionType ?? 'mixed',
       imageUrl: i.ImageTags?.Primary
-        ? img(i.Id, 'Primary', THUMB_WIDTH, i.ImageTags.Primary)
+        ? img(i.Id, 'Primary', THUMB_BOX, i.ImageTags.Primary)
         : undefined,
     }));
 }

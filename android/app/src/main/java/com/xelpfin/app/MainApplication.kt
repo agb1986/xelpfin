@@ -9,6 +9,7 @@ import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
+import com.xelpfin.app.platform.CertificatePins
 import com.xelpfin.app.platform.XelpfinPlatformPackage
 
 class MainApplication : Application(), ReactApplication {
@@ -34,6 +35,8 @@ class MainApplication : Application(), ReactApplication {
 
   override fun onCreate() {
     super.onCreate()
+    // Before React Native builds its first OkHttp client, so fetch, images and video all pin.
+    CertificatePins.install(this)
     loadReactNative(this)
   }
 }

@@ -27,6 +27,8 @@ import {
   msToTicks,
   type AuthResultDto,
   type BaseItemDto,
+  imageQuery,
+  type ImageBox,
   type ImageType,
   type ImageUrlFn,
   type ItemsResultDto,
@@ -307,8 +309,8 @@ export class JellyfinBackend implements Backend {
     private readonly client: ClientInfo,
   ) {
     const base = session.server.url;
-    this.img = (id: string, type: ImageType, maxWidth: number, tag?: string) =>
-      `${base}/Items/${encodeURIComponent(id)}/Images/${type}${buildQuery({ maxWidth, quality: 90, tag })}`;
+    this.img = (id: string, type: ImageType, box: ImageBox, tag?: string) =>
+      `${base}/Items/${encodeURIComponent(id)}/Images/${type}${imageQuery(box, tag)}`;
   }
 
   private get user(): string {
@@ -476,7 +478,9 @@ export class JellyfinBackend implements Backend {
         : kind === 'backdrop'
           ? 'Backdrop'
           : 'Thumb';
-    return this.img(itemId, type, maxWidth);
+    // Posters are 2:3, thumbs and backdrops 16:9.
+    const height = kind === 'poster' ? maxWidth * 1.5 : (maxWidth * 9) / 16;
+    return this.img(itemId, type, { width: maxWidth, height });
   }
 
   async playback(

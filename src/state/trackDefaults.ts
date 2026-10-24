@@ -22,7 +22,7 @@ export function pickSubtitle(
   if (settings.subtitleMode === 'off' || tracks.length === 0) {
     return -1;
   }
-  const lang = settings.preferredLanguage;
+  const lang = settings.preferredSubtitleLanguage || settings.preferredLanguage;
   const inLang = lang
     ? tracks.filter(t => languageMatches(t.language, lang))
     : tracks;
