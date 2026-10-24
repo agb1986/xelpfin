@@ -11,6 +11,7 @@
     "test:integration": "jest -c jest.integration.config.js --runInBand",
     "jellyfin:up": "bash scripts/jellyfin-up.sh",
     "jellyfin:down": "bash scripts/jellyfin-down.sh",
+    "jellyfin:matrix": "bash scripts/jellyfin-matrix.sh",
     "apk:debug": "cd android && ./gradlew assembleDebug",
     "apk:release": "bash scripts/release.sh",
     "emu:start": "bash scripts/emulator.sh start",

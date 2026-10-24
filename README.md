@@ -50,6 +50,9 @@ npm run typecheck
 npm run lint
 npm test                    # unit tests (mocked fetch and UDP)
 npm run test:integration    # against the local Jellyfin container
+# Older releases: npm run jellyfin:up -- 10.10, then JF_VERSION=10.10 npm run test:integration.
+# npm run jellyfin:matrix runs the suite against 10.9, 10.10 and 10.11 in turn, each with its
+# own container and data directory (../work/jellyfin-test-<version>).
 
 # 3. Debug APK. The JS bundle is embedded, so Metro is not needed.
 #    Output: android/app/build/outputs/apk/debug/app-debug.apk

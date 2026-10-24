@@ -1,6 +1,8 @@
 # Integration suite against a real Jellyfin server, using the same scripts as a local run:
 # `npm run jellyfin:up` generates the sample media, starts the jellyfin/jellyfin container on
 # 127.0.0.1:8096 and seeds it with scripts/jellyfin-setup.mjs.
+# The job runs once per server release in the matrix: the default (12.1) and the older releases
+# the app still supports. Each matrix job has its own runner, so one container name is enough.
 # Runs nightly, on demand, and on pull requests that touch the backend or the test server scripts.
 name: integration
 
@@ -30,12 +32,20 @@ concurrency:
 
 env:
   JF_DIR: ${{ github.workspace }}/../jellyfin-test
+  JF_MEDIA: ${{ github.workspace }}/../jellyfin-test/media
+  JF_NAME: xelpfin-jellyfin
 
 jobs:
   integration:
-    name: integration
+    name: integration (jellyfin ${{ matrix.jellyfin }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        jellyfin: ['12.1', '10.11', '10.10', '10.9']
+    env:
+      JF_VERSION: ${{ matrix.jellyfin }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,7 +64,7 @@ jobs:
       - name: Cache sample media
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ${{ env.JF_DIR }}/media
+          path: ${{ env.JF_MEDIA }}
           key: jellyfin-media-${{ hashFiles('scripts/gen-media.sh', 'scripts/*.py') }}
 
       - name: Install dependencies

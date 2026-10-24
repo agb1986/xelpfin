@@ -143,6 +143,8 @@ for (const [name, type, path] of LIBRARIES) {
   const existing = folders.find(f => f.Name === name);
   if (existing) {
     const opts = existing.LibraryOptions;
+    // Not scanned yet (see below): the options were set when it was created.
+    if (!existing.ItemId || !opts) continue;
     if (
       opts.TypeOptions.some(
         t => t.MetadataFetchers.length || t.ImageFetchers.length,
@@ -176,12 +178,17 @@ for (const [name, type, path] of LIBRARIES) {
 }
 
 // Library access: xelpfin and guest see Movies and Shows, bulk sees Bulk and Empty.
-const libIds = Object.fromEntries(
-  (await call('/Library/VirtualFolders', { token })).map(f => [
-    f.Name,
-    f.ItemId,
-  ]),
-);
+// Before 10.11 a library created with refreshLibrary=false has no ItemId until a scan has run,
+// which would silently skip the policy, so start the scan and wait until every library has one.
+await call('/Library/Refresh', { method: 'POST', token });
+let libIds = {};
+for (let i = 0; i < 120; i++) {
+  const list = await call('/Library/VirtualFolders', { token });
+  libIds = Object.fromEntries(list.map(f => [f.Name, f.ItemId]));
+  if (list.every(f => f.ItemId)) break;
+  if (i === 119) throw new Error('libraries have no ItemId after a scan');
+  await sleep(1000);
+}
 const access = {
   xelpfin: ['Movies', 'Shows'],
   guest: ['Movies', 'Shows'],
