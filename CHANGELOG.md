@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.2.0](https://github.com/agb1986/xelpfin/compare/v0.1.3...v0.2.0) (2026-10-24)
+
+### Features
+
+* **backend:** trust self-signed server certificates on first use ([d8b0aec](https://github.com/agb1986/xelpfin/commit/d8b0aece4f4641da6be9cd500188672f623689d5)), closes [#21](https://github.com/agb1986/xelpfin/issues/21)
+* **player:** modernise the device profile (fMP4 HLS, AV1, VP9, HDR, passthrough, remux) ([1ccba9d](https://github.com/agb1986/xelpfin/commit/1ccba9d10f7a6340b9a241fcd5a2df0f11de8e82))
+* **settings:** offer every ISO 639-2 language and a subtitle language ([d213f0b](https://github.com/agb1986/xelpfin/commit/d213f0b446c4fb8d6cc2b2db121842dae404cd19))
+
+### Bug Fixes
+
+* **player:** map react-native-video error codes instead of parsing messages ([26462bd](https://github.com/agb1986/xelpfin/commit/26462bda47e945179a3ebebd0c93d0b675eb5495))
+* **ui:** dedupe Focusable presses by event source, not by time window ([a541616](https://github.com/agb1986/xelpfin/commit/a541616a0c402f0817677bbd490edd69a3b0b327))
+
 ## [0.1.3](https://github.com/agb1986/xelpfin/compare/v0.1.2...v0.1.3) (2026-10-21)
 
 ### Features
