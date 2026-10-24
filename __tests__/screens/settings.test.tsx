@@ -129,8 +129,11 @@ async function openSettings(
   await shown(root, 'screen-home');
   await press(root, 'tab-settings');
   await shown(root, 'screen-settings');
+  mounted.push(root);
   return { root, store, backend: connector.backend! };
 }
+/** Unmounted after each test too, so a failed test does not leave its app running into the next. */
+let mounted: Renderer[] = [];
 
 const stored = async (store: MemoryStore): Promise<Settings> =>
   JSON.parse((await store.get('xelpfin.settings'))!);
@@ -147,6 +150,11 @@ const withDisplay = (store: MemoryStore): PlatformServices => ({
 beforeEach(() => {
   jest.useRealTimers();
   resetLocalLists();
+});
+
+afterEach(async () => {
+  await act(async () => mounted.forEach(r => r.unmount()));
+  mounted = [];
 });
 
 type Picker = {
