@@ -8,7 +8,7 @@ module.exports = {
   ],
   // react-native-tvos ships its virtualized lists as a separate untranspiled package.
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?|@react-native-tvos)/)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community|-async-storage)?|@react-native-tvos)/)',
   ],
   // Agent worktrees under .claude/ hold full copies of the repo.
   modulePathIgnorePatterns: ['<rootDir>/.claude/'],
