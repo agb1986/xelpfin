@@ -189,8 +189,11 @@ async function open(
   });
   await flush();
   await flush();
+  mounted.push(root);
   return { root, backend };
 }
+/** Unmounted after each test, so the player's intervals do not keep Jest from exiting. */
+let mounted: Renderer[] = [];
 
 /** The engine reports the stream loaded and playing at `atS` seconds. */
 async function play(root: Renderer, atS = 5, durationS = 40) {
@@ -215,7 +218,11 @@ describe('PlayerScreen', () => {
       };
     });
   });
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    act(() => mounted.forEach(r => r.unmount()));
+    mounted = [];
+    jest.restoreAllMocks();
+  });
 
   it('plays the item with the controls, debug panel and skip button up', async () => {
     const { root, backend } = await open({}, { showDebugOverlay: true });

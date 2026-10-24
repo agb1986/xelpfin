@@ -113,8 +113,11 @@ function setup(
   act(() => {
     r = ReactTestRenderer.create(<Probe />);
   });
+  mounted.push(r);
   return { out, backend, renderer: r };
 }
+/** Unmounted after each test, so the progress interval does not keep Jest from exiting. */
+let mounted: ReactTestRenderer.ReactTestRenderer[] = [];
 
 /** Lets the mock backend's promises settle; works with real and fake timers alike. */
 const settle = () =>
@@ -126,7 +129,11 @@ const settle = () =>
 const types = (b: MockBackend) => b.reports.map(r => r.type);
 
 describe('usePlaybackSession', () => {
-  afterEach(() => jest.useRealTimers());
+  afterEach(() => {
+    act(() => mounted.forEach(r => r.unmount()));
+    mounted = [];
+    jest.useRealTimers();
+  });
 
   it('loads the item, its segments and a plan, leaving the audio to the server', async () => {
     const { out, backend } = setup();
