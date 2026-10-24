@@ -5,6 +5,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  type ViewToken,
 } from 'react-native';
 import type { Library, MediaItem, SortField } from '../../backend/types';
 import { useBackend } from '../../state/AppState';
@@ -19,8 +20,10 @@ import {
   ErrorView,
   LoadingView,
   OptionPicker,
+  prefetchCardImages,
   type Option,
 } from '../components';
+import { nextPageDue } from '../paging';
 import { card, colors, font, space } from '../theme';
 import { openItem } from './navigate';
 
@@ -91,6 +94,10 @@ export function LibraryScreen({ library }: { library: Library }) {
           total: page.totalCount,
           loading: false,
         }));
+        if (startIndex > 0) {
+          // Off-screen rows are not mounted yet; warm the cache so they show at once.
+          prefetchCardImages(page.items, 'poster');
+        }
       } catch (error) {
         if (gen === generation.current) {
           setList(l => ({ ...l, loading: false, error }));
@@ -100,8 +107,11 @@ export function LibraryScreen({ library }: { library: Library }) {
     [backend, library.id, sort, descending, letter, unplayed],
   );
 
+  // Start offset of the last page asked for by scrolling, so a page is requested once.
+  const requested = useRef(-1);
   useEffect(() => {
     generation.current++;
+    requested.current = -1;
     setList({ items: [], total: 0, loading: true });
     load(0);
   }, [load]);
@@ -115,11 +125,38 @@ export function LibraryScreen({ library }: { library: Library }) {
     wasActive.current = active;
   }, [active, load, list.items.length]);
 
-  const onEnd = () => {
-    if (!list.loading && !list.error && list.items.length < list.total) {
-      load(list.items.length);
+  const loadMore = () => {
+    const next = list.items.length;
+    if (
+      !list.loading &&
+      !list.error &&
+      next < list.total &&
+      requested.current !== next
+    ) {
+      requested.current = next;
+      load(next);
     }
   };
+  const onEnd = loadMore;
+  // FlatList wants the same viewability callback for its whole life, so it reads the latest
+  // state through a ref. Past the middle of the last page, the next one is fetched early.
+  const onHalfway = useRef<(lastVisible: number) => void>(() => undefined);
+  onHalfway.current = lastVisible => {
+    if (nextPageDue(lastVisible, list.items.length, list.total, PAGE)) {
+      loadMore();
+    }
+  };
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      const last = viewableItems.reduce(
+        (max, v) => Math.max(max, v.index ?? -1),
+        -1,
+      );
+      if (last >= 0) {
+        onHalfway.current(last);
+      }
+    },
+  ).current;
 
   const open = useCallback((item: MediaItem) => openItem(nav, item), [nav]);
   const rowHeight = cardHeight('poster') + card.gap;
@@ -201,6 +238,7 @@ export function LibraryScreen({ library }: { library: Library }) {
           getItemLayout={getItemLayout}
           onEndReached={onEnd}
           onEndReachedThreshold={1.5}
+          onViewableItemsChanged={onViewableItemsChanged}
           initialNumToRender={columns * 3}
           maxToRenderPerBatch={columns * 2}
           windowSize={5}
