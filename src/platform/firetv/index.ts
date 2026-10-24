@@ -9,7 +9,14 @@ import {
   type AndroidDisplayCapabilities,
   type DeviceCapabilities,
 } from '../../player/capabilities';
-import type { DeviceInfo, KeyValueStore, PlatformServices } from '../types';
+import type {
+  CertificatePin,
+  DeviceInfo,
+  KeyValueStore,
+  PlatformServices,
+  TlsInspection,
+  TlsTrust,
+} from '../types';
 
 interface XelpfinPlatformNative {
   getConstants?: () => Record<string, unknown>;
@@ -23,6 +30,13 @@ interface XelpfinPlatformNative {
   /** Optional: older builds of the module lack it, so it is called defensively. */
   getDisplayCapabilities?(): Promise<AndroidDisplayCapabilities>;
   getAudioCapabilities?(): Promise<AndroidAudioCapabilities>;
+  /** Optional: builds without TLS pinning lack them, and then `tls` is undefined. */
+  inspectCertificate?(
+    host: string,
+    port: number,
+    timeoutMs: number,
+  ): Promise<TlsInspection>;
+  setPinnedCertificates?(pins: CertificatePin[]): Promise<void>;
   [k: string]: unknown;
 }
 
@@ -66,6 +80,19 @@ const udp: UdpTransport | undefined = native
     }
   : undefined;
 
+const INSPECT_TIMEOUT_MS = 5000;
+
+const tls: TlsTrust | undefined =
+  native &&
+  typeof native.inspectCertificate === 'function' &&
+  typeof native.setPinnedCertificates === 'function'
+    ? {
+        inspect: (host, port) =>
+          native.inspectCertificate!(host, port, INSPECT_TIMEOUT_MS),
+        setPins: pins => native.setPinnedCertificates!(pins),
+      }
+    : undefined;
+
 /** Calls an optional native query; a missing method or a rejection means "unknown". */
 async function optional<T>(
   query: (() => Promise<T>) | undefined,
@@ -107,6 +134,7 @@ export function createFireTvPlatform(): PlatformServices {
     device,
     storage: asyncStore,
     udp,
+    tls,
     capabilities() {
       capsPromise ??= native
         ? queryCapabilities(native).catch(() => BASELINE_CAPABILITIES)

@@ -19,6 +19,11 @@ export interface ServerInfo {
   /** Base URL without trailing slash, e.g. http://192.168.1.10:8096 */
   url: string;
   version?: string;
+  /**
+   * SHA-256 fingerprint ("AB:CD:…", 32 bytes) of the self-signed certificate the user accepted
+   * for this server's https host and port. Unset for http servers and publicly trusted ones.
+   */
+  certSha256?: string;
 }
 
 export interface DiscoveredServer extends ServerInfo {
