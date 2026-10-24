@@ -2,6 +2,12 @@ import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import type { PlaybackPlan } from '../../src/backend/types';
 import { VideoEngine } from '../../src/player/rnv/VideoEngine';
+import {
+  WARM_UP_TIMEOUT_MS,
+  warmUpReactNative,
+} from '../../test-utils/warmUpReactNative';
+
+beforeAll(warmUpReactNative, WARM_UP_TIMEOUT_MS);
 
 const plan: PlaybackPlan = {
   itemId: 'i1',

@@ -12,6 +12,12 @@ import {
   type Navigation,
   type Route,
 } from '../../src/state/navigation';
+import {
+  WARM_UP_TIMEOUT_MS,
+  warmUpReactNative,
+} from '../../test-utils/warmUpReactNative';
+
+beforeAll(warmUpReactNative, WARM_UP_TIMEOUT_MS);
 
 // The host view that Pressable renders: it carries the Pressability handlers that the native
 // topPressIn / topPressOut / topClick events reach.

@@ -5,6 +5,12 @@ import ReactTestRenderer, {
   type ReactTestRenderer as Renderer,
 } from 'react-test-renderer';
 import { ScreenBoundary } from '../../src/ui/components/ScreenBoundary';
+import {
+  WARM_UP_TIMEOUT_MS,
+  warmUpReactNative,
+} from '../../test-utils/warmUpReactNative';
+
+beforeAll(warmUpReactNative, WARM_UP_TIMEOUT_MS);
 
 let broken = true;
 function Flaky() {
