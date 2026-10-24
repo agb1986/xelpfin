@@ -64,13 +64,22 @@ jest.mock('../../../src/state/randomizer', () => ({
   }),
 }));
 
-let mockOnKey: ((evt: HWEvent) => void) | undefined;
-jest.mock('react-native/Libraries/Components/TV/useTVEventHandler', () => ({
-  __esModule: true,
-  default: (fn: (evt: HWEvent) => void) => {
-    mockOnKey = fn;
-  },
-}));
+/** Every mounted handler gets each key, as on the device; the pickers register one too. */
+const mockKeyHandlers = new Set<{ current: (evt: HWEvent) => void }>();
+jest.mock('react-native/Libraries/Components/TV/useTVEventHandler', () => {
+  const { useEffect, useRef } = jest.requireActual('react');
+  function useTVEventHandler(fn: (evt: HWEvent) => void) {
+    const handler = useRef(fn);
+    handler.current = fn;
+    useEffect(() => {
+      mockKeyHandlers.add(handler);
+      return () => {
+        mockKeyHandlers.delete(handler);
+      };
+    }, []);
+  }
+  return { __esModule: true, default: useTVEventHandler };
+});
 
 beforeAll(warmUpReactNative, WARM_UP_TIMEOUT_MS);
 
@@ -153,7 +162,11 @@ const pickerOpen = (root: Renderer, id: string) =>
       m => m.props.visible && m.findAll(n => n.props.testID === id).length > 0,
     );
 const key = (eventType: string) =>
-  act(() => mockOnKey!({ eventType, eventKeyAction: 1 } as HWEvent));
+  act(() =>
+    mockKeyHandlers.forEach(h =>
+      h.current({ eventType, eventKeyAction: 1 } as HWEvent),
+    ),
+  );
 
 let listeners: (() => boolean)[];
 const pressBack = () => {
