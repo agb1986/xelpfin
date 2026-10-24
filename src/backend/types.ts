@@ -209,6 +209,14 @@ export interface PlaybackPlan {
   selectedSubtitleIndex?: number;
   /** Headers the player must send with media requests. */
   headers: Record<string, string>;
+  /**
+   * Frame rate and size of the source's video stream, when the server reports them, for
+   * matching the display mode. For a transcode the server may scale the picture, so the size is
+   * that of the source, not of the stream.
+   */
+  videoFrameRate?: number;
+  videoWidth?: number;
+  videoHeight?: number;
 }
 
 export interface ProgressReport {

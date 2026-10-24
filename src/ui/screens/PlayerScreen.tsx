@@ -22,6 +22,7 @@ import type {
   PlaybackPlan,
 } from '../../backend/types';
 import { getEngine } from '../../player';
+import { matchDisplayMode } from '../../player/displayMode';
 import { playerError } from '../../player/errors';
 import {
   activeSegment,
@@ -68,6 +69,9 @@ const SKIP_STEP_MS = 30_000;
 const TAP_COMMIT_MS = 700;
 /** A held key counts as one tap per this interval, so holding scans fast but not instantly. */
 const HELD_TAP_MS = 500;
+// After a display mode switch the TV shows no picture while HDMI renegotiates; the player stays
+// black for this long so the first seconds of the video are not lost to it.
+const MODE_SETTLE_MS = 1500;
 /** A second BACK within this window of the first leaves the player. */
 const EXIT_WINDOW_MS = 3000;
 
@@ -136,6 +140,7 @@ export function PlayerScreen({
   const active = useIsActive();
   const engine = getEngine();
   const { settings } = app;
+  const display = app.platform.display;
   const look = useMemo(
     () => ({
       size: settings.subtitleSize,
@@ -192,6 +197,9 @@ export function PlayerScreen({
   // screen the user already left.
   const alive = useRef(true);
   const ended = useRef(false);
+  // Set once the display mode has been matched to the first plan; later plans (track changes)
+  // are the same video and keep it. Restored when the screen closes.
+  const modeMatched = useRef(false);
   const tracksRef = useRef<{ audio?: number; subtitle: number }>({
     subtitle: -1,
   });
@@ -305,6 +313,26 @@ export function PlayerScreen({
         if (!current()) {
           return;
         }
+        if (!modeMatched.current) {
+          modeMatched.current = true;
+          const switched = await matchDisplayMode(
+            display,
+            next.videoFrameRate
+              ? {
+                  frameRate: next.videoFrameRate,
+                  width: next.videoWidth,
+                  height: next.videoHeight,
+                }
+              : undefined,
+            settings.refreshRateMatch,
+          );
+          if (switched) {
+            await new Promise<void>(r => setTimeout(r, MODE_SETTLE_MS));
+          }
+          if (!current()) {
+            return;
+          }
+        }
         positionRef.current = fromMs;
         setPosition(fromMs);
         setAudio(next.selectedAudioIndex ?? audioIndex);
@@ -316,7 +344,7 @@ export function PlayerScreen({
         }
       }
     },
-    [app, backend, itemId, report],
+    [app, backend, display, itemId, report, settings.refreshRateMatch],
   );
 
   // Initial load: item detail, default tracks from settings, then the plan.
@@ -373,12 +401,17 @@ export function PlayerScreen({
     return () => {
       alive.current = false;
       clearInterval(t);
+      if (modeMatched.current) {
+        // Clears the window's preference even if a switch is still in flight; a no-op when
+        // nothing was switched.
+        display?.setPreferredMode(0);
+      }
       if (started.current) {
         report('stop');
         started.current = false;
       }
     };
-  }, [report]);
+  }, [display, report]);
 
   useEffect(() => {
     if (started.current) {

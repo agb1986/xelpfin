@@ -8,6 +8,38 @@ export interface KeyValueStore {
   remove(key: string): Promise<void>;
 }
 
+/** One entry of `Display.getSupportedModes()`: a resolution and refresh rate the output can run at. */
+export interface DisplayMode {
+  /** `Display.Mode.getModeId()`; 0 is never a real mode and means "no preference". */
+  id: number;
+  width: number;
+  height: number;
+  /** Hz, e.g. 23.976, 24, 50, 59.94, 60. */
+  refreshRate: number;
+}
+
+export interface DisplayModes {
+  modes: DisplayMode[];
+  /** Id of the mode the display is running now; 0 when unknown. */
+  activeModeId: number;
+}
+
+/**
+ * Display mode switching, used by the player to match the refresh rate to the video's frame
+ * rate. A platform without it (emulator, tests, a build of the native module that predates it)
+ * leaves the member out and the player keeps whatever mode the display is in.
+ */
+export interface DisplayControl {
+  /** Supported modes and the active one; an empty list when the query fails. */
+  modes(): Promise<DisplayModes>;
+  /**
+   * Asks the window for the mode (0 clears the preference, which brings the system default
+   * back). Resolves true once the display reports that its mode changed as a result, false when
+   * it was already in that mode, the id is unknown, or nothing happened within a short wait.
+   */
+  setPreferredMode(modeId: number): Promise<boolean>;
+}
+
 export interface DeviceInfo {
   /** Human readable device name sent to the server, e.g. "AFTKA" or "Fire TV Stick". */
   name: string;
@@ -76,6 +108,8 @@ export interface PlatformServices {
   readonly tls?: TlsTrust;
   /** Decoder capabilities used for the playback device profile. */
   capabilities(): Promise<DeviceCapabilities>;
+  /** Display mode switching; undefined when the platform cannot switch modes. */
+  readonly display?: DisplayControl;
   /**
    * Hosts to ask directly during discovery in addition to the broadcast, e.g. the host loopback
    * alias 10.0.2.2 on the Android emulator, where broadcasts do not leave the virtual network.

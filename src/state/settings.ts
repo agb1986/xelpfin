@@ -3,6 +3,12 @@ import { LANGUAGES, SPECIAL_LANGUAGE_CODES, type Language } from './languages';
 
 export type SubtitleMode = 'off' | 'default' | 'always';
 
+/**
+ * Display mode switching at playback start: off, a mode whose refresh rate is a multiple of
+ * the video's frame rate, or additionally one at the video's resolution.
+ */
+export type RefreshRateMatch = 'off' | 'frameRate' | 'frameRateAndResolution';
+
 export interface Settings {
   /** Bits per second; 0 means no cap beyond what the device supports. */
   maxBitrate: number;
@@ -19,6 +25,12 @@ export interface Settings {
    * on a sink that lies about its formats the result is silence.
    */
   audioPassthrough: boolean;
+  /**
+   * Switch the display to a mode that fits the video's frame rate when playback starts, so 24p
+   * film does not judder on a 60 Hz output, and switch back when the player closes. On by
+   * default (frame rate only); the TV blanks for a moment at each switch.
+   */
+  refreshRateMatch: RefreshRateMatch;
   /** Font size of text subtitles drawn by the app, in dp. */
   subtitleSize: number;
   subtitleColor: string;
@@ -35,10 +47,20 @@ export const DEFAULT_SETTINGS: Settings = {
   autoplayNext: true,
   showDebugOverlay: false,
   audioPassthrough: false,
+  refreshRateMatch: 'frameRate',
   subtitleSize: 22,
   subtitleColor: '#ffffff',
   subtitleBackground: 'box',
 };
+
+export const REFRESH_RATE_CHOICES: {
+  label: string;
+  value: RefreshRateMatch;
+}[] = [
+  { label: 'Off', value: 'off' },
+  { label: 'Frame rate only', value: 'frameRate' },
+  { label: 'Frame rate and resolution', value: 'frameRateAndResolution' },
+];
 
 export const SUBTITLE_SIZE_CHOICES: { label: string; value: number }[] = [
   { label: 'Small', value: 18 },
@@ -177,6 +199,9 @@ export function sanitizeSettings(raw: unknown): Settings {
   }
   if (typeof r.audioPassthrough === 'boolean') {
     s.audioPassthrough = r.audioPassthrough;
+  }
+  if (REFRESH_RATE_CHOICES.some(c => c.value === r.refreshRateMatch)) {
+    s.refreshRateMatch = r.refreshRateMatch as RefreshRateMatch;
   }
   if (SUBTITLE_SIZE_CHOICES.some(c => c.value === r.subtitleSize)) {
     s.subtitleSize = r.subtitleSize as number;

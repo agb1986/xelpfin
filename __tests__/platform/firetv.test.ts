@@ -128,3 +128,31 @@ describe('firetv tls', () => {
     expect(setPinnedCertificates).toHaveBeenCalledWith(pins);
   });
 });
+
+describe('firetv display', () => {
+  it('is undefined when the native module cannot switch modes', () => {
+    expect(load(undefined).display).toBeUndefined();
+    expect(load({ getDisplayModes: jest.fn() }).display).toBeUndefined();
+  });
+
+  it('forwards to the native module and degrades on failure', async () => {
+    const listed = {
+      modes: [{ id: 1, width: 1920, height: 1080, refreshRate: 60 }],
+      activeModeId: 1,
+    };
+    const getDisplayModes = jest.fn().mockResolvedValue(listed);
+    const setPreferredDisplayMode = jest.fn().mockResolvedValue(true);
+    const platform = load({ getDisplayModes, setPreferredDisplayMode });
+    expect(await platform.display!.modes()).toBe(listed);
+    expect(await platform.display!.setPreferredMode(4)).toBe(true);
+    expect(setPreferredDisplayMode).toHaveBeenCalledWith(4, expect.any(Number));
+
+    getDisplayModes.mockRejectedValue(new Error('no display'));
+    setPreferredDisplayMode.mockRejectedValue(new Error('no activity'));
+    expect(await platform.display!.modes()).toEqual({
+      modes: [],
+      activeModeId: 0,
+    });
+    expect(await platform.display!.setPreferredMode(4)).toBe(false);
+  });
+});

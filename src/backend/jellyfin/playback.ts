@@ -177,6 +177,7 @@ export function buildPlan(
     );
   }
   const streams = source.MediaStreams ?? [];
+  const video = streams.find(s => s.Type === 'Video');
   const audioIndex =
     req.audioStreamIndex ??
     source.DefaultAudioStreamIndex ??
@@ -220,6 +221,9 @@ export function buildPlan(
     selectedSubtitleIndex:
       subIndex !== undefined && subIndex >= 0 ? subIndex : undefined,
     headers,
+    videoFrameRate: video?.RealFrameRate ?? video?.AverageFrameRate,
+    videoWidth: video?.Width,
+    videoHeight: video?.Height,
   };
 
   if (canDirect) {

@@ -73,6 +73,20 @@ describe('settings', () => {
     );
   });
 
+  it('matches the refresh rate by default and keeps only known policies', () => {
+    expect(DEFAULT_SETTINGS.refreshRateMatch).toBe('frameRate');
+    expect(sanitizeSettings({ refreshRateMatch: 'off' }).refreshRateMatch).toBe(
+      'off',
+    );
+    expect(
+      sanitizeSettings({ refreshRateMatch: 'frameRateAndResolution' })
+        .refreshRateMatch,
+    ).toBe('frameRateAndResolution');
+    expect(
+      sanitizeSettings({ refreshRateMatch: 'always' }).refreshRateMatch,
+    ).toBe('frameRate');
+  });
+
   it('round-trips through storage and survives corrupt JSON', async () => {
     const store = new MemoryStore();
     await saveSettings(store, {

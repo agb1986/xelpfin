@@ -8,6 +8,7 @@ import { useNavigation } from '../../state/navigation';
 import {
   BITRATE_CHOICES,
   LANGUAGE_CHOICES,
+  REFRESH_RATE_CHOICES,
   SUBTITLE_BACKGROUND_CHOICES,
   SUBTITLE_CHOICES,
   SUBTITLE_COLOR_CHOICES,
@@ -64,6 +65,7 @@ const CONFIRM_MS = 5000;
 
 type PickerKey =
   | 'bitrate'
+  | 'refreshrate'
   | 'subtitles'
   | 'language'
   | 'sublanguage'
@@ -188,6 +190,14 @@ export function SettingsScreen() {
           value={labelOf(BITRATE_CHOICES, settings.maxBitrate)}
           onPress={() => setPicker('bitrate')}
         />
+        {platform.display ? (
+          <Row
+            testID="set-refreshrate"
+            label="Match display refresh rate"
+            value={labelOf(REFRESH_RATE_CHOICES, settings.refreshRateMatch)}
+            onPress={() => setPicker('refreshrate')}
+          />
+        ) : null}
         <Row
           testID="set-subtitles"
           label="Subtitles"
@@ -334,6 +344,15 @@ export function SettingsScreen() {
         onSelect={v => updateSettings({ maxBitrate: v })}
         onClose={() => setPicker(undefined)}
         testID="pick-bitrate"
+      />
+      <OptionPicker
+        visible={picker === 'refreshrate'}
+        title="Match display refresh rate"
+        options={REFRESH_RATE_CHOICES}
+        selected={settings.refreshRateMatch}
+        onSelect={v => updateSettings({ refreshRateMatch: v })}
+        onClose={() => setPicker(undefined)}
+        testID="pick-refreshrate"
       />
       <OptionPicker
         visible={picker === 'subtitles'}

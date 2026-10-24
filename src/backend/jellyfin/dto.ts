@@ -68,6 +68,9 @@ export interface MediaStreamDto {
   BitRate?: number;
   Profile?: string;
   VideoRange?: string;
+  /** Frames per second of a video stream; Real is the container's rate, Average the measured one. */
+  RealFrameRate?: number;
+  AverageFrameRate?: number;
 }
 
 export interface MediaSourceDto {
@@ -304,12 +307,7 @@ function thumbOf(i: BaseItemDto, img: ImageUrlFn): string | undefined {
     return img(i.Id, 'Thumb', THUMB_BOX, i.ImageTags.Thumb);
   }
   if (i.ParentThumbItemId && i.ParentThumbImageTag) {
-    return img(
-      i.ParentThumbItemId,
-      'Thumb',
-      THUMB_BOX,
-      i.ParentThumbImageTag,
-    );
+    return img(i.ParentThumbItemId, 'Thumb', THUMB_BOX, i.ParentThumbImageTag);
   }
   if (i.BackdropImageTags?.length) {
     return img(i.Id, 'Backdrop', THUMB_BOX, i.BackdropImageTags[0]);
