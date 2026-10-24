@@ -29,10 +29,11 @@ updates:
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
       - dependency-name: '@react-native-community/cli*'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      # React must be the exact version react-native's bundled renderer was built with, so even a
+      # React patch update breaks it ("react" and "react-native-renderer" must match). React only
+      # moves together with react-native, by hand.
       - dependency-name: react
-        update-types: ['version-update:semver-major', 'version-update:semver-minor']
       - dependency-name: react-test-renderer
-        update-types: ['version-update:semver-major', 'version-update:semver-minor']
       - dependency-name: '@types/react*'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
       # Major updates the toolchain cannot take yet. Drop each rule once the blocker is gone.
