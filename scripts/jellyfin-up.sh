@@ -15,9 +15,17 @@ elif [ "$(docker inspect -f '{{.State.Running}}' "$JF_NAME")" != true ]; then
   docker start "$JF_NAME" >/dev/null
 fi
 
+# Wait on /health, not /System/Info/Public. Since 10.11 a temporary setup server answers
+# /System/Info/Public with 200 while migrations run, then stops and the real server takes over
+# the port. Only the real server reports "Healthy" (the setup server says "Degraded").
 echo -n "waiting for $JF_URL"
+up=
 for _ in $(seq 1 120); do
-  if curl -fs "$JF_URL/System/Info/Public" >/dev/null 2>&1; then echo " up"; break; fi
+  if [ "$(curl -s -m 2 "$JF_URL/health" 2>/dev/null)" = Healthy ]; then up=1; echo " up"; break; fi
   echo -n .; sleep 1
 done
+if [ -z "$up" ]; then
+  echo " not healthy after 120 s" >&2
+  exit 1
+fi
 node "$APP_DIR/scripts/jellyfin-setup.mjs" "$JF_URL"
