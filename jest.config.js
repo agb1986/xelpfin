@@ -13,5 +13,8 @@ module.exports = {
   // Agent worktrees under .claude/ hold full copies of the repo.
   modulePathIgnorePatterns: ['<rootDir>/.claude/'],
   setupFiles: ['<rootDir>/jest.setup.js'],
+  // Suites that mount the whole app take several seconds per test on a busy CI runner, past
+  // jest's 5 s default.
+  testTimeout: 30_000,
   collectCoverageFrom: ['App.tsx', 'src/**/*.{ts,tsx}'],
 };
