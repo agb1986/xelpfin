@@ -147,6 +147,12 @@ const languageChoice = (language: Language): LanguageChoice => ({
   value: language.code,
 });
 
+/**
+ * Index of the first alphabetically sorted row in both language pickers, after the default
+ * row and the common languages.
+ */
+export const SORTED_LANGUAGES_START = 1 + COMMON_LANGUAGE_CODES.length;
+
 export const LANGUAGE_CHOICES: LanguageChoice[] = [
   { label: 'File default', value: '' },
   ...COMMON_LANGUAGE_CODES.map(c => languageChoice(LANGUAGE_BY_CODE.get(c)!)),

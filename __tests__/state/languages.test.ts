@@ -2,6 +2,7 @@ import { LANGUAGES, SPECIAL_LANGUAGE_CODES } from '../../src/state/languages';
 import {
   COMMON_LANGUAGE_CODES,
   LANGUAGE_CHOICES,
+  SORTED_LANGUAGES_START,
   SUBTITLE_LANGUAGE_CHOICES,
   canonicalLanguage,
   languageCodes,
@@ -65,6 +66,8 @@ describe('language choices', () => {
     );
     expect(rest).toEqual([...rest].sort());
     expect(rest.length).toBeGreaterThan(400);
+    // The pickers jump by letter from here on.
+    expect(SORTED_LANGUAGES_START).toBe(1 + COMMON_LANGUAGE_CODES.length);
   });
 
   it('offers Japanese and Polish', () => {

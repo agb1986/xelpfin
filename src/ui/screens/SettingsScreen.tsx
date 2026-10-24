@@ -9,6 +9,7 @@ import {
   BITRATE_CHOICES,
   LANGUAGE_CHOICES,
   REFRESH_RATE_CHOICES,
+  SORTED_LANGUAGES_START,
   SUBTITLE_BACKGROUND_CHOICES,
   SUBTITLE_CHOICES,
   SUBTITLE_COLOR_CHOICES,
@@ -371,6 +372,7 @@ export function SettingsScreen() {
         onSelect={v => updateSettings({ preferredLanguage: v })}
         onClose={() => setPicker(undefined)}
         testID="pick-language"
+        letterJumpFrom={SORTED_LANGUAGES_START}
       />
       <OptionPicker
         visible={picker === 'sublanguage'}
@@ -380,6 +382,7 @@ export function SettingsScreen() {
         onSelect={v => updateSettings({ preferredSubtitleLanguage: v })}
         onClose={() => setPicker(undefined)}
         testID="pick-sublanguage"
+        letterJumpFrom={SORTED_LANGUAGES_START}
       />
       <OptionPicker
         visible={picker === 'subsize'}
