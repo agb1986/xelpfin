@@ -31,6 +31,8 @@ const h264Mp4: MediaSourceDto = {
       Width: 1280,
       Height: 720,
       BitDepth: 8,
+      RealFrameRate: 23.976,
+      AverageFrameRate: 23.97602,
     },
     {
       Index: 1,
@@ -177,6 +179,9 @@ describe('buildPlan', () => {
     expect(plan.durationMs).toBe(40_000);
     expect(plan.startPositionMs).toBe(5000);
     expect(plan.selectedAudioIndex).toBe(1);
+    expect(plan.videoFrameRate).toBe(23.976);
+    expect(plan.videoWidth).toBe(1280);
+    expect(plan.videoHeight).toBe(720);
     expect(plan.audioTracks).toEqual([
       {
         index: 1,

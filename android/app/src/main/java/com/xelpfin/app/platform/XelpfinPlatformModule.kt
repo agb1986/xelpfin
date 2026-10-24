@@ -7,6 +7,8 @@ import android.media.AudioManager
 import android.media.MediaCodecInfo
 import android.media.MediaCodecList
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.Display
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -14,6 +16,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.ReadableArray
+import com.facebook.react.bridge.UiThreadUtil
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
@@ -27,6 +30,7 @@ import kotlin.concurrent.thread
  *  - a UDP broadcast round trip for server discovery (the payload and reply parsing are in TS),
  *  - the list of hardware/software video and audio decoders, for the playback device profile,
  *  - the HDR formats of the display and the encodings the audio output accepts, for the same,
+ *  - the display modes and the window's preferred one, for refresh rate matching,
  *  - static device info,
  *  - trust on first use for self-signed HTTPS servers (see [CertificatePins]).
  * Nothing here talks to any host except the addresses the caller passes in.
@@ -170,6 +174,99 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
   }
 
   /**
+   * Modes of the default display: { modes: [{ id, width, height, refreshRate }], activeModeId }.
+   * Empty and 0 when the display cannot be read.
+   */
+  @ReactMethod
+  fun getDisplayModes(promise: Promise) {
+    try {
+      val display = defaultDisplay()
+      val modes = Arguments.createArray()
+      display?.supportedModes?.forEach { mode ->
+        val m = Arguments.createMap()
+        m.putInt("id", mode.modeId)
+        m.putInt("width", mode.physicalWidth)
+        m.putInt("height", mode.physicalHeight)
+        m.putDouble("refreshRate", mode.refreshRate.toDouble())
+        modes.pushMap(m)
+      }
+      val out = Arguments.createMap()
+      out.putArray("modes", modes)
+      out.putInt("activeModeId", display?.mode?.modeId ?: 0)
+      promise.resolve(out)
+    } catch (e: Exception) {
+      promise.reject("E_DISPLAY", e.message, e)
+    }
+  }
+
+  /**
+   * Sets the activity window's preferred display mode ([modeId] 0 clears the preference) and
+   * resolves true once the default display reports a different mode, false when there is no
+   * activity, the mode is already active, or nothing changed within [timeoutMs] (clamped to
+   * [MAX_MODE_SWITCH_MS]). The window attribute stays set either way; the system drops it when
+   * the activity goes away.
+   */
+  @ReactMethod
+  fun setPreferredDisplayMode(modeId: Int, timeoutMs: Int, promise: Promise) {
+    UiThreadUtil.runOnUiThread {
+      try {
+        val activity = reactApplicationContext.currentActivity
+        val dm = reactApplicationContext.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+        val display = dm?.getDisplay(Display.DEFAULT_DISPLAY)
+        if (activity == null || dm == null || display == null) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        val before = display.mode.modeId
+        val attrs = activity.window.attributes
+        if (attrs.preferredDisplayModeId == modeId) {
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        if (modeId != 0 && before == modeId) {
+          attrs.preferredDisplayModeId = modeId
+          activity.window.attributes = attrs
+          promise.resolve(false)
+          return@runOnUiThread
+        }
+        val handler = Handler(Looper.getMainLooper())
+        var settled = false
+        lateinit var listener: DisplayManager.DisplayListener
+        val finish = { changed: Boolean ->
+          if (!settled) {
+            settled = true
+            dm.unregisterDisplayListener(listener)
+            handler.removeCallbacksAndMessages(null)
+            promise.resolve(changed)
+          }
+        }
+        listener =
+            object : DisplayManager.DisplayListener {
+              override fun onDisplayChanged(displayId: Int) {
+                if (displayId != Display.DEFAULT_DISPLAY) return
+                val now = dm.getDisplay(Display.DEFAULT_DISPLAY)?.mode?.modeId ?: return
+                if (now != before) finish(true)
+              }
+
+              override fun onDisplayAdded(displayId: Int) {}
+
+              override fun onDisplayRemoved(displayId: Int) {}
+            }
+        dm.registerDisplayListener(listener, handler)
+        handler.postDelayed({ finish(false) }, timeoutMs.coerceIn(0, MAX_MODE_SWITCH_MS).toLong())
+        attrs.preferredDisplayModeId = modeId
+        activity.window.attributes = attrs
+      } catch (e: Exception) {
+        promise.reject("E_DISPLAY", e.message, e)
+      }
+    }
+  }
+
+  private fun defaultDisplay(): Display? =
+      (reactApplicationContext.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager)
+          ?.getDisplay(Display.DEFAULT_DISPLAY)
+
+  /**
    * Encodings and channel counts the audio outputs accept, over every output device (HDMI, the
    * TV's own speakers, Bluetooth): { encodings: [AudioFormat.ENCODING_*], maxChannels }. TS
    * keeps only the compressed encodings a sink can take as a bitstream. Empty and 0 when
@@ -264,5 +361,6 @@ class XelpfinPlatformModule(ctx: ReactApplicationContext) : ReactContextBaseJava
     const val MAX_DISCOVERY_REPLIES = 64
     const val MAX_DISCOVERY_MS = 10_000
     const val MAX_INSPECT_MS = 15_000
+    const val MAX_MODE_SWITCH_MS = 10_000
   }
 }

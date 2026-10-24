@@ -12,6 +12,8 @@ import {
 import type {
   CertificatePin,
   DeviceInfo,
+  DisplayControl,
+  DisplayModes,
   KeyValueStore,
   PlatformServices,
   TlsInspection,
@@ -37,6 +39,9 @@ interface XelpfinPlatformNative {
     timeoutMs: number,
   ): Promise<TlsInspection>;
   setPinnedCertificates?(pins: CertificatePin[]): Promise<void>;
+  /** Optional: builds without refresh rate matching lack them, and then `display` is undefined. */
+  getDisplayModes?(): Promise<DisplayModes>;
+  setPreferredDisplayMode?(modeId: number, timeoutMs: number): Promise<boolean>;
   [k: string]: unknown;
 }
 
@@ -93,6 +98,26 @@ const tls: TlsTrust | undefined =
       }
     : undefined;
 
+/** How long to wait for the display to report a mode switch; HDMI renegotiation takes a few seconds. */
+const MODE_SWITCH_TIMEOUT_MS = 5000;
+
+const display: DisplayControl | undefined =
+  native &&
+  typeof native.getDisplayModes === 'function' &&
+  typeof native.setPreferredDisplayMode === 'function'
+    ? {
+        modes: () =>
+          native.getDisplayModes!().catch(() => ({
+            modes: [],
+            activeModeId: 0,
+          })),
+        setPreferredMode: modeId =>
+          native.setPreferredDisplayMode!(modeId, MODE_SWITCH_TIMEOUT_MS).catch(
+            () => false,
+          ),
+      }
+    : undefined;
+
 /** Calls an optional native query; a missing method or a rejection means "unknown". */
 async function optional<T>(
   query: (() => Promise<T>) | undefined,
@@ -135,6 +160,7 @@ export function createFireTvPlatform(): PlatformServices {
     storage: asyncStore,
     udp,
     tls,
+    display,
     capabilities() {
       capsPromise ??= native
         ? queryCapabilities(native).catch(() => BASELINE_CAPABILITIES)
