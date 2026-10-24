@@ -35,6 +35,16 @@ updates:
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
       - dependency-name: '@types/react*'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      # Major updates the toolchain cannot take yet. Drop each rule once the blocker is gone.
+      # typescript-eslint does not support TypeScript 7.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # The typescript-eslint parser fails under ESLint 10 (scopeManager.addGlobals).
+      - dependency-name: eslint
+        update-types: ['version-update:semver-major']
+      # @react-native/babel-preset requires Babel 7.
+      - dependency-name: '@babel/*'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
