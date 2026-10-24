@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { ItemDetail, MediaItem } from '../../backend/types';
 import { useBackend } from '../../state/AppState';
@@ -11,7 +11,12 @@ import {
   MediaRow,
   describeError,
 } from '../components';
-import { formatDuration, formatRuntime, useAsync } from '../hooks';
+import {
+  formatDuration,
+  formatRuntime,
+  useAsync,
+  useRefreshOnReturn,
+} from '../hooks';
 import { colors, font, radius, space } from '../theme';
 import { openItem } from './navigate';
 
@@ -76,15 +81,6 @@ export function DetailScreen({
   const [actionError, setActionError] = useState<string>();
   const randomizer = useRandomizer();
 
-  const { reload } = detail;
-  const wasActive = useRef(active);
-  useEffect(() => {
-    if (active && !wasActive.current) {
-      reload();
-    }
-    wasActive.current = active;
-  }, [active, reload]);
-
   const item = detail.data;
   const isSeries = item?.kind === 'series';
   const seasons = useAsync(
@@ -145,6 +141,16 @@ export function DetailScreen({
     episodes.data && (isEpisode || episodes.data.season === currentSeason)
       ? episodes.data.list
       : [];
+
+  // Back from the player: the item and its episode row carry progress, so both are refreshed.
+  // The backend's cache answers from memory unless playback changed something.
+  const reloadDetail = detail.reload;
+  const reloadEpisodes = episodes.reload;
+  const refresh = useCallback(() => {
+    reloadDetail();
+    reloadEpisodes();
+  }, [reloadDetail, reloadEpisodes]);
+  useRefreshOnReturn(active, backend, refresh);
 
   const openMember = useCallback((m: MediaItem) => openItem(nav, m), [nav]);
   const openEpisode = useCallback((ep: MediaItem) => openItem(nav, ep), [nav]);

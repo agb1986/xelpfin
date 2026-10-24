@@ -78,3 +78,6 @@ docs/screens/failure.png
 # Release signing material and built release APKs (scripts/release.sh)
 /signing/
 /dist/
+
+# Claude Code agent worktrees
+.claude/worktrees/
