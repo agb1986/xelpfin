@@ -56,7 +56,7 @@ export function RandomizerHistoryScreen() {
             const code = episodeCode(ep.parentIndexNumber, ep.indexNumber);
             return (
               <Focusable
-                key={ep.id}
+                key={`${i}-${ep.id}`}
                 testID={`history-${i}`}
                 hasTVPreferredFocus={i === 0}
                 onPress={() => openItem(nav, ep)}
