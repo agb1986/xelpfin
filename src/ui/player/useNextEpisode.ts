@@ -3,7 +3,12 @@ import type { ItemDetail, MediaItem } from '../../backend/types';
 import { useApp, useBackend } from '../../state/AppState';
 import { useNavigation } from '../../state/navigation';
 import { findNextEpisode } from '../../state/nextEpisode';
-import { drawEpisode, loadPool, useRandomizer } from '../../state/randomizer';
+import {
+  drawEpisode,
+  loadPool,
+  useRandomizer,
+  type Draw,
+} from '../../state/randomizer';
 
 /**
  * What plays after this item: the episodes before and after it in its series, the next
@@ -91,6 +96,55 @@ export function useNextEpisode(item: ItemDetail | undefined, shuffle: boolean) {
     nav.back();
   }, [backend, item, nav, randomEpisode, settings.autoplayNext, shuffle]);
 
+  // The Randomizer draw behind the card on screen; it is only recorded as played if it plays.
+  const peeked = useRef<Draw>(undefined);
+
+  /**
+   * Looks up what the next-episode card offers without moving on: undefined when autoplay is
+   * off or nothing follows. In shuffle mode this is a draw that `playPeeked` records when used.
+   */
+  const peekNext = useCallback(async (): Promise<MediaItem | undefined> => {
+    if (!settings.autoplayNext) {
+      return undefined;
+    }
+    if (shuffle) {
+      const pool = await loadPool(backend, randomizer.list.get().series);
+      peeked.current = drawEpisode(
+        randomizer.list.get(),
+        pool,
+        Math.random,
+        item ?? undefined,
+      );
+      return peeked.current?.episode;
+    }
+    if (item?.kind === 'episode' && item.seriesId) {
+      return findNextEpisode(backend, item);
+    }
+    return undefined;
+  }, [backend, item, randomizer.list, settings.autoplayNext, shuffle]);
+
+  /** Plays the episode `peekNext` returned, recording a Randomizer draw as played. */
+  const playPeeked = useCallback(
+    (ep: MediaItem) => {
+      if (!alive.current) {
+        return;
+      }
+      if (shuffle) {
+        const draw = peeked.current;
+        if (draw?.episode.id === ep.id) {
+          randomizer.list.update(() => draw.state);
+        }
+      }
+      nav.replace({
+        name: 'player',
+        itemId: ep.id,
+        startPositionMs: shuffle ? (ep.userData?.playbackPositionMs ?? 0) : 0,
+        ...(shuffle ? { shuffle: true } : {}),
+      });
+    },
+    [nav, randomizer.list, shuffle],
+  );
+
   const goTo = (ep: MediaItem) =>
     nav.replace({
       name: 'player',
@@ -119,5 +173,13 @@ export function useNextEpisode(item: ItemDetail | undefined, shuffle: boolean) {
     }
   };
 
-  return { upcoming, previous, playNext, goTo, playRandom };
+  return {
+    upcoming,
+    previous,
+    playNext,
+    peekNext,
+    playPeeked,
+    goTo,
+    playRandom,
+  };
 }

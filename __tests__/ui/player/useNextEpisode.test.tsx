@@ -180,4 +180,51 @@ describe('useNextEpisode', () => {
     await act(() => out.current.playRandom());
     expect(mockNav.replace).toHaveBeenCalledTimes(2);
   });
+
+  it('peeks at the next episode without moving on, and plays it', async () => {
+    const { out } = await setup('e2');
+    const ep = await out.current.peekNext();
+    expect(ep?.id).toBe('e3');
+    expect(mockNav.replace).not.toHaveBeenCalled();
+    act(() => out.current.playPeeked(ep!));
+    expect(mockNav.replace).toHaveBeenCalledWith({
+      name: 'player',
+      itemId: 'e3',
+      startPositionMs: 0,
+    });
+  });
+
+  it('peeks at nothing with autoplay off, after a movie or after the last episode', async () => {
+    const off = await setup('e2', { autoplay: false });
+    expect(await off.out.current.peekNext()).toBeUndefined();
+    const movie = await setup('m1');
+    expect(await movie.out.current.peekNext()).toBeUndefined();
+    const last = await setup('e4');
+    expect(await last.out.current.peekNext()).toBeUndefined();
+  });
+
+  it('records a peeked Randomizer draw only when it is played', async () => {
+    const { out, randomizer } = await setup('e2', { shuffle: true });
+    const ep = await out.current.peekNext();
+    expect(ep).toBeDefined();
+    expect(randomizer().played).toEqual([]);
+    act(() => out.current.playPeeked(ep!));
+    expect(randomizer().played).toEqual([ep!.id]);
+    expect(mockNav.replace).toHaveBeenCalledWith(
+      expect.objectContaining({ itemId: ep!.id, shuffle: true }),
+    );
+  });
+
+  it('peeks at nothing in shuffle mode when the list is empty', async () => {
+    const { out } = await setup('e2', { shuffle: true, series: [] });
+    expect(await out.current.peekNext()).toBeUndefined();
+  });
+
+  it('does not play a peeked episode after the screen left', async () => {
+    const { out, renderer } = await setup('e2');
+    const ep = await out.current.peekNext();
+    act(() => renderer.unmount());
+    out.current.playPeeked(ep!);
+    expect(mockNav.replace).not.toHaveBeenCalled();
+  });
 });

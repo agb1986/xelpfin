@@ -265,12 +265,14 @@ function playing(root: Renderer, uri: string) {
   });
 }
 
-test('the end of an episode plays the next one in series order', async () => {
+test('the end of an episode offers the next one in series order and Play now starts it', async () => {
   const { root } = await signedIn();
   await press(root, 'card-e2');
   const v = await playing(root, 'http://mock.local:8096/stream/e2');
   await act(async () => v.props.onLoad({ duration: 20 }));
   await act(async () => v.props.onEnd());
+  await shown(root, 'next-card');
+  await press(root, 'next-card-play');
   await playing(root, 'http://mock.local:8096/stream/e3');
   expect(has(root, 'screen-player')).toBe(true);
   await act(async () => root.unmount());

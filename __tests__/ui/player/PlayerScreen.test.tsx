@@ -94,6 +94,8 @@ const SESSION: Session = {
 /** The mock server with two audio tracks, an embedded subtitle and an intro on every item. */
 class RichBackend extends MockBackend {
   failPlayback = false;
+  /** Adds end credits from 35 s on. */
+  credits = false;
   async playback(
     req: PlaybackRequest,
     caps: DeviceCapabilities,
@@ -129,7 +131,12 @@ class RichBackend extends MockBackend {
     };
   }
   async mediaSegments(): Promise<MediaSegment[]> {
-    return [{ kind: 'intro', startMs: 0, endMs: 30_000 }];
+    return [
+      { kind: 'intro', startMs: 0, endMs: 30_000 },
+      ...(this.credits
+        ? [{ kind: 'outro' as const, startMs: 35_000, endMs: 40_000 }]
+        : []),
+    ];
   }
 }
 
@@ -181,9 +188,11 @@ async function open(
   props: { itemId?: string; shuffle?: boolean } = {},
   settings: Partial<Settings> = {},
   failPlayback = false,
+  credits = false,
 ) {
   const backend = new RichBackend(SESSION);
   backend.failPlayback = failPlayback;
+  backend.credits = credits;
   mockApp = {
     backend,
     settings: { ...DEFAULT_SETTINGS, ...settings },
@@ -218,11 +227,41 @@ async function play(root: Renderer, atS = 5, durationS = 40) {
   await flush();
 }
 
+const end = async (root: Renderer) => {
+  await act(async () => {
+    byId(root, 'video').props.onEnd();
+  });
+  await flush();
+};
+/** Runs the card's countdown interval; the other timers stay real so `flush` still works. */
+const tick = async (ms: number) => {
+  await act(async () => {
+    jest.advanceTimersByTime(ms);
+  });
+  await flush();
+};
+const text = (root: Renderer, id: string) =>
+  [byId(root, id).props.children].flat(Infinity).join('');
+
 describe('PlayerScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockRandomizer = { series: ['s1'], played: [], history: [] };
     listeners = [];
+    jest.useFakeTimers({
+      doNotFake: [
+        'Date',
+        'setTimeout',
+        'clearTimeout',
+        'setImmediate',
+        'clearImmediate',
+        'nextTick',
+        'queueMicrotask',
+        'requestAnimationFrame',
+        'cancelAnimationFrame',
+        'performance',
+      ],
+    });
     jest.spyOn(BackHandler, 'addEventListener').mockImplementation((_e, fn) => {
       listeners.push(fn as () => boolean);
       return {
@@ -232,6 +271,7 @@ describe('PlayerScreen', () => {
     });
   });
   afterEach(() => {
+    jest.useRealTimers();
     act(() => mounted.forEach(r => r.unmount()));
     mounted = [];
     jest.restoreAllMocks();
@@ -337,18 +377,19 @@ describe('PlayerScreen', () => {
     expect(has(root, 'player-exit-hint')).toBe(true);
   });
 
-  it('moves on to the next episode when the item ends', async () => {
+  it('offers the next episode when the item ends, and plays it when the countdown runs out', async () => {
     const { root } = await open();
     await play(root);
-    await act(async () => {
-      byId(root, 'video').props.onEnd();
-    });
-    await flush();
+    await end(root);
+    expect(has(root, 'next-card')).toBe(true);
+    expect(mockNav.replace).not.toHaveBeenCalled();
+    await tick(10_000);
     expect(mockNav.replace).toHaveBeenCalledWith({
       name: 'player',
       itemId: 'e3',
       startPositionMs: 0,
     });
+    expect(mockNav.replace).toHaveBeenCalledTimes(1);
   });
 
   it('skips the intro by itself and offers a random next episode in shuffle mode', async () => {
@@ -361,6 +402,114 @@ describe('PlayerScreen', () => {
     expect(mockNav.replace).toHaveBeenCalledWith(
       expect.objectContaining({ shuffle: true }),
     );
+  });
+
+  describe('next episode card', () => {
+    it('comes up when the credits start and counts down to the next episode', async () => {
+      const { root } = await open({}, {}, false, true);
+      await play(root, 20);
+      expect(has(root, 'next-card')).toBe(false);
+      const now = Date.now();
+      jest.spyOn(Date, 'now').mockReturnValue(now + 1000);
+      await act(async () => {
+        byId(root, 'video').props.onProgress({
+          currentTime: 36,
+          playableDuration: 40,
+        });
+      });
+      await flush();
+      expect(has(root, 'next-card')).toBe(true);
+      expect(text(root, 'next-card-title')).toContain('Episode 3');
+      expect(text(root, 'next-card-countdown')).toContain('10');
+      await tick(4000);
+      expect(text(root, 'next-card-countdown')).toContain('6');
+      expect(mockNav.replace).not.toHaveBeenCalled();
+      await tick(6000);
+      expect(mockNav.replace).toHaveBeenCalledWith({
+        name: 'player',
+        itemId: 'e3',
+        startPositionMs: 0,
+      });
+    });
+
+    it('plays at once with Play now', async () => {
+      const { root } = await open({}, {}, false, true);
+      await play(root, 36);
+      await press(root, 'next-card-play');
+      expect(mockNav.replace).toHaveBeenCalledTimes(1);
+      await tick(15_000);
+      expect(mockNav.replace).toHaveBeenCalledTimes(1);
+    });
+
+    it('is dismissed by Cancel and lets the credits run, then goes back at the end', async () => {
+      const { root } = await open({}, {}, false, true);
+      await play(root, 36);
+      await press(root, 'next-card-cancel');
+      expect(has(root, 'next-card')).toBe(false);
+      await tick(15_000);
+      expect(mockNav.replace).not.toHaveBeenCalled();
+      await play(root, 37);
+      expect(has(root, 'next-card')).toBe(false);
+      await end(root);
+      expect(has(root, 'next-card')).toBe(false);
+      expect(mockNav.back).toHaveBeenCalledTimes(1);
+      expect(mockNav.replace).not.toHaveBeenCalled();
+    });
+
+    it('is dismissed by BACK without leaving the player', async () => {
+      const { root } = await open({}, {}, false, true);
+      await play(root, 36);
+      expect(pressBack()).toBe(true);
+      expect(has(root, 'next-card')).toBe(false);
+      await tick(15_000);
+      expect(mockNav.replace).not.toHaveBeenCalled();
+      expect(mockNav.back).not.toHaveBeenCalled();
+      expect(has(root, 'player-playpause') || has(root, 'player-surface')).toBe(
+        true,
+      );
+    });
+
+    it('does not show with autoplay off', async () => {
+      const { root } = await open({}, { autoplayNext: false }, false, true);
+      await play(root, 36);
+      expect(has(root, 'next-card')).toBe(false);
+      await end(root);
+      expect(has(root, 'next-card')).toBe(false);
+      expect(mockNav.back).toHaveBeenCalledTimes(1);
+      expect(mockNav.replace).not.toHaveBeenCalled();
+    });
+
+    it('does not show after the last episode', async () => {
+      const { root } = await open({ itemId: 'e4' }, {}, false, true);
+      await play(root, 36);
+      expect(has(root, 'next-card')).toBe(false);
+      await end(root);
+      expect(mockNav.back).toHaveBeenCalledTimes(1);
+    });
+
+    it('draws a random episode in shuffle mode and records it only when played', async () => {
+      const { root } = await open({ shuffle: true }, {}, false, true);
+      await play(root, 36);
+      // The credits are not skipped past, so the card can come up over them.
+      expect(has(root, 'next-card')).toBe(true);
+      expect(mockRandomizer.played).toEqual([]);
+      await press(root, 'next-card-play');
+      expect(mockRandomizer.played).toHaveLength(1);
+      expect(mockNav.replace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          itemId: mockRandomizer.played[0],
+          shuffle: true,
+        }),
+      );
+    });
+
+    it('leaves the Randomizer cycle alone when cancelled in shuffle mode', async () => {
+      const { root } = await open({ shuffle: true }, {}, false, true);
+      await play(root, 36);
+      await press(root, 'next-card-cancel');
+      expect(mockRandomizer.played).toEqual([]);
+      expect(mockNav.replace).not.toHaveBeenCalled();
+    });
   });
 
   it('shows an error with Retry and Back when there is no plan', async () => {
