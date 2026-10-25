@@ -312,6 +312,29 @@ describe('PlayerScreen', () => {
     expect(has(root, 'player-playpause')).toBe(false);
   });
 
+  it('previews the seek target from the trickplay sheets of the planned source', async () => {
+    const trickplay = jest
+      .spyOn(MockBackend.prototype, 'trickplay')
+      .mockResolvedValue({
+        width: 320,
+        height: 180,
+        columns: 10,
+        rows: 10,
+        thumbnailCount: 4,
+        intervalMs: 10_000,
+        sheetUrls: ['http://mock.local:8096/sheet0.jpg'],
+        headers: { Authorization: 'token' },
+      });
+    const { root } = await open();
+    await play(root);
+    expect(trickplay).toHaveBeenCalledWith('e2', expect.any(String));
+    expect(has(root, 'trickplay-prefetch')).toBe(true);
+    expect(has(root, 'seek-preview')).toBe(false);
+    expect(pressBack()).toBe(true);
+    key('right');
+    expect(has(root, 'seek-preview-sheet')).toBe(true);
+  });
+
   it('skips with select on the surface, then asks before leaving', async () => {
     const { root, backend } = await open();
     await play(root);

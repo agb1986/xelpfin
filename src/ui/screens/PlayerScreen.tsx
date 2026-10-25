@@ -12,12 +12,14 @@ import { segmentKey } from '../player/overlayState';
 import { PlayerSubtitles } from '../player/PlayerSubtitles';
 import { SceneNavigator } from '../player/SceneNavigator';
 import { SeekOverlay } from '../player/SeekOverlay';
+import { TrickplayPrefetch } from '../player/SeekPreview';
 import { ExitHint, SkipSegmentHint } from '../player/SkipSegmentButton';
 import { TrackPickers } from '../player/TrackPickers';
 import { useNextEpisode } from '../player/useNextEpisode';
 import { usePlaybackSession } from '../player/usePlaybackSession';
 import { useRemoteKeys } from '../player/useRemoteKeys';
 import { useSeekController } from '../player/useSeekController';
+import { useTrickplay } from '../player/useTrickplay';
 import { space } from '../theme';
 
 /**
@@ -43,6 +45,7 @@ export function PlayerScreen({
   const { item, plan, error, paused, buffering, position, segments } = session;
   const total = session.duration || plan?.durationMs || item?.runtimeMs || 0;
   const next = useNextEpisode(item, shuffle);
+  const trickplay = useTrickplay(plan?.itemId, plan?.mediaSourceId);
   const seek = useSeekController({
     view: session.view,
     positionRef: session.positionRef,
@@ -166,6 +169,11 @@ export function PlayerScreen({
         />
       ) : null}
 
+      <TrickplayPrefetch
+        trickplay={trickplay}
+        positionMs={seek.pending?.target ?? position}
+      />
+
       {skip && overlay === 'hidden' ? <SkipSegmentHint segment={skip} /> : null}
       {keys.exitHint ? <ExitHint /> : null}
 
@@ -177,6 +185,7 @@ export function PlayerScreen({
           bufferedMs={session.buffered}
           totalMs={total}
           pending={seek.pending}
+          trickplay={trickplay}
           onHeight={setControlsHeight}
           above={
             scenes.length ? (
