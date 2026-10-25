@@ -284,3 +284,22 @@ export class BackendError extends Error {
     this.name = 'BackendError';
   }
 }
+
+/**
+ * Seek preview frames: thumbnails taken every `intervalMs`, packed left to right and top to
+ * bottom into JPEG sheets of `columns` by `rows` tiles. Thumbnail n is on sheet
+ * floor(n / (columns * rows)).
+ */
+export interface Trickplay {
+  /** Size of one thumbnail, in pixels of the sheet. */
+  width: number;
+  height: number;
+  columns: number;
+  rows: number;
+  thumbnailCount: number;
+  intervalMs: number;
+  /** One absolute URL per sheet, in order. */
+  sheetUrls: string[];
+  /** Headers to send with each sheet request (the sheets are not public). */
+  headers: Record<string, string>;
+}

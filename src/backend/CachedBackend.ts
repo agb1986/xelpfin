@@ -10,6 +10,7 @@ import type {
   PlaybackRequest,
   ProgressReport,
   Session,
+  Trickplay,
 } from './types';
 import type { DeviceCapabilities } from '../player/capabilities';
 import { ResponseCache } from './cache';
@@ -194,6 +195,12 @@ export class CachedBackend implements Backend {
   }
   mediaSegments(itemId: string): Promise<MediaSegment[]> {
     return this.inner.mediaSegments(itemId);
+  }
+  trickplay(
+    itemId: string,
+    mediaSourceId?: string,
+  ): Promise<Trickplay | undefined> {
+    return this.inner.trickplay(itemId, mediaSourceId);
   }
   clearProgress(itemId: string): Promise<void> {
     return this.mutate(() => this.inner.clearProgress(itemId));

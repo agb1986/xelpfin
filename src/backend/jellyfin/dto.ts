@@ -12,6 +12,7 @@ import type {
   MediaSourceSummary,
   SegmentKind,
   SubtitleTrack,
+  Trickplay,
   UserData,
 } from '../types';
 import { buildQuery } from './http';
@@ -126,6 +127,8 @@ export interface BaseItemDto {
   MediaType?: string;
   IsFolder?: boolean;
   Chapters?: ChapterDto[];
+  /** Media source id, then thumbnail width, to sheet layout. Jellyfin 10.9 and later. */
+  Trickplay?: Record<string, Record<string, TrickplayInfoDto>>;
 }
 
 export interface ChapterDto {
@@ -474,4 +477,73 @@ export function mapLibraries(items: BaseItemDto[], img: ImageUrlFn): Library[] {
         ? img(i.Id, 'Primary', THUMB_BOX, i.ImageTags.Primary)
         : undefined,
     }));
+}
+
+export interface TrickplayInfoDto {
+  Width?: number;
+  Height?: number;
+  TileWidth?: number;
+  TileHeight?: number;
+  ThumbnailCount?: number;
+  Interval?: number;
+}
+
+/** The thumbnail width asked for: big enough for the seek preview, small enough to load fast. */
+export const TRICKPLAY_WIDTH = 320;
+
+/**
+ * Picks the trickplay set of one media source: the one asked for, else the item's own (its id is
+ * also its default source's id), else the only one there is. Of the widths the server made, the
+ * one closest to {@link TRICKPLAY_WIDTH} wins, the larger on a tie.
+ */
+export function mapTrickplay(
+  dto: BaseItemDto['Trickplay'],
+  itemId: string,
+  mediaSourceId: string | undefined,
+  sheetUrl: (sourceId: string, width: number, index: number) => string,
+  headers: Record<string, string>,
+): Trickplay | undefined {
+  if (!dto) {
+    return undefined;
+  }
+  const keys = Object.keys(dto);
+  const sourceId =
+    [mediaSourceId, itemId].find(k => k && dto[k]) ??
+    (keys.length === 1 ? keys[0] : undefined);
+  if (!sourceId) {
+    return undefined;
+  }
+  const sets = Object.values(dto[sourceId]).filter(
+    i =>
+      (i.Width ?? 0) > 0 &&
+      (i.Height ?? 0) > 0 &&
+      (i.TileWidth ?? 0) > 0 &&
+      (i.TileHeight ?? 0) > 0 &&
+      (i.ThumbnailCount ?? 0) > 0 &&
+      (i.Interval ?? 0) > 0,
+  );
+  const best = sets.sort(
+    (a, b) =>
+      Math.abs(a.Width! - TRICKPLAY_WIDTH) -
+        Math.abs(b.Width! - TRICKPLAY_WIDTH) || b.Width! - a.Width!,
+  )[0];
+  if (!best) {
+    return undefined;
+  }
+  const columns = best.TileWidth!;
+  const rows = best.TileHeight!;
+  const count = best.ThumbnailCount!;
+  const sheets = Math.ceil(count / (columns * rows));
+  return {
+    width: best.Width!,
+    height: best.Height!,
+    columns,
+    rows,
+    thumbnailCount: count,
+    intervalMs: best.Interval!,
+    sheetUrls: Array.from({ length: sheets }, (_, n) =>
+      sheetUrl(sourceId, best.Width!, n),
+    ),
+    headers,
+  };
 }

@@ -184,6 +184,28 @@ test('says nothing has played yet when the history is empty', async () => {
   await act(async () => root.unmount());
 });
 
+test('an episode picked in two cycles shows as two rows without duplicate-key warnings', async () => {
+  const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
+  const { root } = await openHistory({
+    series: ['s1'],
+    played: ['e1', 'e2'],
+    history: ['e1', 'e2', 'e1'],
+  });
+  await shown(root, 'history-2');
+  await waitFor(() =>
+    expect(text(byId(root, 'history-0'))).toContain('Episode 1'),
+  );
+  await waitFor(() =>
+    expect(text(byId(root, 'history-2'))).toContain('Episode 1'),
+  );
+  const duplicateKey = errors.mock.calls.filter(c =>
+    String(c[0]).includes('same key'),
+  );
+  errors.mockRestore();
+  expect(duplicateKey).toHaveLength(0);
+  await act(async () => root.unmount());
+});
+
 test('a row opens the episode detail page', async () => {
   const { root } = await openHistory({
     series: ['s1'],

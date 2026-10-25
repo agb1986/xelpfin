@@ -16,6 +16,7 @@ import {
   type ServerInfo,
   type Session,
   type SortField,
+  type Trickplay,
 } from '../types';
 import type { DeviceCapabilities } from '../../player/capabilities';
 import {
@@ -24,6 +25,7 @@ import {
   mapItem,
   mapLibraries,
   mapSegments,
+  mapTrickplay,
   msToTicks,
   type AuthResultDto,
   type BaseItemDto,
@@ -51,7 +53,7 @@ import {
   type ClientInfo,
   type FetchFn,
 } from './http';
-import { buildPlan } from './playback';
+import { buildPlan, mediaHeaders } from './playback';
 
 /** Fields requested on list endpoints: enough for cards and rows, nothing heavy. */
 const LIST_FIELDS = [
@@ -618,6 +620,34 @@ export class JellyfinBackend implements Backend {
     } catch {
       // Servers before 10.10 have no such endpoint; a missing skip button is not an error.
       return [];
+    }
+  }
+
+  async trickplay(
+    itemId: string,
+    mediaSourceId?: string,
+  ): Promise<Trickplay | undefined> {
+    try {
+      const dto = await this.http.get<BaseItemDto>(
+        `/Items/${encodeURIComponent(itemId)}`,
+        { userId: this.session.userId, fields: ['Trickplay'] },
+      );
+      const base = this.session.server.url;
+      return mapTrickplay(
+        dto.Trickplay,
+        itemId,
+        mediaSourceId,
+        (sourceId, width, index) =>
+          `${base}/Videos/${encodeURIComponent(itemId)}/Trickplay/${width}/${index}.jpg${buildQuery({ mediaSourceId: sourceId })}`,
+        mediaHeaders({
+          baseUrl: base,
+          token: this.session.accessToken,
+          deviceId: this.client.deviceId,
+        }),
+      );
+    } catch {
+      // Seek previews are a nicety: without them the overlay falls back to chapter images.
+      return undefined;
     }
   }
 

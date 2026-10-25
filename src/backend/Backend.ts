@@ -13,6 +13,7 @@ import type {
   QuickConnectState,
   ServerInfo,
   Session,
+  Trickplay,
 } from './types';
 import type { DeviceCapabilities } from '../player/capabilities';
 
@@ -86,6 +87,14 @@ export interface Backend {
   clearProgress(itemId: string): Promise<void>;
   setPlayed(itemId: string, played: boolean): Promise<void>;
   setFavorite(itemId: string, favorite: boolean): Promise<void>;
+  /**
+   * Seek preview thumbnails for one media source (the item's own when omitted). Resolves
+   * undefined when the server has not generated any or does not support them.
+   */
+  trickplay(
+    itemId: string,
+    mediaSourceId?: string,
+  ): Promise<Trickplay | undefined>;
 
   // Values the library screen offers as filters, each sorted for display.
   /** Genre names used in a library, A to Z. */

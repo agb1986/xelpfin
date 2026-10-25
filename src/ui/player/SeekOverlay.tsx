@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import type { ItemDetail, PlaybackPlan } from '../../backend/types';
+import type { ItemDetail, PlaybackPlan, Trickplay } from '../../backend/types';
 import { episodeCode } from '../../player/seeking';
 import { formatDuration } from '../hooks';
 import { colors, font, space } from '../theme';
+import { PREVIEW_WIDTH, previewHeight, SeekPreview } from './SeekPreview';
 
 /** "Series · S01E02 · Name" for an episode, else the item's name. */
 function titleOf(item: ItemDetail | undefined): string {
@@ -28,6 +29,7 @@ export function SeekOverlay({
   bufferedMs,
   totalMs,
   pending,
+  trickplay,
   onHeight,
   above,
   children,
@@ -39,6 +41,8 @@ export function SeekOverlay({
   totalMs: number;
   /** A rewind/forward burst not committed yet; the bar shows its target. */
   pending?: { target: number; delta: number };
+  /** Seek preview thumbnails; without them the preview shows the chapter's image, if any. */
+  trickplay?: Trickplay;
   /** The panel's height, so subtitles can be lifted clear of it. */
   onHeight(height: number): void;
   above?: React.ReactNode;
@@ -47,6 +51,7 @@ export function SeekOverlay({
   const shown = pending?.target ?? positionMs;
   const pct = totalMs ? Math.min(1, shown / totalMs) : 0;
   const bufPct = totalMs ? Math.min(1, bufferedMs / totalMs) : 0;
+  const [barWidth, setBarWidth] = useState(0);
   return (
     <View
       style={styles.overlay}
@@ -57,9 +62,35 @@ export function SeekOverlay({
       <Text style={styles.title} numberOfLines={1}>
         {titleOf(item)}
       </Text>
-      <View style={styles.bar}>
-        <View style={[styles.barBuffered, { width: `${bufPct * 100}%` }]} />
-        <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
+      <View onLayout={e => setBarWidth(e.nativeEvent.layout.width)}>
+        {pending ? (
+          // Above the bar, centred on the target and kept inside the bar's ends.
+          <View
+            style={[
+              styles.preview,
+              {
+                left: Math.max(
+                  0,
+                  Math.min(
+                    barWidth - PREVIEW_WIDTH,
+                    pct * barWidth - PREVIEW_WIDTH / 2,
+                  ),
+                ),
+                top: -previewHeight(trickplay) - space.sm,
+              },
+            ]}
+          >
+            <SeekPreview
+              trickplay={trickplay}
+              chapters={item?.chapters}
+              targetMs={pending.target}
+            />
+          </View>
+        ) : null}
+        <View style={styles.bar}>
+          <View style={[styles.barBuffered, { width: `${bufPct * 100}%` }]} />
+          <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
+        </View>
       </View>
       <View style={styles.times}>
         <Text style={styles.time} testID="player-position">
@@ -99,6 +130,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: space.md,
   },
+  preview: { position: 'absolute' },
   bar: {
     height: 6,
     borderRadius: 3,
