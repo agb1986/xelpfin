@@ -267,4 +267,11 @@ describe('CachedBackend', () => {
     expect(backend.imageUrl('m1', 'poster', 300)).toContain('/img/m1/');
     expect(backend.session.userId).toBe('u1');
   });
+
+  it('passes trickplay through to the server', async () => {
+    const { inner, backend } = setup();
+    const spy = jest.spyOn(inner, 'trickplay');
+    expect(await backend.trickplay('m1', 'src')).toBeUndefined();
+    expect(spy).toHaveBeenCalledWith('m1', 'src');
+  });
 });
