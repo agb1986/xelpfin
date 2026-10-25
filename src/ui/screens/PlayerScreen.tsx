@@ -183,7 +183,9 @@ export function PlayerScreen({
         />
       ) : null}
 
-      {skip && overlay === 'hidden' && !nextUp.card ? <SkipSegmentHint segment={skip} /> : null}
+      {skip && overlay === 'hidden' && !nextUp.card ? (
+        <SkipSegmentHint segment={skip} />
+      ) : null}
       {keys.exitHint ? <ExitHint /> : null}
 
       {overlay !== 'hidden' && !nextUp.card ? (

@@ -105,56 +105,6 @@ describe('useNextEpisode', () => {
     expect(shuffled.out.current.upcoming).toEqual([]);
   });
 
-  it('plays the next episode at the end when autoplay is on', async () => {
-    const { out } = await setup('e2');
-    await act(() => out.current.playNext());
-    expect(mockNav.replace).toHaveBeenCalledWith({
-      name: 'player',
-      itemId: 'e3',
-      startPositionMs: 0,
-    });
-    expect(mockNav.back).not.toHaveBeenCalled();
-  });
-
-  it('goes back at the end with autoplay off, after a movie or after the last episode', async () => {
-    const off = await setup('e2', { autoplay: false });
-    await act(() => off.out.current.playNext());
-    const movie = await setup('m1');
-    await act(() => movie.out.current.playNext());
-    const last = await setup('e4');
-    await act(() => last.out.current.playNext());
-    expect(mockNav.back).toHaveBeenCalledTimes(3);
-    expect(mockNav.replace).not.toHaveBeenCalled();
-  });
-
-  it('draws the next Randomizer episode in shuffle mode and records it', async () => {
-    const { out, randomizer } = await setup('e2', { shuffle: true });
-    await act(() => out.current.playNext());
-    const drawn = randomizer().played[0];
-    expect(drawn).toBeDefined();
-    expect(mockNav.replace).toHaveBeenCalledWith(
-      expect.objectContaining({ itemId: drawn, shuffle: true }),
-    );
-  });
-
-  it('goes back in shuffle mode when the Randomizer list is empty', async () => {
-    const { out } = await setup('e2', { shuffle: true, series: [] });
-    await act(() => out.current.playNext());
-    expect(mockNav.back).toHaveBeenCalled();
-  });
-
-  it('does not navigate when the screen left during the lookup', async () => {
-    const { out, renderer } = await setup('e2');
-    let pending!: Promise<void>;
-    act(() => {
-      pending = out.current.playNext();
-    });
-    act(() => renderer.unmount());
-    await act(() => pending);
-    expect(mockNav.replace).not.toHaveBeenCalled();
-    expect(mockNav.back).not.toHaveBeenCalled();
-  });
-
   it('jumps to a picked episode at its resume point', async () => {
     const { out } = await setup('e2');
     act(() =>

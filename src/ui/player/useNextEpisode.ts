@@ -63,39 +63,6 @@ export function useNextEpisode(item: ItemDetail | undefined, shuffle: boolean) {
     return drawn;
   }, [backend, item, randomizer.list]);
 
-  /** Moves on after the item played to its end: the next episode when autoplay is on, else back. */
-  const playNext = useCallback(async () => {
-    if (settings.autoplayNext && shuffle) {
-      const next = await randomEpisode().catch(() => undefined);
-      if (!alive.current) {
-        return;
-      }
-      if (next) {
-        nav.replace({
-          name: 'player',
-          itemId: next.id,
-          startPositionMs: next.userData?.playbackPositionMs ?? 0,
-          shuffle: true,
-        });
-        return;
-      }
-    } else if (
-      settings.autoplayNext &&
-      item?.kind === 'episode' &&
-      item.seriesId
-    ) {
-      const next = await findNextEpisode(backend, item).catch(() => undefined);
-      if (!alive.current) {
-        return;
-      }
-      if (next) {
-        nav.replace({ name: 'player', itemId: next.id, startPositionMs: 0 });
-        return;
-      }
-    }
-    nav.back();
-  }, [backend, item, nav, randomEpisode, settings.autoplayNext, shuffle]);
-
   // The Randomizer draw behind the card on screen; it is only recorded as played if it plays.
   const peeked = useRef<Draw>(undefined);
 
@@ -176,7 +143,6 @@ export function useNextEpisode(item: ItemDetail | undefined, shuffle: boolean) {
   return {
     upcoming,
     previous,
-    playNext,
     peekNext,
     playPeeked,
     goTo,
