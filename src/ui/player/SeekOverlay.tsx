@@ -1,10 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import type {
-  ItemDetail,
-  PlaybackPlan,
-  Trickplay,
-} from '../../backend/types';
+import type { ItemDetail, PlaybackPlan, Trickplay } from '../../backend/types';
 import { episodeCode } from '../../player/seeking';
 import { formatDuration } from '../hooks';
 import { colors, font, space } from '../theme';

@@ -91,5 +91,8 @@ export interface Backend {
    * Seek preview thumbnails for one media source (the item's own when omitted). Resolves
    * undefined when the server has not generated any or does not support them.
    */
-  trickplay(itemId: string, mediaSourceId?: string): Promise<Trickplay | undefined>;
+  trickplay(
+    itemId: string,
+    mediaSourceId?: string,
+  ): Promise<Trickplay | undefined>;
 }

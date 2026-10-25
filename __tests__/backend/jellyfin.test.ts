@@ -386,7 +386,10 @@ describe('JellyfinBackend', () => {
       },
     });
     const own = await b.trickplay('m1', 'unknown');
-    expect(f.calls[0].query).toMatchObject({ userId: 'u1', fields: 'Trickplay' });
+    expect(f.calls[0].query).toMatchObject({
+      userId: 'u1',
+      fields: 'Trickplay',
+    });
     expect(own).toEqual({
       width: 320,
       height: 180,
@@ -395,7 +398,8 @@ describe('JellyfinBackend', () => {
       thumbnailCount: 250,
       intervalMs: 10_000,
       sheetUrls: [0, 1, 2].map(
-        n => `http://srv:8096/Videos/m1/Trickplay/320/${n}.jpg?mediaSourceId=m1`,
+        n =>
+          `http://srv:8096/Videos/m1/Trickplay/320/${n}.jpg?mediaSourceId=m1`,
       ),
       headers: { Authorization: 'MediaBrowser Token="tok"' },
     });
