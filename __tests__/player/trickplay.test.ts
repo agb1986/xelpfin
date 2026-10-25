@@ -96,6 +96,32 @@ describe('frameLayout', () => {
       top: -0,
     });
   });
+
+  it('reads a size reported in density-independent units against the grid', () => {
+    // Android reports a 640x360 sheet as 320x180 on a 2x screen.
+    const frame = trickplayFrame(TP, 35_000)!;
+    expect(frameLayout(TP, frame, 160, { width: 320, height: 180 })).toEqual(
+      frameLayout(TP, frame, 160),
+    );
+    const short = trickplayFrame(TP, 85_000)!;
+    expect(frameLayout(TP, short, 160, { width: 320, height: 90 })).toEqual(
+      frameLayout(TP, short, 160, { width: 640, height: 180 }),
+    );
+  });
+
+  it('measures a sheet narrower than the grid by its single row', () => {
+    // The ninth thumbnail is alone on the last sheet, which is one cell wide (reported at 2x).
+    const tp = { ...TP, thumbnailCount: 9 };
+    const frame = trickplayFrame(tp, 85_000)!;
+    expect(frameLayout(tp, frame, 160, { width: 160, height: 90 })).toEqual({
+      width: 160,
+      height: 90,
+      sheetWidth: 160,
+      sheetHeight: 90,
+      left: -0,
+      top: -0,
+    });
+  });
 });
 
 describe('sheetsAround', () => {

@@ -50,23 +50,39 @@ export interface FrameLayout {
 }
 
 /**
- * How to draw a sheet inside a `boxWidth` wide box so that only `frame` shows. `sheetPx` is the
- * sheet's real size in pixels when known: a server may cut the last sheet short instead of
- * padding it to a full grid, and drawing it at the full-grid size would stretch it.
+ * How to draw a sheet inside a `boxWidth` wide box so that only `frame` shows. `loaded` is the
+ * sheet's size as the image loader reported it, when known: a server may cut the last sheet short
+ * instead of padding it to a full grid, and drawing it at the full-grid size would stretch it.
+ * Android reports that size in density-independent units rather than pixels, so only its
+ * proportions are trusted; the scale comes from the cells the sheet must hold, a full row when it
+ * has that many thumbnails, else one row of a single cell's height.
  */
 export function frameLayout(
   tp: Trickplay,
   frame: TrickplayFrame,
   boxWidth: number,
-  sheetPx?: { width: number; height: number },
+  loaded?: { width: number; height: number },
 ): FrameLayout {
   const scale = boxWidth / tp.width;
   const height = tp.height * scale;
+  let sheetPx = { width: tp.columns * tp.width, height: tp.rows * tp.height };
+  if (loaded) {
+    const perSheet = tp.columns * tp.rows;
+    const onSheet = Math.min(
+      perSheet,
+      tp.thumbnailCount - frame.sheet * perSheet,
+    );
+    const unit =
+      onSheet >= tp.columns
+        ? loaded.width / (tp.columns * tp.width)
+        : loaded.height / tp.height;
+    sheetPx = { width: loaded.width / unit, height: loaded.height / unit };
+  }
   return {
     width: boxWidth,
     height,
-    sheetWidth: (sheetPx?.width ?? tp.columns * tp.width) * scale,
-    sheetHeight: (sheetPx?.height ?? tp.rows * tp.height) * scale,
+    sheetWidth: sheetPx.width * scale,
+    sheetHeight: sheetPx.height * scale,
     left: -frame.column * boxWidth,
     top: -frame.row * height,
   };

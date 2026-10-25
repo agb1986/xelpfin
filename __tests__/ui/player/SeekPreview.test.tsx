@@ -99,25 +99,26 @@ describe('SeekPreview', () => {
     expect(one(root, 'seek-preview-chapter')).toBeUndefined();
   });
 
-  it('sizes a loaded sheet by its real pixels', () => {
-    // 1100 s is on the second, short sheet: 5 thumbnails cut to one row.
+  it('sizes a loaded sheet by its real proportions', () => {
+    // 1100 s is on the second, short sheet: 50 thumbnails cut to five rows, 3200x900 pixels,
+    // which Android reports in density-independent units (here at 2x).
     const root = render(<SeekPreview trickplay={TP} targetMs={1_100_000} />);
     const sheet = one(root, 'seek-preview-sheet')!;
     expect(sheet.props.source.uri).toBe('http://s/1.jpg');
     act(() =>
       sheet.props.onLoad({
-        nativeEvent: { source: { width: 1600, height: 180 } },
+        nativeEvent: { source: { width: 1600, height: 450 } },
       }),
     );
     expect(flat(one(root, 'seek-preview-sheet')!)).toMatchObject({
-      width: 1280,
-      height: 144,
+      width: 2560,
+      height: 720,
     });
-    // A load event without a size keeps the grid size it had.
+    // A load event without a size keeps the size it had.
     act(() =>
       one(root, 'seek-preview-sheet')!.props.onLoad({ nativeEvent: {} }),
     );
-    expect(flat(one(root, 'seek-preview-sheet')!).width).toBe(1280);
+    expect(flat(one(root, 'seek-preview-sheet')!).height).toBe(720);
   });
 
   it('falls back to the chapter image when a sheet will not load', () => {
