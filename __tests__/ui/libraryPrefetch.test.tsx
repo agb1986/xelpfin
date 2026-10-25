@@ -5,32 +5,37 @@ import ReactTestRenderer, {
   type ReactTestRenderer as Renderer,
 } from 'react-test-renderer';
 import type { ItemQuery, MediaItem, Page } from '../../src/backend/types';
+import { MemoryStore } from '../../src/platform/types';
+import { resetLocalLists } from '../../src/state/localLists';
 import { resetCardPrefetch } from '../../src/ui/components/Card';
 import { LibraryScreen } from '../../src/ui/screens/LibraryScreen';
 
 const TOTAL = 150;
-const mockItems = jest.fn(
-  async (q: ItemQuery): Promise<Page<MediaItem>> => {
-    const start = q.startIndex ?? 0;
-    const end = Math.min(TOTAL, start + (q.limit ?? 60));
-    const page: MediaItem[] = [];
-    for (let n = start; n < end; n++) {
-      page.push({
-        id: `m${n}`,
-        name: `Movie ${n}`,
-        kind: 'movie',
-        posterUrl: `http://srv/p/${n}`,
-      } as MediaItem);
-    }
-    return { items: page, totalCount: TOTAL, startIndex: start };
-  },
-);
+const mockItems = jest.fn(async (q: ItemQuery): Promise<Page<MediaItem>> => {
+  const start = q.startIndex ?? 0;
+  const end = Math.min(TOTAL, start + (q.limit ?? 60));
+  const page: MediaItem[] = [];
+  for (let n = start; n < end; n++) {
+    page.push({
+      id: `m${n}`,
+      name: `Movie ${n}`,
+      kind: 'movie',
+      posterUrl: `http://srv/p/${n}`,
+    } as MediaItem);
+  }
+  return { items: page, totalCount: TOTAL, startIndex: start };
+});
 
 // Stable identities: the screen reloads whenever the backend changes.
-const mockBackend = { items: mockItems };
+const mockBackend = {
+  session: { server: { id: 'srv' }, userId: 'u1' },
+  items: mockItems,
+};
+const mockStorage = new MemoryStore();
 const mockNav = { push: jest.fn() };
 jest.mock('../../src/state/AppState', () => ({
   useBackend: () => mockBackend,
+  useApp: () => ({ platform: { storage: mockStorage }, backend: mockBackend }),
 }));
 jest.mock('../../src/state/navigation', () => ({
   ...jest.requireActual('../../src/state/navigation'),
@@ -55,6 +60,7 @@ const scrollTo = (root: Renderer, lastVisible: number) =>
 describe('LibraryScreen paging', () => {
   let prefetch: jest.SpyInstance;
   beforeEach(() => {
+    resetLocalLists();
     mockItems.mockClear();
     resetCardPrefetch();
     prefetch = jest

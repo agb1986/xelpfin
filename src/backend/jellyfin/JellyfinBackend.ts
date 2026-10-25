@@ -81,7 +81,43 @@ const SORT: Record<SortField, string> = {
   dateAdded: 'DateCreated,SortName',
   year: 'ProductionYear,PremiereDate,SortName',
   rating: 'CommunityRating,SortName',
+  runtime: 'Runtime,SortName',
+  premiereDate: 'PremiereDate,SortName',
+  playCount: 'PlayCount,SortName',
+  datePlayed: 'DatePlayed,SortName',
+  criticRating: 'CriticRating,SortName',
+  random: 'Random',
 };
+
+/** Item types a resolution filter looks at when the query names none: only videos have one. */
+const VIDEO_TYPES = ['Movie', 'Episode'];
+
+/** The `filters` value for a query's watched state. */
+function playedFilter(q: ItemQuery): string | undefined {
+  if (q.played !== undefined) {
+    return q.played ? 'IsPlayed' : 'IsUnplayed';
+  }
+  return q.unplayedOnly ? 'IsUnplayed' : undefined;
+}
+
+/** Jellyfin separates names with `|` in these parameters, since names may hold commas. */
+function names(values?: string[]): string | undefined {
+  return values?.length ? values.join('|') : undefined;
+}
+
+/** Unique, non-empty names sorted A to Z. */
+function sortedNames(values: (string | undefined)[]): string[] {
+  return [...new Set(values.filter((v): v is string => !!v))].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' }),
+  );
+}
+
+interface QueryFiltersDto {
+  Genres?: string[];
+  Tags?: string[];
+  OfficialRatings?: string[];
+  Years?: number[];
+}
 
 export interface JellyfinOptions {
   client: ClientInfo;
@@ -339,7 +375,9 @@ export class JellyfinBackend implements Backend {
 
   async items(q: ItemQuery): Promise<Page<MediaItem>> {
     const startIndex = q.startIndex ?? 0;
-    const types = jellyfinTypes(q.kinds);
+    // Jellyfin applies the resolution filter only to a recursive query.
+    const types =
+      jellyfinTypes(q.kinds) ?? (q.resolution ? VIDEO_TYPES : undefined);
     const r = await this.http.get<ItemsResultDto>('/Items', {
       userId: this.session.userId,
       parentId: q.parentId ?? q.libraryId,
@@ -352,7 +390,19 @@ export class JellyfinBackend implements Backend {
           ? q.nameStartsWith
           : undefined,
       nameLessThan: q.nameStartsWith === '#' ? 'A' : undefined,
-      filters: q.unplayedOnly ? 'IsUnplayed' : undefined,
+      filters: playedFilter(q),
+      genres: names(q.genres),
+      years: q.years?.length ? q.years.map(String) : undefined,
+      officialRatings: names(q.officialRatings),
+      tags: names(q.tags),
+      studios: names(q.studios),
+      is4K: q.resolution === '4k' ? true : undefined,
+      isHd:
+        q.resolution === 'hd'
+          ? true
+          : q.resolution === 'sd'
+            ? false
+            : undefined,
       startIndex,
       limit: q.limit ?? 60,
       fields: LIST_FIELDS,
@@ -627,5 +677,49 @@ export class JellyfinBackend implements Backend {
     } else {
       await this.http.delete(path, q);
     }
+  }
+
+  async genres(libraryId: string): Promise<string[]> {
+    return this.namesOf('/Genres', libraryId);
+  }
+
+  async studios(libraryId: string): Promise<string[]> {
+    return this.namesOf('/Studios', libraryId);
+  }
+
+  async years(libraryId: string): Promise<number[]> {
+    const f = await this.queryFilters(libraryId);
+    return [...new Set(f.Years ?? [])]
+      .filter(y => Number.isInteger(y) && y > 0)
+      .sort((a, b) => b - a);
+  }
+
+  async tags(libraryId: string): Promise<string[]> {
+    return sortedNames((await this.queryFilters(libraryId)).Tags ?? []);
+  }
+
+  async officialRatings(libraryId: string): Promise<string[]> {
+    return sortedNames(
+      (await this.queryFilters(libraryId)).OfficialRatings ?? [],
+    );
+  }
+
+  /** Names from one of the `/Genres`-style endpoints, scoped to a library. */
+  private async namesOf(path: string, libraryId: string): Promise<string[]> {
+    const r = await this.http.get<ItemsResultDto>(path, {
+      userId: this.session.userId,
+      parentId: libraryId,
+      enableImages: false,
+      enableTotalRecordCount: false,
+    });
+    return sortedNames((r.Items ?? []).map(i => i.Name));
+  }
+
+  /** The years, tags and parental ratings used in a library. */
+  private queryFilters(libraryId: string): Promise<QueryFiltersDto> {
+    return this.http.get<QueryFiltersDto>('/Items/Filters', {
+      userId: this.session.userId,
+      parentId: libraryId,
+    });
   }
 }

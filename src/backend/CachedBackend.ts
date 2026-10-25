@@ -32,7 +32,12 @@ export type CachedMethod =
   | 'episodes'
   | 'resume'
   | 'resumeEpisode'
-  | 'nextUp';
+  | 'nextUp'
+  | 'genres'
+  | 'years'
+  | 'studios'
+  | 'tags'
+  | 'officialRatings';
 
 const TTL_OF: Record<CachedMethod, number> = {
   libraries: TTL.catalogue,
@@ -43,6 +48,11 @@ const TTL_OF: Record<CachedMethod, number> = {
   resume: TTL.progress,
   resumeEpisode: TTL.progress,
   nextUp: TTL.progress,
+  genres: TTL.catalogue,
+  years: TTL.catalogue,
+  studios: TTL.catalogue,
+  tags: TTL.catalogue,
+  officialRatings: TTL.catalogue,
 };
 
 /** Every cached method whose result carries user data, so a mutation can drop them all. */
@@ -200,6 +210,29 @@ export class CachedBackend implements Backend {
   }
   setFavorite(itemId: string, favorite: boolean): Promise<void> {
     return this.mutate(() => this.inner.setFavorite(itemId, favorite));
+  }
+
+  // Filter values carry no user data, so mutations leave them cached.
+  genres(libraryId: string): Promise<string[]> {
+    return this.cached('genres', [libraryId], () =>
+      this.inner.genres(libraryId),
+    );
+  }
+  years(libraryId: string): Promise<number[]> {
+    return this.cached('years', [libraryId], () => this.inner.years(libraryId));
+  }
+  studios(libraryId: string): Promise<string[]> {
+    return this.cached('studios', [libraryId], () =>
+      this.inner.studios(libraryId),
+    );
+  }
+  tags(libraryId: string): Promise<string[]> {
+    return this.cached('tags', [libraryId], () => this.inner.tags(libraryId));
+  }
+  officialRatings(libraryId: string): Promise<string[]> {
+    return this.cached('officialRatings', [libraryId], () =>
+      this.inner.officialRatings(libraryId),
+    );
   }
 
   private cached<T>(

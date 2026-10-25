@@ -17,6 +17,7 @@ import {
   type ProgressReport,
   type PublicUser,
   type QuickConnectState,
+  type Resolution,
   type ServerInfo,
   type Session,
   type Trickplay,
@@ -104,7 +105,77 @@ export function mockData() {
     ep('e3', 'se1', 1, 3),
     ep('e4', 'se2', 2, 1),
   ];
-  return { libraries, movies, series, seasons, episodes };
+  /** What the library filters look at, by item id. Kept apart so item rows stay as they were. */
+  const facets: Record<string, Facets> = {
+    m1: {
+      genres: ['Animation', 'Comedy'],
+      studios: ['Blender'],
+      tags: ['Open movie'],
+      officialRating: 'PG',
+      resolution: '4k',
+    },
+    m2: {
+      genres: ['Drama'],
+      studios: ['Grid Pictures'],
+      officialRating: 'PG-13',
+      resolution: 'hd',
+    },
+    m3: {
+      genres: ['Comedy', 'Drama'],
+      tags: ['Classic'],
+      resolution: 'sd',
+    },
+    s1: { genres: ['Drama'], studios: ['Grid Pictures'] },
+  };
+  return { libraries, movies, series, seasons, episodes, facets };
+}
+
+export interface Facets {
+  genres?: string[];
+  studios?: string[];
+  tags?: string[];
+  officialRating?: string;
+  resolution?: Resolution;
+}
+
+const RESOLUTION_RANK: Record<Resolution, number> = { sd: 0, hd: 1, '4k': 2 };
+
+/** Whether an item passes every filter in a query, the way Jellyfin combines them. */
+function matches(q: ItemQuery, item: MediaItem, f: Facets = {}): boolean {
+  const any = (wanted: string[] | undefined, have: string[] = []) =>
+    !wanted?.length || wanted.some(w => have.includes(w));
+  const played = item.userData?.played ?? false;
+  const res = f.resolution;
+  return (
+    any(q.genres, f.genres) &&
+    any(q.studios, f.studios) &&
+    any(q.tags, f.tags) &&
+    any(q.officialRatings, f.officialRating ? [f.officialRating] : []) &&
+    (!q.years?.length || q.years.includes(item.year ?? -1)) &&
+    (q.played !== undefined
+      ? played === q.played
+      : !q.unplayedOnly || !played) &&
+    (!q.resolution ||
+      (res !== undefined &&
+        (q.resolution === 'sd'
+          ? res === 'sd'
+          : RESOLUTION_RANK[res] >= RESOLUTION_RANK[q.resolution])))
+  );
+}
+
+/** The value a sort orders by; names break ties. */
+function sortKey(q: ItemQuery, item: MediaItem): number {
+  switch (q.sort) {
+    case 'year':
+    case 'premiereDate':
+      return item.year ?? 0;
+    case 'runtime':
+      return item.runtimeMs ?? 0;
+    case 'rating':
+      return item.communityRating ?? 0;
+    default:
+      return 0;
+  }
 }
 
 export class MockConnector implements ServerConnector {
@@ -203,7 +274,10 @@ export class MockBackend implements Backend {
         i.name.toUpperCase().startsWith(q.nameStartsWith!.toUpperCase()),
       );
     }
-    list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    list = list.filter(i => matches(q, i, this.data.facets[i.id]));
+    list = [...list].sort(
+      (a, b) => sortKey(q, a) - sortKey(q, b) || a.name.localeCompare(b.name),
+    );
     if (q.descending) {
       list.reverse();
     }
@@ -340,5 +414,40 @@ export class MockBackend implements Backend {
         favorite,
       };
     }
+  }
+
+  async genres(libraryId: string): Promise<string[]> {
+    return this.facetValues(libraryId, f => f.genres);
+  }
+  async studios(libraryId: string): Promise<string[]> {
+    return this.facetValues(libraryId, f => f.studios);
+  }
+  async tags(libraryId: string): Promise<string[]> {
+    return this.facetValues(libraryId, f => f.tags);
+  }
+  async officialRatings(libraryId: string): Promise<string[]> {
+    return this.facetValues(libraryId, f =>
+      f.officialRating ? [f.officialRating] : [],
+    );
+  }
+  async years(libraryId: string): Promise<number[]> {
+    const years = this.libraryItems(libraryId)
+      .map(i => i.year)
+      .filter((y): y is number => !!y);
+    return [...new Set(years)].sort((a, b) => b - a);
+  }
+
+  private libraryItems(libraryId: string): MediaItem[] {
+    return libraryId === 'lib-shows' ? [this.data.series] : this.data.movies;
+  }
+
+  private facetValues(
+    libraryId: string,
+    pick: (f: Facets) => string[] | undefined,
+  ): string[] {
+    const values = this.libraryItems(libraryId).flatMap(
+      i => pick(this.data.facets[i.id] ?? {}) ?? [],
+    );
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
   }
 }
