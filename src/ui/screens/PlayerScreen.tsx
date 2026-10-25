@@ -12,10 +12,12 @@ import { segmentKey } from '../player/overlayState';
 import { PlayerSubtitles } from '../player/PlayerSubtitles';
 import { SceneNavigator } from '../player/SceneNavigator';
 import { SeekOverlay } from '../player/SeekOverlay';
+import { NextEpisodeCard } from '../player/NextEpisodeCard';
 import { TrickplayPrefetch } from '../player/SeekPreview';
 import { ExitHint, SkipSegmentHint } from '../player/SkipSegmentButton';
 import { TrackPickers } from '../player/TrackPickers';
 import { useNextEpisode } from '../player/useNextEpisode';
+import { useNextUpCard } from '../player/useNextUpCard';
 import { usePlaybackSession } from '../player/usePlaybackSession';
 import { useRemoteKeys } from '../player/useRemoteKeys';
 import { useSeekController } from '../player/useSeekController';
@@ -58,8 +60,10 @@ export function PlayerScreen({
     active && plan && !buffering
       ? activeSegment(segments, position)
       : undefined;
+  const nextUp = useNextUpCard(next, found?.kind === 'outro');
   const keys = useRemoteKeys({
-    active,
+    // The card owns the remote while it is up.
+    active: active && !nextUp.card,
     playing: plan,
     error,
     paused,
@@ -90,12 +94,25 @@ export function PlayerScreen({
       return;
     }
     const seg = activeSegment(segments, position);
+    // With autoplay on the credits stay, for the next-episode card to come up over them.
+    if (seg?.kind === 'outro' && settings.autoplayNext) {
+      return;
+    }
     const key = seg && segmentKey(seg);
     if (seg && key !== autoSkipped.current) {
       autoSkipped.current = key!;
       skipSegment(seg);
     }
-  }, [shuffle, active, plan, buffering, segments, position, skipSegment]);
+  }, [
+    shuffle,
+    active,
+    plan,
+    buffering,
+    segments,
+    position,
+    skipSegment,
+    settings.autoplayNext,
+  ]);
 
   if (error) {
     return (
@@ -128,7 +145,7 @@ export function PlayerScreen({
           {...session.viewProps}
           onEnd={() => {
             if (session.finish()) {
-              next.playNext();
+              nextUp.onEnd();
             }
           }}
         />
@@ -141,7 +158,7 @@ export function PlayerScreen({
       />
 
       {/* Holds focus while the controls are hidden so remote keys still reach the player. */}
-      {overlay !== 'controls' ? (
+      {overlay !== 'controls' && !nextUp.card ? (
         <Focusable
           ref={keys.surface}
           testID="player-surface"
@@ -174,10 +191,12 @@ export function PlayerScreen({
         positionMs={seek.pending?.target ?? position}
       />
 
-      {skip && overlay === 'hidden' ? <SkipSegmentHint segment={skip} /> : null}
+      {skip && overlay === 'hidden' && !nextUp.card ? (
+        <SkipSegmentHint segment={skip} />
+      ) : null}
       {keys.exitHint ? <ExitHint /> : null}
 
-      {overlay !== 'hidden' ? (
+      {overlay !== 'hidden' && !nextUp.card ? (
         <SeekOverlay
           item={item}
           plan={plan}
@@ -224,6 +243,14 @@ export function PlayerScreen({
             />
           ) : null}
         </SeekOverlay>
+      ) : null}
+
+      {nextUp.card ? (
+        <NextEpisodeCard
+          episode={nextUp.card}
+          onPlay={nextUp.play}
+          onCancel={nextUp.cancel}
+        />
       ) : null}
 
       {plan ? (
