@@ -396,7 +396,11 @@ export class JellyfinBackend implements Backend {
       studios: names(q.studios),
       is4K: q.resolution === '4k' ? true : undefined,
       isHd:
-        q.resolution === 'hd' ? true : q.resolution === 'sd' ? false : undefined,
+        q.resolution === 'hd'
+          ? true
+          : q.resolution === 'sd'
+            ? false
+            : undefined,
       startIndex,
       limit: q.limit ?? 60,
       fields: LIST_FIELDS,

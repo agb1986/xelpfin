@@ -392,8 +392,8 @@ export function LibraryScreen({ library }: { library: Library }) {
             played === undefined
               ? 'All items'
               : played
-              ? 'Watched only'
-              : 'Unwatched only'
+                ? 'Watched only'
+                : 'Unwatched only'
           }
           // All, unwatched only, watched only, and round again.
           onPress={() =>

@@ -151,7 +151,9 @@ function matches(q: ItemQuery, item: MediaItem, f: Facets = {}): boolean {
     any(q.tags, f.tags) &&
     any(q.officialRatings, f.officialRating ? [f.officialRating] : []) &&
     (!q.years?.length || q.years.includes(item.year ?? -1)) &&
-    (q.played !== undefined ? played === q.played : !q.unplayedOnly || !played) &&
+    (q.played !== undefined
+      ? played === q.played
+      : !q.unplayedOnly || !played) &&
     (!q.resolution ||
       (res !== undefined &&
         (q.resolution === 'sd'

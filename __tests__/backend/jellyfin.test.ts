@@ -264,13 +264,17 @@ describe('JellyfinBackend', () => {
     ['criticRating', 'CriticRating,SortName'],
     ['random', 'Random'],
   ] as const)('sorts items by %s', async (sort, sortBy) => {
-    const { b, f } = setup({ 'GET /Items': { Items: [], TotalRecordCount: 0 } });
+    const { b, f } = setup({
+      'GET /Items': { Items: [], TotalRecordCount: 0 },
+    });
     await b.items({ libraryId: 'l1', sort });
     expect(f.calls[0].query.sortBy).toBe(sortBy);
   });
 
   it('sends each filter in the form Jellyfin expects', async () => {
-    const { b, f } = setup({ 'GET /Items': { Items: [], TotalRecordCount: 0 } });
+    const { b, f } = setup({
+      'GET /Items': { Items: [], TotalRecordCount: 0 },
+    });
     const query = (i: number) => f.calls[i].query;
     await b.items({ libraryId: 'l1', genres: ['Sci-Fi', 'Drama, Crime'] });
     expect(query(0).genres).toBe('Sci-Fi|Drama, Crime');
@@ -298,7 +302,9 @@ describe('JellyfinBackend', () => {
   });
 
   it('filters by resolution through a recursive query over videos', async () => {
-    const { b, f } = setup({ 'GET /Items': { Items: [], TotalRecordCount: 0 } });
+    const { b, f } = setup({
+      'GET /Items': { Items: [], TotalRecordCount: 0 },
+    });
     await b.items({ libraryId: 'l1', resolution: '4k' });
     expect(f.calls[0].query).toMatchObject({
       is4K: 'true',

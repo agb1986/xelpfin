@@ -47,15 +47,12 @@ jest.mock('../../src/state/AppState', () => ({
 }));
 // Every mounted handler sees every key, as on the device.
 const mockKeyHandlers: ((evt: HWEvent) => void)[] = [];
-jest.mock(
-  'react-native/Libraries/Components/TV/useTVEventHandler',
-  () => ({
-    __esModule: true,
-    default: (fn: (evt: HWEvent) => void) => {
-      mockKeyHandlers.push(fn);
-    },
-  }),
-);
+jest.mock('react-native/Libraries/Components/TV/useTVEventHandler', () => ({
+  __esModule: true,
+  default: (fn: (evt: HWEvent) => void) => {
+    mockKeyHandlers.push(fn);
+  },
+}));
 jest.mock('../../src/state/navigation', () => ({
   ...jest.requireActual('../../src/state/navigation'),
   useNavigation: () => mockNav,

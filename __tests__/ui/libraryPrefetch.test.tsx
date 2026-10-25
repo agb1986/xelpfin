@@ -11,22 +11,20 @@ import { resetCardPrefetch } from '../../src/ui/components/Card';
 import { LibraryScreen } from '../../src/ui/screens/LibraryScreen';
 
 const TOTAL = 150;
-const mockItems = jest.fn(
-  async (q: ItemQuery): Promise<Page<MediaItem>> => {
-    const start = q.startIndex ?? 0;
-    const end = Math.min(TOTAL, start + (q.limit ?? 60));
-    const page: MediaItem[] = [];
-    for (let n = start; n < end; n++) {
-      page.push({
-        id: `m${n}`,
-        name: `Movie ${n}`,
-        kind: 'movie',
-        posterUrl: `http://srv/p/${n}`,
-      } as MediaItem);
-    }
-    return { items: page, totalCount: TOTAL, startIndex: start };
-  },
-);
+const mockItems = jest.fn(async (q: ItemQuery): Promise<Page<MediaItem>> => {
+  const start = q.startIndex ?? 0;
+  const end = Math.min(TOTAL, start + (q.limit ?? 60));
+  const page: MediaItem[] = [];
+  for (let n = start; n < end; n++) {
+    page.push({
+      id: `m${n}`,
+      name: `Movie ${n}`,
+      kind: 'movie',
+      posterUrl: `http://srv/p/${n}`,
+    } as MediaItem);
+  }
+  return { items: page, totalCount: TOTAL, startIndex: start };
+});
 
 // Stable identities: the screen reloads whenever the backend changes.
 const mockBackend = {
