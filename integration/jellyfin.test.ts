@@ -411,6 +411,25 @@ describe('server version', () => {
     await expect(admin.mediaSegments(episode.id)).resolves.toEqual([]);
   });
 
+  // #22: trickplay arrived in 10.9 and is only there once the library has it enabled and the
+  // trickplay task has run, so a fresh container may have none. When it is there, the sheet URL
+  // the backend builds must load with the headers it hands out, and must not load without them.
+  it('serves trickplay sheets with the token the backend sends', async () => {
+    const id = byName('Long Chapters').id;
+    const tp = await admin.trickplay(id);
+    console.info(
+      `Jellyfin ${server.version} trickplay: ${tp ? `${tp.width}x${tp.height}, ${tp.thumbnailCount} thumbnails on ${tp.sheetUrls.length} sheets` : 'none'}`,
+    );
+    if (!tp) {
+      return;
+    }
+    expect(atLeast(10, 9)).toBe(true);
+    const res = await fetch(tp.sheetUrls[0], { headers: tp.headers });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/^image\//);
+    expect((await fetch(tp.sheetUrls[0])).status).toBe(401);
+  });
+
   // #31 asks for images filled to the card size and encoded as WebP. Every supported release
   // must honour that, and the older maxWidth form must keep working.
   it.each([

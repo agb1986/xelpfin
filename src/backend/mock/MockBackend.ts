@@ -19,6 +19,7 @@ import {
   type QuickConnectState,
   type ServerInfo,
   type Session,
+  type Trickplay,
 } from '../types';
 import type { DeviceCapabilities } from '../../player/capabilities';
 
@@ -312,6 +313,9 @@ export class MockBackend implements Backend {
   }
   async mediaSegments(): Promise<MediaSegment[]> {
     return [];
+  }
+  async trickplay(): Promise<Trickplay | undefined> {
+    return undefined;
   }
   async setPlayed(itemId: string, played: boolean): Promise<void> {
     const it = this.all().find(i => i.id === itemId);

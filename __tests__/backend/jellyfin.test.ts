@@ -366,6 +366,86 @@ describe('JellyfinBackend', () => {
     expect(await b.mediaSegments('nope')).toEqual([]);
   });
 
+  it('reads trickplay sheets for the media source played, sending the token in a header', async () => {
+    const info = (Width: number, n = 250) => ({
+      Width,
+      Height: (Width * 9) / 16,
+      TileWidth: 10,
+      TileHeight: 10,
+      ThumbnailCount: n,
+      Interval: 10_000,
+      Bandwidth: 1,
+    });
+    const { b, f } = setup({
+      'GET /Items/m1': {
+        Id: 'm1',
+        Trickplay: {
+          m1: { '320': info(320), '480': info(480) },
+          v2: { '160': info(160, 36), '480': info(480, 36) },
+        },
+      },
+    });
+    const own = await b.trickplay('m1', 'unknown');
+    expect(f.calls[0].query).toMatchObject({ userId: 'u1', fields: 'Trickplay' });
+    expect(own).toEqual({
+      width: 320,
+      height: 180,
+      columns: 10,
+      rows: 10,
+      thumbnailCount: 250,
+      intervalMs: 10_000,
+      sheetUrls: [0, 1, 2].map(
+        n => `http://srv:8096/Videos/m1/Trickplay/320/${n}.jpg?mediaSourceId=m1`,
+      ),
+      headers: { Authorization: 'MediaBrowser Token="tok"' },
+    });
+    // Of 160 and 480 neither is the preferred 320; equally far, so the larger one.
+    const other = await b.trickplay('m1', 'v2');
+    expect(other?.width).toBe(480);
+    expect(other?.sheetUrls).toEqual([
+      'http://srv:8096/Videos/m1/Trickplay/480/0.jpg?mediaSourceId=v2',
+    ]);
+  });
+
+  it('has no trickplay when the server made none, made bad ones, or does not support it', async () => {
+    const { b } = setup({
+      'GET /Items/none': { Id: 'none', Trickplay: {} },
+      'GET /Items/old': { Id: 'old' },
+      'GET /Items/bad': {
+        Id: 'bad',
+        Trickplay: { x: { '320': { Width: 320, Height: 180 } } },
+      },
+      'GET /Items/two': {
+        Id: 'two',
+        Trickplay: { a: {}, b: {} },
+      },
+      'GET /Items/one': {
+        Id: 'one',
+        Trickplay: {
+          only: {
+            '320': {
+              Width: 320,
+              Height: 180,
+              TileWidth: 10,
+              TileHeight: 10,
+              ThumbnailCount: 1,
+              Interval: 10_000,
+            },
+          },
+        },
+      },
+    });
+    expect(await b.trickplay('none')).toBeUndefined();
+    expect(await b.trickplay('old')).toBeUndefined();
+    expect(await b.trickplay('bad')).toBeUndefined();
+    expect(await b.trickplay('two', 'c')).toBeUndefined();
+    expect(await b.trickplay('missing')).toBeUndefined();
+    // A sole source is used whatever its id.
+    expect((await b.trickplay('one'))?.sheetUrls).toEqual([
+      'http://srv:8096/Videos/one/Trickplay/320/0.jpg?mediaSourceId=only',
+    ]);
+  });
+
   it('searches, gets next up, latest, seasons and episodes', async () => {
     const { b, f } = setup({
       'GET /Items': { Items: [movieDto], TotalRecordCount: 1 },
