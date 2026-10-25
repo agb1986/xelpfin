@@ -17,4 +17,8 @@ module.exports = {
   // jest's 5 s default.
   testTimeout: 30_000,
   collectCoverageFrom: ['App.tsx', 'src/**/*.{ts,tsx}'],
+  // Today's totals rounded down, so coverage can only rise; raise these as tests are added.
+  coverageThreshold: {
+    global: { statements: 91, branches: 84, functions: 87, lines: 91 },
+  },
 };
