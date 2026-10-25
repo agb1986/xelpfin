@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.3.0](https://github.com/agb1986/xelpfin/compare/v0.2.0...v0.3.0) (2026-10-25)
+
+### Features
+
+* **player:** match display refresh rate to content frame rate ([2eccb42](https://github.com/agb1986/xelpfin/commit/2eccb42d12539cf3e43e2ba7c7bb0174b7f0e361)), references [#13](https://github.com/agb1986/xelpfin/issues/13)
+* **ui:** jump by letter in the language pickers ([939edf7](https://github.com/agb1986/xelpfin/commit/939edf772bf9f390c8cd01250cd1ce043e9ae70e)), closes [#64](https://github.com/agb1986/xelpfin/issues/64)
+
 ## [0.2.0](https://github.com/agb1986/xelpfin/compare/v0.1.3...v0.2.0) (2026-10-24)
 
 ### Features
