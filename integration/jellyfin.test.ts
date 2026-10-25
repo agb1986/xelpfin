@@ -137,6 +137,40 @@ describe('browse', () => {
     expect(n.items.map(i => i.name)).toEqual(['Night Grid']);
   });
 
+  it('sorts, filters and lists filter values', async () => {
+    const libId = (await admin.libraries()).find(l => l.name === 'Movies')!.id;
+    for (const sort of [
+      'runtime',
+      'premiereDate',
+      'playCount',
+      'datePlayed',
+      'criticRating',
+      'random',
+    ] as const) {
+      const page = await admin.items({ libraryId: libId, sort });
+      expect(page.totalCount).toBe(6);
+    }
+    const years = await admin.years(libId);
+    expect(years).toContain(2023);
+    expect(Array.isArray(await admin.genres(libId))).toBe(true);
+    expect(Array.isArray(await admin.studios(libId))).toBe(true);
+    expect(Array.isArray(await admin.tags(libId))).toBe(true);
+    const in2023 = await admin.items({ libraryId: libId, years: [2023] });
+    expect(in2023.items.map(i => i.name)).toContain('Night Grid');
+    expect(in2023.totalCount).toBeLessThan(6);
+    // Resolution makes the query recursive; HD includes 4K on the server.
+    const hd = await admin.items({ libraryId: libId, resolution: 'hd' });
+    expect(hd.totalCount).toBeGreaterThan(0);
+    expect(hd.totalCount).toBeLessThanOrEqual(6);
+    // Filters combine: a year with no items in it empties any other filter.
+    const none = await admin.items({
+      libraryId: libId,
+      resolution: 'hd',
+      years: [1901],
+    });
+    expect(none.totalCount).toBe(0);
+  });
+
   it('loads detail with tracks and images', async () => {
     const d = await admin.item(byName('Night Grid').id);
     expect(d.kind).toBe('movie');

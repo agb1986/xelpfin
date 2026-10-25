@@ -86,4 +86,16 @@ export interface Backend {
   clearProgress(itemId: string): Promise<void>;
   setPlayed(itemId: string, played: boolean): Promise<void>;
   setFavorite(itemId: string, favorite: boolean): Promise<void>;
+
+  // Values the library screen offers as filters, each sorted for display.
+  /** Genre names used in a library, A to Z. */
+  genres(libraryId: string): Promise<string[]>;
+  /** Production years present in a library, newest first. */
+  years(libraryId: string): Promise<number[]>;
+  /** Studio names used in a library, A to Z. */
+  studios(libraryId: string): Promise<string[]>;
+  /** Tags used in a library, A to Z. */
+  tags(libraryId: string): Promise<string[]>;
+  /** Parental ratings used in a library, such as `PG-13`, A to Z. */
+  officialRatings(libraryId: string): Promise<string[]>;
 }

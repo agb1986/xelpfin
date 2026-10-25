@@ -86,7 +86,24 @@ export interface MediaItem {
   thumbUrl?: string;
 }
 
-export type SortField = 'name' | 'dateAdded' | 'year' | 'rating';
+/** `rating` is the community rating. */
+export type SortField =
+  | 'name'
+  | 'dateAdded'
+  | 'year'
+  | 'rating'
+  | 'runtime'
+  | 'premiereDate'
+  | 'playCount'
+  | 'datePlayed'
+  | 'criticRating'
+  | 'random';
+
+/**
+ * Video resolution filter. `hd` means HD or better, so it includes 4K: Jellyfin cannot ask for
+ * "HD but not 4K" (its `is4K=false` matches nothing).
+ */
+export type Resolution = '4k' | 'hd' | 'sd';
 
 export interface ItemQuery {
   libraryId?: string;
@@ -99,6 +116,18 @@ export interface ItemQuery {
   unplayedOnly?: boolean;
   startIndex?: number;
   limit?: number;
+  /** Items with any of these genres. */
+  genres?: string[];
+  /** Items from any of these production years. */
+  years?: number[];
+  /** Items with any of these parental ratings, such as `PG-13`. */
+  officialRatings?: string[];
+  tags?: string[];
+  studios?: string[];
+  /** True for watched items only, false for unwatched only. Wins over `unplayedOnly`. */
+  played?: boolean;
+  /** Only videos of this resolution. Applies to movies and episodes, not to series. */
+  resolution?: Resolution;
 }
 
 export interface Page<T> {

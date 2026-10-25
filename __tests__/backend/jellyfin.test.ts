@@ -252,6 +252,155 @@ describe('JellyfinBackend', () => {
     expect(f.calls[1].query.nameStartsWith).toBeUndefined();
   });
 
+  it.each([
+    ['name', 'SortName'],
+    ['dateAdded', 'DateCreated,SortName'],
+    ['year', 'ProductionYear,PremiereDate,SortName'],
+    ['rating', 'CommunityRating,SortName'],
+    ['runtime', 'Runtime,SortName'],
+    ['premiereDate', 'PremiereDate,SortName'],
+    ['playCount', 'PlayCount,SortName'],
+    ['datePlayed', 'DatePlayed,SortName'],
+    ['criticRating', 'CriticRating,SortName'],
+    ['random', 'Random'],
+  ] as const)('sorts items by %s', async (sort, sortBy) => {
+    const { b, f } = setup({ 'GET /Items': { Items: [], TotalRecordCount: 0 } });
+    await b.items({ libraryId: 'l1', sort });
+    expect(f.calls[0].query.sortBy).toBe(sortBy);
+  });
+
+  it('sends each filter in the form Jellyfin expects', async () => {
+    const { b, f } = setup({ 'GET /Items': { Items: [], TotalRecordCount: 0 } });
+    const query = (i: number) => f.calls[i].query;
+    await b.items({ libraryId: 'l1', genres: ['Sci-Fi', 'Drama, Crime'] });
+    expect(query(0).genres).toBe('Sci-Fi|Drama, Crime');
+    await b.items({ libraryId: 'l1', years: [2023, 2024] });
+    expect(query(1).years).toBe('2023,2024');
+    await b.items({ libraryId: 'l1', officialRatings: ['PG-13'] });
+    expect(query(2).officialRatings).toBe('PG-13');
+    await b.items({ libraryId: 'l1', tags: ['4K HDR', 'Kids'] });
+    expect(query(3).tags).toBe('4K HDR|Kids');
+    await b.items({ libraryId: 'l1', studios: ['A24'] });
+    expect(query(4).studios).toBe('A24');
+    await b.items({ libraryId: 'l1', played: true });
+    expect(query(5).filters).toBe('IsPlayed');
+    await b.items({ libraryId: 'l1', played: false });
+    expect(query(6).filters).toBe('IsUnplayed');
+    // An explicit watched state wins over the older unwatched flag.
+    await b.items({ libraryId: 'l1', played: true, unplayedOnly: true });
+    expect(query(7).filters).toBe('IsPlayed');
+    await b.items({ libraryId: 'l1', genres: [], years: [], tags: [] });
+    expect(query(8)).not.toHaveProperty('genres');
+    expect(query(8)).not.toHaveProperty('years');
+    expect(query(8)).not.toHaveProperty('tags');
+    expect(query(8)).not.toHaveProperty('filters');
+    expect(query(8).recursive).toBe('false');
+  });
+
+  it('filters by resolution through a recursive query over videos', async () => {
+    const { b, f } = setup({ 'GET /Items': { Items: [], TotalRecordCount: 0 } });
+    await b.items({ libraryId: 'l1', resolution: '4k' });
+    expect(f.calls[0].query).toMatchObject({
+      is4K: 'true',
+      recursive: 'true',
+      includeItemTypes: 'Movie,Episode',
+    });
+    expect(f.calls[0].query).not.toHaveProperty('isHd');
+    await b.items({ libraryId: 'l1', resolution: 'hd' });
+    expect(f.calls[1].query).toMatchObject({ isHd: 'true' });
+    expect(f.calls[1].query).not.toHaveProperty('is4K');
+    await b.items({ libraryId: 'l1', resolution: 'sd', kinds: ['movie'] });
+    expect(f.calls[2].query).toMatchObject({
+      isHd: 'false',
+      includeItemTypes: 'Movie',
+    });
+  });
+
+  it('combines filters with sort and paging in one request', async () => {
+    const { b, f } = setup({
+      'GET /Items': { Items: [movieDto], TotalRecordCount: 61 },
+    });
+    const page = await b.items({
+      libraryId: 'l1',
+      sort: 'criticRating',
+      descending: true,
+      genres: ['Drama'],
+      years: [2024],
+      officialRatings: ['R'],
+      tags: ['Favourite'],
+      studios: ['A24'],
+      played: false,
+      resolution: 'hd',
+      nameStartsWith: 'B',
+      startIndex: 60,
+      limit: 60,
+    });
+    expect(page).toMatchObject({ totalCount: 61, startIndex: 60 });
+    expect(f.calls[0].query).toMatchObject({
+      sortBy: 'CriticRating,SortName',
+      sortOrder: 'Descending',
+      genres: 'Drama',
+      years: '2024',
+      officialRatings: 'R',
+      tags: 'Favourite',
+      studios: 'A24',
+      filters: 'IsUnplayed',
+      isHd: 'true',
+      nameStartsWith: 'B',
+      startIndex: '60',
+      limit: '60',
+    });
+  });
+
+  it('lists the filter values of a library', async () => {
+    const { b, f } = setup({
+      'GET /Genres': {
+        Items: [{ Name: 'drama' }, { Name: 'Action' }, { Name: 'Action' }, {}],
+        TotalRecordCount: 4,
+      },
+      'GET /Studios': { Items: [{ Name: 'Pixar' }, { Name: 'A24' }] },
+      'GET /Items/Filters': {
+        Genres: ['Action'],
+        Tags: ['kids', 'Anime'],
+        OfficialRatings: ['R', 'PG-13', 'PG'],
+        Years: [2001, 2024, 2020, 0],
+      },
+    });
+    await expect(b.genres('l1')).resolves.toEqual(['Action', 'drama']);
+    expect(f.calls[0].path).toBe('/Genres');
+    expect(f.calls[0].query).toMatchObject({
+      userId: 'u1',
+      parentId: 'l1',
+      enableImages: 'false',
+    });
+    await expect(b.studios('l1')).resolves.toEqual(['A24', 'Pixar']);
+    expect(f.calls[1].query.parentId).toBe('l1');
+    await expect(b.years('l1')).resolves.toEqual([2024, 2020, 2001]);
+    expect(f.calls[2]).toMatchObject({
+      path: '/Items/Filters',
+      query: { userId: 'u1', parentId: 'l1' },
+    });
+    await expect(b.tags('l1')).resolves.toEqual(['Anime', 'kids']);
+    await expect(b.officialRatings('l1')).resolves.toEqual([
+      'PG',
+      'PG-13',
+      'R',
+    ]);
+  });
+
+  it('reads absent filter lists as empty', async () => {
+    const { b } = setup({
+      'GET /Genres': {},
+      'GET /Studios': {},
+      'GET /Items/Filters': {},
+    });
+    await expect(b.genres('l1')).resolves.toEqual([]);
+    await expect(b.studios('l1')).resolves.toEqual([]);
+    await expect(b.years('l1')).resolves.toEqual([]);
+    await expect(b.tags('l1')).resolves.toEqual([]);
+    await expect(b.officialRatings('l1')).resolves.toEqual([]);
+  });
+
   it('finds the in-progress episode of one series through the resume list', async () => {
     const { b, f } = setup({
       'GET /Users/u1/Items/Resume': {

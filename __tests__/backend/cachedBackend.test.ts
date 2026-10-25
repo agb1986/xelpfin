@@ -53,6 +53,21 @@ class CountingBackend extends MockBackend {
   search(term: string) {
     return this.count('search', super.search(term));
   }
+  genres(libraryId: string) {
+    return this.count('genres', super.genres(libraryId));
+  }
+  years(libraryId: string) {
+    return this.count('years', super.years(libraryId));
+  }
+  studios(libraryId: string) {
+    return this.count('studios', super.studios(libraryId));
+  }
+  tags(libraryId: string) {
+    return this.count('tags', super.tags(libraryId));
+  }
+  officialRatings(libraryId: string) {
+    return this.count('officialRatings', super.officialRatings(libraryId));
+  }
 }
 
 const stop: ProgressReport = {
@@ -247,6 +262,34 @@ describe('CachedBackend', () => {
     await expect(backend.setFavorite('m2', true)).rejects.toThrow('down');
     await macrotask();
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it('caches filter values per library and keeps them through mutations', async () => {
+    const { inner, backend, tick } = setup();
+    const all = (libraryId: string) =>
+      Promise.all([
+        backend.genres(libraryId),
+        backend.years(libraryId),
+        backend.studios(libraryId),
+        backend.tags(libraryId),
+        backend.officialRatings(libraryId),
+      ]);
+    const first = await all('lib-movies');
+    expect(first).toEqual([
+      ['Animation', 'Comedy', 'Drama'],
+      [2024, 2023, 2001],
+      ['Blender', 'Grid Pictures'],
+      ['Classic', 'Open movie'],
+      ['PG', 'PG-13'],
+    ]);
+    await backend.setPlayed('m1', true);
+    expect(await all('lib-movies')).toEqual(first);
+    expect(inner.calls).toHaveLength(5);
+    await all('lib-shows');
+    expect(inner.calls).toHaveLength(10);
+    tick(TTL.catalogue + 1);
+    await all('lib-movies');
+    expect(inner.calls).toHaveLength(15);
   });
 
   it('does not cache failures, search or pages', async () => {
