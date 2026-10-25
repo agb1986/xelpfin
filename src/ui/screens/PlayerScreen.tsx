@@ -163,6 +163,7 @@ export function PlayerScreen({
           ref={keys.surface}
           testID="player-surface"
           hasTVPreferredFocus
+          {...keys.surfaceFocus}
           style={StyleSheet.absoluteFill}
           onPress={() => (skip ? skipSegment(skip) : showOverlay('controls'))}
         >

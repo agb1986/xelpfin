@@ -19,6 +19,9 @@ import { cancel } from './timers';
 export const HIDE_AFTER_MS = 5000;
 /** A second BACK within this window of the first leaves the player. */
 export const EXIT_WINDOW_MS = 3000;
+/** How often, and how many times, focus is asked for until the surface has it. */
+export const SURFACE_FOCUS_RETRY_MS = 80;
+export const SURFACE_FOCUS_TRIES = 10;
 
 /**
  * The remote on the player: which overlay is up and for how long, what each key does, and what
@@ -56,6 +59,15 @@ export function useRemoteKeys({
       : undefined;
 
   const surface = useRef<View>(null);
+  const surfaceFocused = useRef(false);
+  const surfaceFocus = useRef({
+    onFocus: () => {
+      surfaceFocused.current = true;
+    },
+    onBlur: () => {
+      surfaceFocused.current = false;
+    },
+  }).current;
   // Preferred focus is only claimed when the controls first appear, so progress re-renders cannot pull focus back to Pause.
   const claimFocus = useRef(true);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -185,12 +197,27 @@ export function useRemoteKeys({
   useTVEventHandler(onKey);
 
   // Remote keys only reach the app while some view has focus. When the controls (and the
-  // button that had focus) go away, hand focus to the full-screen surface explicitly.
+  // button that had focus) go away, hand focus to the full-screen surface explicitly. A request
+  // made before the new surface's native view can take focus is dropped, which leaves nothing
+  // focused: OK then does nothing and the first D-pad key only restores focus. So keep asking
+  // until the surface reports focus.
   useEffect(() => {
+    if (overlay === 'controls') {
+      surfaceFocused.current = false; // Unmounted under the controls, without a blur event.
+    }
     if (!active || picker || overlay === 'controls' || error) {
       return;
     }
-    const t = setTimeout(() => surface.current?.requestTVFocus?.(), 0);
+    let tries = 0;
+    let t: ReturnType<typeof setTimeout>;
+    const attempt = () => {
+      if (surfaceFocused.current || tries++ >= SURFACE_FOCUS_TRIES) {
+        return;
+      }
+      surface.current?.requestTVFocus?.();
+      t = setTimeout(attempt, SURFACE_FOCUS_RETRY_MS);
+    };
+    t = setTimeout(attempt, 0);
     return () => cancel(t);
   }, [active, picker, overlay, error, playing]);
 
@@ -244,6 +271,8 @@ export function useRemoteKeys({
     exitHint: state.exitHint,
     skip,
     surface,
+    /** Handlers for the surface, so the focus handoff knows when it has landed. */
+    surfaceFocus,
     claimFocus,
     showOverlay,
     closeNavigator,

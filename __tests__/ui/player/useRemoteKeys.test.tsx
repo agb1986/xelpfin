@@ -5,6 +5,8 @@ import type { MediaSegment } from '../../../src/backend/types';
 import {
   EXIT_WINDOW_MS,
   HIDE_AFTER_MS,
+  SURFACE_FOCUS_RETRY_MS,
+  SURFACE_FOCUS_TRIES,
   useRemoteKeys,
 } from '../../../src/ui/player/useRemoteKeys';
 import {
@@ -258,6 +260,56 @@ describe('useRemoteKeys', () => {
     });
     expect(requestTVFocus).toHaveBeenCalled();
     expect(out.current.claimFocus.current).toBe(true);
+  });
+
+  it('keeps asking for focus until the surface has it', () => {
+    const { out } = setup();
+    const requestTVFocus = jest.fn();
+    (out.current.surface as { current: unknown }).current = { requestTVFocus };
+    act(() => {
+      jest.advanceTimersByTime(HIDE_AFTER_MS);
+    });
+    expect(out.current.overlay).toBe('hidden');
+    // The first requests land before the native view can take focus.
+    act(() => {
+      jest.advanceTimersByTime(SURFACE_FOCUS_RETRY_MS * 2);
+    });
+    expect(requestTVFocus).toHaveBeenCalledTimes(3);
+    act(() => out.current.surfaceFocus.onFocus());
+    act(() => {
+      jest.advanceTimersByTime(SURFACE_FOCUS_RETRY_MS * 10);
+    });
+    expect(requestTVFocus).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up asking for focus after a while', () => {
+    const { out } = setup();
+    const requestTVFocus = jest.fn();
+    (out.current.surface as { current: unknown }).current = { requestTVFocus };
+    act(() => out.current.showOverlay('hidden'));
+    act(() => {
+      jest.advanceTimersByTime(SURFACE_FOCUS_RETRY_MS * 100);
+    });
+    expect(requestTVFocus).toHaveBeenCalledTimes(SURFACE_FOCUS_TRIES);
+  });
+
+  it('asks for focus again each time the controls go away', () => {
+    const { out } = setup();
+    const requestTVFocus = jest.fn();
+    (out.current.surface as { current: unknown }).current = { requestTVFocus };
+    act(() => out.current.showOverlay('hidden'));
+    act(() => out.current.surfaceFocus.onFocus());
+    act(() => {
+      jest.advanceTimersByTime(0);
+    });
+    expect(requestTVFocus).not.toHaveBeenCalled();
+    // The surface unmounts under the controls, with no blur event, and comes back without focus.
+    act(() => out.current.showOverlay('controls'));
+    act(() => out.current.showOverlay('hidden'));
+    act(() => {
+      jest.advanceTimersByTime(0);
+    });
+    expect(requestTVFocus).toHaveBeenCalledTimes(1);
   });
 
   it('stops listening for BACK while another screen is on top', () => {
