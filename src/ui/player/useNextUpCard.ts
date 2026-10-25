@@ -9,7 +9,8 @@ type Phase = 'idle' | 'loading' | 'shown' | 'dismissed' | 'none';
  * The next-episode card: offered once per item, when the Credits segment starts or the item
  * ends, whichever comes first. Nothing is offered with autoplay off or when nothing follows.
  * Cancel leaves the credits running; with the card dismissed, the end of the item goes back
- * instead of autoplaying.
+ * instead of autoplaying. Cancelling a card raised at the end goes back at once, since nothing
+ * is left to play.
  */
 export function useNextUpCard(
   next: Pick<ReturnType<typeof useNextEpisode>, 'peekNext' | 'playPeeked'>,
@@ -18,6 +19,7 @@ export function useNextUpCard(
   const nav = useNavigation();
   const [card, setCard] = useState<MediaItem>();
   const phase = useRef<Phase>('idle');
+  const ended = useRef(false);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -46,6 +48,7 @@ export function useNextUpCard(
 
   /** The item played to its end: raise the card, or go back when it cannot or must not show. */
   const onEnd = useCallback(async () => {
+    ended.current = true;
     if (phase.current === 'loading' || phase.current === 'shown') {
       return;
     }
@@ -65,7 +68,10 @@ export function useNextUpCard(
   const cancel = useCallback(() => {
     phase.current = 'dismissed';
     setCard(undefined);
-  }, []);
+    if (ended.current) {
+      nav.back();
+    }
+  }, [nav]);
 
   return { card, play, cancel, onEnd };
 }

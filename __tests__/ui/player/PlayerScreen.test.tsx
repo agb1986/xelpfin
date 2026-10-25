@@ -456,6 +456,28 @@ describe('PlayerScreen', () => {
       expect(mockNav.replace).not.toHaveBeenCalled();
     });
 
+    it('goes back when cancelled after the item has ended', async () => {
+      const { root } = await open();
+      await play(root);
+      await end(root);
+      expect(has(root, 'next-card')).toBe(true);
+      expect(mockNav.back).not.toHaveBeenCalled();
+      await press(root, 'next-card-cancel');
+      expect(has(root, 'next-card')).toBe(false);
+      expect(mockNav.back).toHaveBeenCalledTimes(1);
+      await tick(15_000);
+      expect(mockNav.replace).not.toHaveBeenCalled();
+    });
+
+    it('goes back when dismissed by BACK after the item has ended', async () => {
+      const { root } = await open();
+      await play(root);
+      await end(root);
+      expect(pressBack()).toBe(true);
+      expect(mockNav.back).toHaveBeenCalledTimes(1);
+      expect(mockNav.replace).not.toHaveBeenCalled();
+    });
+
     it('is dismissed by BACK without leaving the player', async () => {
       const { root } = await open({}, {}, false, true);
       await play(root, 36);
