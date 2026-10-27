@@ -12,7 +12,8 @@ import type {
  *   codec ExoPlayer plays from fMP4, so when the codecs are fine the server only rewraps the
  *   container (PlayMethod DirectStream). When it has to encode it takes the first codec of each
  *   list: h264 and aac.
- * - Transcode fallback: HLS with MPEG-TS segments, for a server that cannot produce fMP4.
+ * - Transcode fallback: HLS with MPEG-TS segments, for a server that cannot produce fMP4. With
+ *   `avoidFmp4` it is the only profile, for a stream the player could not parse as fMP4.
  * - CodecProfiles limit resolution, bit depth and the HDR formats (VideoRangeType) per video codec,
  *   and the audio channel count.
  */
@@ -120,6 +121,7 @@ const keep = (order: string[], available: string[]) =>
 export function buildDeviceProfile(
   caps: DeviceCapabilities,
   name = 'xelpfin',
+  { avoidFmp4 = false }: { avoidFmp4?: boolean } = {},
 ): JellyfinDeviceProfile {
   const videoCodecs = caps.video.map(v => v.codec);
   const audioCodecs = caps.audio;
@@ -192,12 +194,16 @@ export function buildDeviceProfile(
       AudioCodec: ac,
     })),
     TranscodingProfiles: [
-      {
-        ...hls,
-        Container: 'mp4',
-        VideoCodec: keep(FMP4_VIDEO_CODECS, videoCodecs).join(','),
-        AudioCodec: keep(FMP4_AUDIO_CODECS, audioCodecs).join(','),
-      },
+      ...(avoidFmp4
+        ? []
+        : [
+            {
+              ...hls,
+              Container: 'mp4',
+              VideoCodec: keep(FMP4_VIDEO_CODECS, videoCodecs).join(','),
+              AudioCodec: keep(FMP4_AUDIO_CODECS, audioCodecs).join(','),
+            },
+          ]),
       {
         ...hls,
         Container: 'ts',

@@ -50,6 +50,13 @@ describe('buildDeviceProfile', () => {
     );
   });
 
+  it('offers only MPEG-TS HLS when asked to avoid fMP4', () => {
+    const ts = buildDeviceProfile(BASELINE_CAPABILITIES, 'xelpfin', {
+      avoidFmp4: true,
+    });
+    expect(ts.TranscodingProfiles.map(t => t.Container)).toEqual(['ts']);
+  });
+
   it('adds av1 to the fMP4 profile only when the device decodes it, never to ts', () => {
     const caps: DeviceCapabilities = {
       ...BASELINE_CAPABILITIES,

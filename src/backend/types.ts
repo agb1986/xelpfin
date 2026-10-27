@@ -217,6 +217,11 @@ export interface PlaybackRequest {
   startPositionMs?: number;
   /** Cap in bits/s; undefined means use the profile default. */
   maxBitrate?: number;
+  /**
+   * Ask for MPEG-TS HLS segments instead of fMP4. A retry after the player could not parse the
+   * fMP4 stream the server built.
+   */
+  avoidFmp4?: boolean;
 }
 
 export interface PlaybackPlan {

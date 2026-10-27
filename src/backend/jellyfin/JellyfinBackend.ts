@@ -557,7 +557,9 @@ export class JellyfinBackend implements Backend {
         AllowVideoStreamCopy: true,
         AllowAudioStreamCopy: true,
         AutoOpenLiveStream: false,
-        DeviceProfile: buildDeviceProfile(caps),
+        DeviceProfile: buildDeviceProfile(caps, undefined, {
+          avoidFmp4: req.avoidFmp4,
+        }),
       },
     );
     if (r.ErrorCode) {
