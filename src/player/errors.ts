@@ -54,6 +54,44 @@ const RNV_PLAYER_INIT_FAILED = '1001';
 const RNV_DRM_CODES = new Set(['3002', '3003', '3006', '3007']);
 
 /**
+ * media3 reports an exception its loader did not expect (a parser reading a bad value, such as
+ * `IllegalStateException: Top bit not zero`) as ERROR_CODE_IO_UNSPECIFIED, the same code as a
+ * dropped connection. Only the stack trace tells them apart.
+ */
+const UNEXPECTED_LOAD_EXCEPTION =
+  /Unexpected (?:IllegalState|IllegalArgument|Runtime|ArrayIndexOutOfBounds|NullPointer)Exception|ParserException/;
+
+/**
+ * True when the stream reached the player but its bytes could not be parsed. Retrying the same
+ * stream will fail again; asking the server for a different segment format may not.
+ */
+export function isStreamParseFailure(failure: PlayerFailure): boolean {
+  if (typeof failure === 'string') {
+    return false;
+  }
+  const code = exoCode(failure);
+  if (code === undefined) {
+    return false;
+  }
+  if (Math.floor(code / 1000) === 3) {
+    return true;
+  }
+  return (
+    code === EXO.IO_UNSPECIFIED &&
+    [failure.errorStackTrace, failure.errorException].some(
+      t => t !== undefined && UNEXPECTED_LOAD_EXCEPTION.test(t),
+    )
+  );
+}
+
+/** The media3 error code behind react-native-video's `"2" + errorCode`, if there is one. */
+function exoCode(failure: PlayerErrorInfo): number | undefined {
+  const code =
+    failure.errorCode === undefined ? undefined : String(failure.errorCode);
+  return code && /^2\d{4}$/.test(code) ? Number(code.slice(1)) : undefined;
+}
+
+/**
  * Turns a react-native-video error (or a bare message from another engine) into an error the
  * UI can explain. Losing the server mid-playback shows the same message as anywhere else.
  */
@@ -65,9 +103,17 @@ export function playerError(failure: PlayerFailure): Error {
     failure.errorCode === undefined ? undefined : String(failure.errorCode);
   const name = errorCodeName(failure);
   const detail = failure.errorException ?? failure.errorString;
-  const exo = code && /^2\d{4}$/.test(code) ? Number(code.slice(1)) : undefined;
+  const exo = exoCode(failure);
 
   if (exo !== undefined) {
+    if (exo === EXO.IO_UNSPECIFIED && isStreamParseFailure(failure)) {
+      return new BackendError(
+        `The stream could not be read from the server (${name}).`,
+        'server',
+        undefined,
+        detail,
+      );
+    }
     if (exo === EXO.IO_BAD_HTTP_STATUS) {
       return httpError(httpStatus(failure));
     }

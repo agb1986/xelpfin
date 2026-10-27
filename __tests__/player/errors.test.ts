@@ -1,5 +1,9 @@
 import { BackendError } from '../../src/backend/types';
-import { playerError, type PlayerErrorInfo } from '../../src/player/errors';
+import {
+  isStreamParseFailure,
+  playerError,
+  type PlayerErrorInfo,
+} from '../../src/player/errors';
 
 /**
  * Error objects as react-native-video 6.19.3 emits them on Android (media3 1.8):
@@ -97,6 +101,15 @@ const fixtures = {
     errorStackTrace:
       'java.lang.Exception: Current Activity is null!\n\tat com.brentvatne.exoplayer.ReactExoplayerView$2.run(ReactExoplayerView.java:764)',
   } satisfies PlayerErrorInfo,
+  // A Twin Peaks fMP4 HLS segment with negative packet durations: media3 wraps the parser's
+  // IllegalStateException as IO_UNSPECIFIED, the code of a dropped connection.
+  segmentParseCrash: exo('ERROR_CODE_IO_UNSPECIFIED', 2000, [
+    'androidx.media3.exoplayer.upstream.Loader$UnexpectedLoaderException: Unexpected IllegalStateException: Top bit not zero: -2048',
+    'java.lang.IllegalStateException: Top bit not zero: -2048',
+  ]),
+  ioUnspecified: exo('ERROR_CODE_IO_UNSPECIFIED', 2000, [
+    'java.io.IOException: unexpected end of stream',
+  ]),
   unspecified: exo('ERROR_CODE_UNSPECIFIED', 1000, [
     'java.lang.IllegalStateException: boom',
   ]),
@@ -108,6 +121,22 @@ function backend(e: Error): BackendError {
 }
 
 describe('playerError with react-native-video 6.19 error objects', () => {
+  it('does not call a segment parse crash a network failure', () => {
+    const e = backend(playerError(fixtures.segmentParseCrash));
+    expect(e.kind).toBe('server');
+    expect(e.message).toContain('could not be read');
+    expect(backend(playerError(fixtures.ioUnspecified)).kind).toBe('network');
+  });
+
+  it('flags only parse failures as worth a different segment format', () => {
+    expect(isStreamParseFailure(fixtures.segmentParseCrash)).toBe(true);
+    expect(isStreamParseFailure(fixtures.containerUnsupported)).toBe(true);
+    expect(isStreamParseFailure(fixtures.ioUnspecified)).toBe(false);
+    expect(isStreamParseFailure(fixtures.networkUnreachable)).toBe(false);
+    expect(isStreamParseFailure(fixtures.decoderInitFailed)).toBe(false);
+    expect(isStreamParseFailure('boom')).toBe(false);
+  });
+
   it('maps the HTTP status of a bad-status data source failure', () => {
     const auth = backend(playerError(fixtures.http401));
     expect(auth.kind).toBe('auth');
