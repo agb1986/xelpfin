@@ -5,7 +5,7 @@ import type {
   PlaybackPlan,
 } from '../../backend/types';
 import { matchDisplayMode } from '../../player/displayMode';
-import { playerError } from '../../player/errors';
+import { isStreamParseFailure, playerError } from '../../player/errors';
 import type {
   PlayerEngine,
   PlayerViewHandle,
@@ -62,6 +62,8 @@ export function usePlaybackSession(
   // False once the screen unmounts; true once the current plan has played to its end. Late
   // native callbacks check these so they cannot act on a screen the user already left.
   const alive = useRef(true);
+  // Set after the player could not parse an fMP4 stream: later plans ask for MPEG-TS segments.
+  const avoidFmp4 = useRef(false);
   const ended = useRef(false);
   // Set once the display mode has been matched to the first plan; later plans (track changes)
   // are the same video and keep it. Restored when the screen closes.
@@ -149,6 +151,7 @@ export function usePlaybackSession(
             startPositionMs: fromMs,
             audioStreamIndex: audioIndex,
             subtitleStreamIndex: subtitleIndex,
+            avoidFmp4: avoidFmp4.current,
           },
           caps,
         );
@@ -319,7 +322,25 @@ export function usePlaybackSession(
       }
     },
     onBuffering: setBuffering,
-    onError: msg => setError(playerError(msg)),
+    onError: msg => {
+      const p = planRef.current;
+      if (
+        !avoidFmp4.current &&
+        p &&
+        p.method !== 'DirectPlay' &&
+        isStreamParseFailure(msg)
+      ) {
+        // Retry once with MPEG-TS segments before telling the viewer the stream is broken.
+        avoidFmp4.current = true;
+        requestPlan(
+          positionRef.current,
+          tracksRef.current.audio,
+          tracksRef.current.subtitle,
+        );
+        return;
+      }
+      setError(playerError(msg));
+    },
   };
 
   return {
