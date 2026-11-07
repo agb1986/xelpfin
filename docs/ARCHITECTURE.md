@@ -12,7 +12,7 @@ state can be reused unchanged on Vega OS:
                  Backend / ServerConnector      PlayerEngine              PlatformServices
                     (src/backend)               (src/player)               (src/platform)
                            │                          │                          │
-            JellyfinBackend │ MockBackend   VideoEngine (react-native-video)   firetv │ vega (stub)
+            JellyfinBackend │ MockBackend   VideoEngine (react-native-video)   firetv │ vega
 ```
 
 ## Backend (`src/backend`)
@@ -260,3 +260,31 @@ not in how the JS is loaded. Pass `-PxelpfinDev=true` for a Metro-backed debug b
 The only network peers are the Jellyfin server the user selects and the UDP broadcast used to
 find it. There is no analytics, crash reporting, update check or account service. The Android
 manifest requests only `INTERNET`. Cleartext HTTP is allowed so that LAN servers without TLS work.
+
+## Vega OS app (`vega/`)
+
+`vega/` is a second app that shares `App.tsx` and `src/` with the Fire TV app. It has its own
+`package.json` and `node_modules` because Vega needs `@amazon-devices/react-native-kepler` on
+RN 0.83 while the root uses react-native-tvos 0.81. `vega/metro.config.js` watches the repo root
+but resolves every package from `vega/node_modules` and blocks the root's `node_modules`,
+`android/`, `src/player/rnv` and `src/platform/firetv`.
+
+Each entry point registers its own adapters before rendering: `index.js` calls
+`setPlatform(createFireTvPlatform())` and `setEngine(VideoEngine)`; `vega/index.js` calls
+`setPlatform(createVegaPlatform())` and, for now, no engine. The `@react-native-async-storage`
+import is an npm alias to Vega's AsyncStorage package in the Vega bundle.
+
+Build and run (needs the Vega SDK on `PATH`, `~/vega/bin`):
+
+```
+cd vega && npm install
+npm run build:debug                      # .vpkg for aarch64, armv7 and x86_64
+vega virtual-device start
+vega device install-app -b Debug --dir .
+vega device start-port-forwarding -p 8081 -f false && npm start    # Metro for debug builds
+vega device launch-app --appName com.xelpfin.app
+```
+
+Status: the shared UI runs on the Vega virtual device against the mock backend. Still to do: the
+W3C media player engine, Jellyfin sign-in on Vega, a Vega codec query and device profile, LAN
+discovery, and a real-stick test.

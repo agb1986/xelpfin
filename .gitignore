@@ -81,3 +81,9 @@ docs/screens/failure.png
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Vega OS app
+vega/node_modules/
+vega/build/
+vega/kepler-build/
+vega/generated/

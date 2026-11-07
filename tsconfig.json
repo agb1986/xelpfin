@@ -6,5 +6,5 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": [".claude", "**/node_modules", "**/Pods", "android", "integration", "test-utils"]
+  "exclude": [".claude", "**/node_modules", "**/Pods", "android", "vega", "integration", "test-utils"]
 }

@@ -3,7 +3,7 @@ const reactNativeConfig = require('@react-native/eslint-config/flat');
 module.exports = [
   ...reactNativeConfig,
   {
-    ignores: ['.claude/', 'android/', 'coverage/', 'dist/', 'node_modules/'],
+    ignores: ['.claude/', 'android/', 'coverage/', 'dist/', 'node_modules/', 'vega/'],
   },
   {
     // The React Native preset enables two Flow rules on *.js. This project has no

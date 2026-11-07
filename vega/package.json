@@ -1,0 +1,36 @@
+{
+  "name": "xelpfin-vega",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "react-native start",
+    "build:debug": "react-native build-kepler --build-type Debug",
+    "build:release": "react-native build-kepler --build-type Release",
+    "app:install:debug": "kepler device install-app -b Debug --dir .",
+    "app:launch": "kepler device launch-app"
+  },
+  "dependencies": {
+    "@amazon-devices/react-native-kepler": "~4.0.0+rn0.83.0",
+    "@react-native-async-storage/async-storage": "npm:@amazon-devices/react-native-async-storage__async-storage@~2.1.0",
+    "react": "19.2.0",
+    "react-native": "0.83.0"
+  },
+  "devDependencies": {
+    "@amazon-devices/kepler-cli-platform": "~0.22.7",
+    "@babel/core": "^7.25.2",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "^20.0.0",
+    "@react-native/babel-preset": "0.83.0",
+    "@react-native/metro-config": "0.83.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "kepler": {
+    "projectType": "application",
+    "appName": "Xelpfin",
+    "targets": ["tv"],
+    "os": ["vega"],
+    "api": 0.1
+  }
+}
