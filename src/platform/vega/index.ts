@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BASELINE_CAPABILITIES } from '../../player/capabilities';
+import {
+  BASELINE_CAPABILITIES,
+  type DeviceCapabilities,
+} from '../../player/capabilities';
 import type { KeyValueStore, PlatformServices } from '../types';
 
 // In the Vega bundle this import resolves to Vega's AsyncStorage package (an npm alias).
@@ -13,12 +16,16 @@ const asyncStore: KeyValueStore = {
  * Vega OS boundary. Vega apps are React Native too, so everything above src/platform and the
  * PlayerEngine is meant to be reused unchanged. What has to be written for Vega:
  *  - storage: done, Vega's AsyncStorage package through the npm alias in vega/package.json,
- *  - udp: discovery through Vega's networking API (or leave undefined and rely on manual entry),
- *  - capabilities: query the Vega media stack instead of Android MediaCodecList,
+ *  - udp: the Vega SDK has no UDP API, so it stays undefined and the user types the address,
+ *  - capabilities: queried from the Vega media stack by vega/platform/mediaCapabilities.ts, which
+ *    the entry point passes in (the root app cannot import the Vega-only package),
  *  - a PlayerEngine on Vega's W3C media player: done, vega/player/VegaEngine.tsx.
- * Until the rest is done this adapter reports the baseline codec set and has no discovery.
+ * Without a query function the adapter reports the baseline codec set.
  */
-export function createVegaPlatform(): PlatformServices {
+export function createVegaPlatform(
+  queryCapabilities?: () => Promise<DeviceCapabilities>,
+): PlatformServices {
+  let caps: Promise<DeviceCapabilities> | undefined;
   return {
     id: 'vega',
     device: {
@@ -32,7 +39,12 @@ export function createVegaPlatform(): PlatformServices {
     },
     storage: asyncStore,
     udp: undefined,
-    capabilities: async () => BASELINE_CAPABILITIES,
+    capabilities() {
+      caps ??= (
+        queryCapabilities?.() ?? Promise.resolve(BASELINE_CAPABILITIES)
+      ).catch(() => BASELINE_CAPABILITIES);
+      return caps;
+    },
     discoveryHints: () => [],
     addressHint: () => '192.168.1.10:8096',
   };

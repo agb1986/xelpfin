@@ -341,3 +341,71 @@ export function withAudioPassthrough(
   }
   return { ...caps, audio, maxAudioChannels };
 }
+
+/** One video codec as the Vega media stack reports it (KeplerMediaDescriptor). */
+export interface VegaVideoProbe {
+  codec: string;
+  /** Largest resolution the decoder lists; 0 when it lists none. */
+  maxWidth: number;
+  maxHeight: number;
+  hardware: boolean;
+  /** True when the stack accepts the codec's 10-bit profile. */
+  tenBit: boolean;
+}
+
+/** Containers the Vega W3C media element accepts (react-native-w3cmedia's MimeTypeRegistry). */
+export const VEGA_CONTAINERS = [
+  'mp4',
+  'm4v',
+  'mov',
+  'mkv',
+  'webm',
+  'ts',
+  'mpegts',
+  'avi',
+];
+
+/**
+ * Subtitles on Vega: the element renders no embedded tracks yet, so text subtitles come in as
+ * side-loaded files that the app draws itself, and anything else the server burns in.
+ */
+export const VEGA_SUBTITLES = {
+  embedded: [] as string[],
+  external: ['srt', 'subrip', 'vtt', 'webvtt'],
+};
+
+/**
+ * Maps a Vega decoder query onto {@link DeviceCapabilities}. A codec with no resolution listed is
+ * assumed to be 1080p; no decoders at all gives the baseline profile. The display is assumed to
+ * show HDR10 and HLG when a 10-bit HEVC decoder exists, since the SDK has no display query.
+ */
+export function capabilitiesFromVega(
+  video: VegaVideoProbe[],
+  audio: string[],
+): DeviceCapabilities {
+  const cleaned = video
+    .filter(v => v.hardware || !HARDWARE_ONLY_VIDEO.includes(v.codec))
+    .map<VideoCodecCap>(v => ({
+      codec: v.codec,
+      maxWidth: v.maxWidth > 0 ? v.maxWidth : 1920,
+      maxHeight: v.maxHeight > 0 ? v.maxHeight : 1080,
+      maxBitDepth: v.tenBit ? 10 : 8,
+      hardware: v.hardware,
+    }))
+    .sort((a, b) => a.codec.localeCompare(b.codec));
+  if (!cleaned.length) {
+    return BASELINE_CAPABILITIES;
+  }
+  const hevc10 = cleaned.some(v => v.codec === 'hevc' && v.maxBitDepth === 10);
+  return {
+    video: cleaned,
+    audio: [...new Set(audio)].sort(),
+    containers: VEGA_CONTAINERS,
+    maxStreamingBitrate: DEFAULT_STREAMING_BITRATE,
+    maxStaticBitrate: DEFAULT_STATIC_BITRATE,
+    maxAudioChannels: DEFAULT_AUDIO_CHANNELS,
+    hdr: hevc10 ? ['hdr10', 'hlg'] : [],
+    passthrough: { codecs: [], maxChannels: 0 },
+    subtitles: VEGA_SUBTITLES,
+  };
+}
