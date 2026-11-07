@@ -36,11 +36,11 @@ const VIDEO: Array<{ codec: string; mime: CodecMimeType; tenBitType: string }> =
     },
   ];
 
+// AC3 and E-AC3 are left out on purpose. The decoder query reports them as supported, but they are
+// not verified through the HLS path on the stick, so the server converts them to AAC, which plays.
 const AUDIO: Array<{ codec: string; mime: CodecMimeType }> = [
   { codec: 'aac', mime: CodecMimeType.MIME_AAC_LATM },
   { codec: 'mp3', mime: CodecMimeType.MIME_MP3 },
-  { codec: 'ac3', mime: CodecMimeType.MIME_AC3 },
-  { codec: 'eac3', mime: CodecMimeType.MIME_EAC3 },
   { codec: 'opus', mime: CodecMimeType.MIME_OPUS },
   { codec: 'flac', mime: CodecMimeType.MIME_FLAC },
   { codec: 'vorbis', mime: CodecMimeType.MIME_VORBIS },

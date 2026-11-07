@@ -34,6 +34,12 @@ export interface DeviceCapabilities {
   /** Highest bitrate for the original file served as it is (MaxStaticBitrate, direct play). */
   maxStaticBitrate: number;
   maxAudioChannels: number;
+  /**
+   * False when the player cannot open a plain `http://` file URL itself (the Vega media element
+   * refuses it). The server then streams over HLS, which the app fetches in JavaScript. Absent
+   * means true.
+   */
+  directPlayOverHttp?: boolean;
   /** HDR formats the display shows; empty means SDR only. */
   hdr: HdrFormat[];
   /**
@@ -404,6 +410,7 @@ export function capabilitiesFromVega(
     maxStreamingBitrate: DEFAULT_STREAMING_BITRATE,
     maxStaticBitrate: DEFAULT_STATIC_BITRATE,
     maxAudioChannels: DEFAULT_AUDIO_CHANNELS,
+    directPlayOverHttp: false,
     hdr: hevc10 ? ['hdr10', 'hlg'] : [],
     passthrough: { codecs: [], maxChannels: 0 },
     subtitles: VEGA_SUBTITLES,

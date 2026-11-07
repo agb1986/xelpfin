@@ -37,6 +37,12 @@ describe('capabilitiesFromVega', () => {
     expect(caps.hdr).toEqual(['hdr10', 'hlg']);
   });
 
+  it('marks direct play over plain http as unsupported', () => {
+    expect(capabilitiesFromVega([probe({})], ['aac']).directPlayOverHttp).toBe(
+      false,
+    );
+  });
+
   it('assumes 1080p when the decoder lists no resolution', () => {
     const caps = capabilitiesFromVega(
       [probe({ maxWidth: 0, maxHeight: 0 })],
