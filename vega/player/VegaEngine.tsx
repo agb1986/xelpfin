@@ -121,8 +121,13 @@ const VegaView = forwardRef<PlayerViewHandle, PlayerViewProps>(
           }
           if (plan.streamType === 'hls') {
             const shaka = loadShaka();
-            const player = new shaka.Player(el);
+            // Constructing with the element is deprecated; attach() replaces it in Shaka v5.
+            const player = new shaka.Player();
             shakaPlayer.current = player;
+            await player.attach(el);
+            if (cancelled) {
+              return;
+            }
             player.configure({
               streaming: {
                 lowLatencyMode: false,
