@@ -6,6 +6,7 @@ import React, {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
 } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -170,22 +171,30 @@ const VegaView = forwardRef<PlayerViewHandle, PlayerViewProps>(
 
     useEffect(applyPaused, [props.paused]);
 
-    return (
-      <View style={StyleSheet.absoluteFill}>
-        <KeplerVideoSurfaceView
-          style={StyleSheet.absoluteFill}
-          onSurfaceViewCreated={(handle: string) => {
-            surface.current = handle;
-            video.current?.setSurfaceHandle(handle);
-            applyPaused();
-          }}
-          onSurfaceViewDestroyed={(handle: string) => {
-            video.current?.clearSurfaceHandle(handle);
-            surface.current = null;
-          }}
-        />
-      </View>
+    // The player re-renders on every progress update (4 Hz). The surface only reads refs, so it
+    // is built once and React skips it on those renders.
+    const surfaceView = useMemo(
+      () => (
+        <View style={StyleSheet.absoluteFill}>
+          <KeplerVideoSurfaceView
+            style={StyleSheet.absoluteFill}
+            onSurfaceViewCreated={(handle: string) => {
+              surface.current = handle;
+              video.current?.setSurfaceHandle(handle);
+              applyPaused();
+            }}
+            onSurfaceViewDestroyed={(handle: string) => {
+              video.current?.clearSurfaceHandle(handle);
+              surface.current = null;
+            }}
+          />
+        </View>
+      ),
+      // applyPaused reads only refs, so the first render's copy stays correct.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [],
     );
+    return surfaceView;
   },
 );
 
