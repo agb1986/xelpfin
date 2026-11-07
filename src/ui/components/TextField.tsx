@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 import { useScreenState } from '../../state/navigation';
 import {
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -15,6 +16,11 @@ import {
 } from 'react-native';
 import { colors, font, radius, space } from '../theme';
 
+// Vega opens the keyboard on every focus the field gets while showSoftInputOnFocus is on, D-pad
+// moves included, and the remote then drives the keyboard until BACK. There the keyboard is
+// enabled only for a SELECT press.
+const KEYBOARD_ON_SELECT_ONLY = (Platform.OS as string) === 'kepler';
+
 interface TextFieldProps extends TextInputProps {
   label: string;
 }
@@ -22,7 +28,7 @@ interface TextFieldProps extends TextInputProps {
 /** Labelled text input with the purple focus ring. SELECT opens the on-screen keyboard. */
 export const TextField = forwardRef<TextInput, TextFieldProps>(
   function TextField(
-    { label, style, onFocus, onBlur, hasTVPreferredFocus, ...rest },
+    { label, style, onFocus, onBlur, onPress, hasTVPreferredFocus, ...rest },
     ref,
   ) {
     const [focused, setFocused] = useState(false);
@@ -68,6 +74,14 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(
       t = setTimeout(attempt, 0);
       return () => clearTimeout(t);
     }, [wantsFocus]);
+    // Vega: SELECT enables the keyboard, which only opens on a focus() made after the change
+    // has reached the native view. TextInput's own focus() on press runs before that.
+    const [keyboard, setKeyboard] = useState(false);
+    useEffect(() => {
+      if (keyboard && hasFocus.current) {
+        inner.current?.focus();
+      }
+    }, [keyboard]);
     return (
       <View style={styles.wrap}>
         <Text style={[styles.label, focused && styles.labelFocused]}>
@@ -79,9 +93,15 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(
           autoCapitalize="none"
           autoCorrect={false}
           focusable={active}
-          showSoftInputOnFocus={!quiet}
+          showSoftInputOnFocus={KEYBOARD_ON_SELECT_ONLY ? keyboard : !quiet}
           hasTVPreferredFocus={wantsFocus}
           {...rest}
+          onPress={e => {
+            if (KEYBOARD_ON_SELECT_ONLY) {
+              setKeyboard(true);
+            }
+            onPress?.(e);
+          }}
           onFocus={e => {
             hasFocus.current = true;
             setFocused(true);
@@ -91,6 +111,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(
           onBlur={e => {
             hasFocus.current = false;
             setFocused(false);
+            setKeyboard(false);
             onBlur?.(e);
           }}
           style={[styles.input, focused && styles.inputFocused, style]}
