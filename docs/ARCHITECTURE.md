@@ -122,8 +122,9 @@ and for working on the UI without a server.
   "none" when the query is missing or fails (emulator, tests).
   On the emulator it adds `10.0.2.2` as a unicast discovery hint, because broadcasts do not reach
   the host there.
-- `vega/` is the boundary stub. It keeps storage in memory, has no UDP, and reports the baseline
-  codec set. Its header comment lists what a Vega port has to supply.
+- `src/platform/vega` is the Vega boundary. Storage is Vega's AsyncStorage, there is no UDP (the
+  Vega SDK has none, so the server screen takes a typed address), and codecs come from the query
+  function the entry point passes in, falling back to the baseline codec set.
 
 Nothing outside `src/platform` imports `NativeModules`.
 
@@ -271,7 +272,7 @@ but resolves every package from `vega/node_modules` and blocks the root's `node_
 
 Each entry point registers its own adapters before rendering: `index.js` calls
 `setPlatform(createFireTvPlatform())` and `setEngine(VideoEngine)`; `vega/index.js` calls
-`setPlatform(createVegaPlatform())` and `setEngine(VegaEngine)`. The `@react-native-async-storage`
+`setPlatform(createVegaPlatform(queryVegaCapabilities))` and `setEngine(VegaEngine)`. The `@react-native-async-storage`
 import is an npm alias to Vega's AsyncStorage package in the Vega bundle.
 
 The Vega engine (`vega/player/VegaEngine.tsx`) plays on `@amazon-devices/react-native-w3cmedia`.
@@ -298,7 +299,14 @@ vega device start-port-forwarding -p 8081 -f false && npm start    # Metro for d
 vega device launch-app --appName com.xelpfin.app
 ```
 
-Status: the shared UI and the engine build, install and launch on the Vega virtual device against
-the mock backend. Playback has not been exercised against a real stream yet. Still to do: Jellyfin
-sign-in on Vega (once deployed), a Vega codec query and device profile, LAN discovery, embedded
-subtitles, and a real-stick test.
+Device profile: `vega/platform/mediaCapabilities.ts` asks `KeplerMediaDescriptor` which video and
+audio decoders exist and whether they are hardware backed, and probes 10-bit support with
+`MediaSource.isTypeSupported`. `capabilitiesFromVega` in `src/player/capabilities.ts` turns that
+into the `DeviceCapabilities` the shared device profile is built from. The SDK has no display
+query, so HDR10 and HLG are advertised whenever a 10-bit HEVC decoder exists. Software-only AV1
+and VP9 are dropped. The query lives in `vega/` because the root app cannot import the Vega-only
+package.
+
+Status: playback of progressive MP4 and HLS works on a real Vega stick, the capability query
+runs on it, and manual server entry connects to a real Jellyfin server. Still to do: Jellyfin
+sign-in on Vega (once deployed), embedded subtitles, and syncing the manifest version.
