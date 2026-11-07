@@ -1,10 +1,10 @@
 import { AppRegistry } from 'react-native';
-import App from '../App';
 import { MockConnector } from '../src/backend';
 import { setPlatform } from '../src/platform';
 import { setEngine } from '../src/player';
 import { createVegaPlatform } from '../src/platform/vega';
 import { name as appName } from './app.json';
+import { AppRoot } from './AppRoot';
 import { queryVegaCapabilities } from './platform/mediaCapabilities';
 import { VegaEngine } from './player/VegaEngine';
 
@@ -19,5 +19,5 @@ const USE_MOCK_BACKEND = false;
 const connector = USE_MOCK_BACKEND ? new MockConnector() : undefined;
 
 AppRegistry.registerComponent(appName, () => () => (
-  <App connector={connector} />
+  <AppRoot connector={connector} />
 ));
