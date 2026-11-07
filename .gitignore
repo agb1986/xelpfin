@@ -87,3 +87,4 @@ vega/node_modules/
 vega/build/
 vega/kepler-build/
 vega/generated/
+vega/vendor/
