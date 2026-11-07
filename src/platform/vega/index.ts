@@ -15,8 +15,8 @@ const asyncStore: KeyValueStore = {
  *  - storage: done, Vega's AsyncStorage package through the npm alias in vega/package.json,
  *  - udp: discovery through Vega's networking API (or leave undefined and rely on manual entry),
  *  - capabilities: query the Vega media stack instead of Android MediaCodecList,
- *  - a PlayerEngine on Vega's W3C media player instead of react-native-video/ExoPlayer.
- * Until then this adapter reports the baseline codec set and has no discovery.
+ *  - a PlayerEngine on Vega's W3C media player: done, vega/player/VegaEngine.tsx.
+ * Until the rest is done this adapter reports the baseline codec set and has no discovery.
  */
 export function createVegaPlatform(): PlatformServices {
   return {

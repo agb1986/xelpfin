@@ -271,13 +271,26 @@ but resolves every package from `vega/node_modules` and blocks the root's `node_
 
 Each entry point registers its own adapters before rendering: `index.js` calls
 `setPlatform(createFireTvPlatform())` and `setEngine(VideoEngine)`; `vega/index.js` calls
-`setPlatform(createVegaPlatform())` and, for now, no engine. The `@react-native-async-storage`
+`setPlatform(createVegaPlatform())` and `setEngine(VegaEngine)`. The `@react-native-async-storage`
 import is an npm alias to Vega's AsyncStorage package in the Vega bundle.
+
+The Vega engine (`vega/player/VegaEngine.tsx`) plays on `@amazon-devices/react-native-w3cmedia`.
+Progressive direct-play streams load from the media element's `src`; HLS transcodes go through
+Amazon's patched Shaka Player. The element cannot send request headers, so
+`src/player/vega/streamUrl.ts` moves the access token into an `api_key` query parameter for
+direct play, and the HLS path adds the headers in a Shaka request filter. Track-switch rules are
+shared with Fire TV through `src/player/trackSelection.ts`. Embedded subtitles are not rendered
+on Vega yet.
+
+Amazon's Shaka and polyfill sources are not redistributable, so they are not committed.
+`npm run shaka` (`scripts/vega-shaka.sh`) copies them from a `vega-video-sample` checkout
+(`VEGA_SAMPLE_DIR`, default `~/workspace/repos/vega-video-sample`, `npm install`ed) into the
+git-ignored `vega/vendor/`. Run it once before the first build.
 
 Build and run (needs the Vega SDK on `PATH`, `~/vega/bin`):
 
 ```
-cd vega && npm install
+cd vega && npm install && npm run shaka
 npm run build:debug                      # .vpkg for aarch64, armv7 and x86_64
 vega virtual-device start
 vega device install-app -b Debug --dir .
@@ -285,6 +298,7 @@ vega device start-port-forwarding -p 8081 -f false && npm start    # Metro for d
 vega device launch-app --appName com.xelpfin.app
 ```
 
-Status: the shared UI runs on the Vega virtual device against the mock backend. Still to do: the
-W3C media player engine, Jellyfin sign-in on Vega, a Vega codec query and device profile, LAN
-discovery, and a real-stick test.
+Status: the shared UI and the engine build, install and launch on the Vega virtual device against
+the mock backend. Playback has not been exercised against a real stream yet. Still to do: Jellyfin
+sign-in on Vega (once deployed), a Vega codec query and device profile, LAN discovery, embedded
+subtitles, and a real-stick test.

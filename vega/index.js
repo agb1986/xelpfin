@@ -10,7 +10,9 @@ import { VegaEngine } from './player/VegaEngine';
 setPlatform(createVegaPlatform());
 setEngine(VegaEngine);
 
-// Scaffold stage: the shared UI runs against the mock backend until sign-in is verified on Vega.
+// Real Jellyfin sign-in is deferred until the app is deployed; the mock backend stands in.
 const connector = new MockConnector();
 
-AppRegistry.registerComponent(appName, () => () => <App connector={connector} />);
+AppRegistry.registerComponent(appName, () => () => (
+  <App connector={connector} />
+));
