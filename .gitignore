@@ -81,3 +81,15 @@ docs/screens/failure.png
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Scratchpads
+sp.md
+sp-output.md
+
+# Vega OS app
+vega/node_modules/
+vega/vendor/
+vega/build/
+vega/kepler-build/
+vega/generated/
+vega/buildinfo.json

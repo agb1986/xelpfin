@@ -543,6 +543,9 @@ export class JellyfinBackend implements Backend {
       caps.maxStreamingBitrate,
       req.maxBitrate ?? Infinity,
     );
+    const directPlay =
+      caps.directPlayOverHttp !== false ||
+      !/^http:/i.test(this.session.server.url);
     const r = await this.http.post<PlaybackInfoResponseDto>(
       `/Items/${encodeURIComponent(req.itemId)}/PlaybackInfo`,
       {
@@ -551,7 +554,7 @@ export class JellyfinBackend implements Backend {
         MediaSourceId: req.mediaSourceId,
         AudioStreamIndex: req.audioStreamIndex,
         SubtitleStreamIndex: req.subtitleStreamIndex,
-        EnableDirectPlay: true,
+        EnableDirectPlay: directPlay,
         EnableDirectStream: true,
         EnableTranscoding: true,
         AllowVideoStreamCopy: true,
@@ -559,6 +562,7 @@ export class JellyfinBackend implements Backend {
         AutoOpenLiveStream: false,
         DeviceProfile: buildDeviceProfile(caps, undefined, {
           avoidFmp4: req.avoidFmp4,
+          directPlay,
         }),
       },
     );

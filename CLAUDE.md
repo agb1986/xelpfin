@@ -19,7 +19,7 @@ trailing full stop, summary under about 72 characters. Add a body when the why i
 Pick the type from the effect on the user, not from the files touched. A change that only
 touches tests or docs is never `feat` or `fix`. Split unrelated changes into separate commits so
 each one carries a single type. Scopes are optional; useful ones are `player`, `backend`, `ui`,
-`platform`, `android`, `scripts`.
+`platform`, `android`, `vega`, `scripts`.
 
 While the version is below 1.0.0, a breaking change still uses `!` but is released as a minor bump
 unless the user asks for `1.0.0`.

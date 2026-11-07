@@ -89,6 +89,15 @@ describe('buildDeviceProfile', () => {
     expect(capped.MaxStaticBitrate).toBe(20_000_000);
   });
 
+  it('offers no direct play profiles when direct play is off', () => {
+    expect(p.DirectPlayProfiles.length).toBeGreaterThan(0);
+    const off = buildDeviceProfile(BASELINE_CAPABILITIES, 'x', {
+      directPlay: false,
+    });
+    expect(off.DirectPlayProfiles).toEqual([]);
+    expect(off.TranscodingProfiles.length).toBeGreaterThan(0);
+  });
+
   it('limits resolution and bit depth per codec', () => {
     const h264 = p.CodecProfiles.find(c => c.Codec === 'h264')!;
     expect(h264.Conditions).toContainEqual(

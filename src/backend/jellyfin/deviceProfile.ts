@@ -121,7 +121,10 @@ const keep = (order: string[], available: string[]) =>
 export function buildDeviceProfile(
   caps: DeviceCapabilities,
   name = 'xelpfin',
-  { avoidFmp4 = false }: { avoidFmp4?: boolean } = {},
+  {
+    avoidFmp4 = false,
+    directPlay = true,
+  }: { avoidFmp4?: boolean; directPlay?: boolean } = {},
 ): JellyfinDeviceProfile {
   const videoCodecs = caps.video.map(v => v.codec);
   const audioCodecs = caps.audio;
@@ -187,12 +190,14 @@ export function buildDeviceProfile(
     MaxStreamingBitrate: caps.maxStreamingBitrate,
     MaxStaticBitrate: caps.maxStaticBitrate,
     MusicStreamingTranscodingBitrate: 192000,
-    DirectPlayProfiles: caps.containers.map(c => ({
-      Container: c,
-      Type: 'Video',
-      VideoCodec: vc,
-      AudioCodec: ac,
-    })),
+    DirectPlayProfiles: directPlay
+      ? caps.containers.map(c => ({
+          Container: c,
+          Type: 'Video' as const,
+          VideoCodec: vc,
+          AudioCodec: ac,
+        }))
+      : [],
     TranscodingProfiles: [
       ...(avoidFmp4
         ? []

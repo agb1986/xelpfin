@@ -161,15 +161,21 @@ function AuthExpiryWatcher() {
 export default function App({
   platform,
   connector,
-}: { platform?: PlatformServices; connector?: ServerConnector } = {}) {
+  onReady,
+}: {
+  platform?: PlatformServices;
+  connector?: ServerConnector;
+  /** Called once start-up has finished, as the first screen or the start-up error renders. */
+  onReady?: () => void;
+} = {}) {
   const [ready, setReady] = useState<Ready>();
   const [failure, setFailure] = useState<string>();
   const services = platform ?? getPlatform();
 
   useEffect(() => {
-    bootstrap(services, connector).then(setReady, e =>
-      setFailure(describeError(e)),
-    );
+    bootstrap(services, connector)
+      .then(setReady, e => setFailure(describeError(e)))
+      .finally(() => onReady?.());
     // Bootstrap once per process.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

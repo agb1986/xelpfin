@@ -6,6 +6,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 step() { printf '\n== %s\n' "$*"; }
 step typecheck; npm run -s typecheck
+if [ -d vega/node_modules ]; then
+  step "typecheck vega"; npm run -s typecheck:vega
+else
+  echo "skipping the vega type check: run npm ci in vega/ first"
+fi
 step lint; npm run -s lint
 step "unit and UI tests"; npx jest --coverage --coverageReporters=text-summary
 if [ "${VERIFY_SKIP_JELLYFIN:-}" = 1 ]; then

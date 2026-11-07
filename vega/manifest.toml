@@ -1,0 +1,82 @@
+schema-version = 1
+
+[package]
+# Same id as the Fire OS app, so the two builds are one product.
+id = "com.xelpfin.app"
+title = "xelpfin"
+# Not yet synced with the root package.json version; a release step must update it (TODO).
+version = "0.3.0"
+icon = "@image/xelpfin.png"
+
+[os.version]
+min = "1.2"
+target = "1.2"
+
+[components]
+[[components.interactive]]
+id = "com.xelpfin.app.main"
+runtime-module = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
+categories = ["com.amazon.category.main"]
+launch-type = "singleton"
+
+[processes]
+[[processes.group]]
+id = "main"
+component-ids = ["com.xelpfin.app.main"]
+
+[needs]
+[[needs.module]]
+id = "/com.amazon.vega.os@IVega_1_2"
+
+[[needs.privilege]]
+id = "com.amazon.network.privilege.net-info"
+
+[[needs.module]]
+id = "/com.amazon.kepler.keplerscript_4@IKeplerScript_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.async_storage__async_storage_2@IAsyncStorage__AsyncStorage_1"
+
+[[needs.module]]
+id = "/com.amazon.kepler.kepler_media_controls_1@IKeplerMediaControls_0"
+
+[[needs.module]]
+id = "/com.amazon.kepler.keplermediadescriptor_1@IKeplermediadescriptor_1"
+
+[[needs.module]]
+id = "/com.amazon.kepler.w3cmedia_2@IW3cmedia_3"
+
+
+
+
+
+
+[wants]
+[[wants.service]]
+id = "com.amazon.inputmethod.service"
+[[wants.service]]
+id = "com.amazon.inputd.service"
+[[wants.service]]
+id = "com.amazon.media.server"
+[[wants.service]]
+id = "com.amazon.mediametrics.service"
+[[wants.service]]
+id = "com.amazon.media.playersession.service"
+[[wants.service]]
+id = "com.amazon.mediabuffer.service"
+[[wants.service]]
+id = "com.amazon.mediatransform.service"
+[[wants.service]]
+id = "com.amazon.audio.stream"
+[[wants.service]]
+id = "com.amazon.audio.control"
+[[wants.service]]
+id = "com.amazon.audio.system"
+[[wants.service]]
+id = "com.amazon.network.service"
+[[wants.service]]
+id = "com.amazon.gipc.uuid.*"
+
+[offers]
+[[offers.service]]
+id = "com.amazon.gipc.uuid.*"

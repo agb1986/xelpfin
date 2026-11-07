@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useIsActive } from '../../state/navigation';
+import { useScreenState } from '../../state/navigation';
 import {
   StyleSheet,
   Text,
@@ -21,9 +21,13 @@ interface TextFieldProps extends TextInputProps {
 
 /** Labelled text input with the purple focus ring. SELECT opens the on-screen keyboard. */
 export const TextField = forwardRef<TextInput, TextFieldProps>(
-  function TextField({ label, style, onFocus, onBlur, ...rest }, ref) {
+  function TextField(
+    { label, style, onFocus, onBlur, hasTVPreferredFocus, ...rest },
+    ref,
+  ) {
     const [focused, setFocused] = useState(false);
-    const active = useIsActive(); // see Focusable: hidden screens must not hold focus
+    // See Focusable: hidden screens must not hold focus.
+    const { active, lastFocused } = useScreenState();
     const inner = useRef<TextInput | null>(null);
     const hasFocus = useRef(false);
     const setRef = useCallback(
@@ -37,15 +41,19 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(
       },
       [ref],
     );
-    const wantsFocus = rest.hasTVPreferredFocus;
+    // Preferred focus only applies until something else on the screen has had focus: on return
+    // to the screen, Focusable restores the remembered element, and the field must not take
+    // focus back from it.
+    const wantsFocus = !!hasTVPreferredFocus && active && !lastFocused.current;
     // Keep the keyboard closed while the field takes initial focus programmatically; SELECT
     // opens it afterwards, as for any other focus.
-    const [quiet, setQuiet] = useState(!!wantsFocus);
+    const [quiet, setQuiet] = useState(wantsFocus);
     // The preferred-focus flag is only read when the native view is created, which is while the
     // screen below it still holds focus, and TextInput has no requestTVFocus. Focus it directly,
-    // retrying for a few frames until it has focus.
+    // retrying for a few frames until it has focus. On Vega, focus() logs a deprecation warning
+    // that points at requestTVFocus, but Vega's TextInput does not have that method either.
     useEffect(() => {
-      if (!wantsFocus || !active) {
+      if (!wantsFocus) {
         return;
       }
       let tries = 0;
@@ -59,7 +67,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(
       };
       t = setTimeout(attempt, 0);
       return () => clearTimeout(t);
-    }, [wantsFocus, active]);
+    }, [wantsFocus]);
     return (
       <View style={styles.wrap}>
         <Text style={[styles.label, focused && styles.labelFocused]}>
@@ -72,6 +80,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(
           autoCorrect={false}
           focusable={active}
           showSoftInputOnFocus={!quiet}
+          hasTVPreferredFocus={wantsFocus}
           {...rest}
           onFocus={e => {
             hasFocus.current = true;

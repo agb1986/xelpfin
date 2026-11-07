@@ -1,16 +1,31 @@
-import { BASELINE_CAPABILITIES } from '../../player/capabilities';
-import { MemoryStore, type PlatformServices } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  BASELINE_CAPABILITIES,
+  type DeviceCapabilities,
+} from '../../player/capabilities';
+import type { KeyValueStore, PlatformServices } from '../types';
+
+// In the Vega bundle this import resolves to Vega's AsyncStorage package (an npm alias).
+const asyncStore: KeyValueStore = {
+  get: key => AsyncStorage.getItem(key),
+  set: (key, value) => AsyncStorage.setItem(key, value),
+  remove: key => AsyncStorage.removeItem(key),
+};
 
 /**
  * Vega OS boundary. Vega apps are React Native too, so everything above src/platform and the
  * PlayerEngine is meant to be reused unchanged. What has to be written for Vega:
- *  - storage: Vega's persistent key/value API instead of AsyncStorage,
- *  - udp: discovery through Vega's networking API (or leave undefined and rely on manual entry),
- *  - capabilities: query the Vega media stack instead of Android MediaCodecList,
- *  - a PlayerEngine on Vega's W3C media player instead of react-native-video/ExoPlayer.
- * Until then this stub keeps data in memory and reports the baseline codec set.
+ *  - storage: done, Vega's AsyncStorage package through the npm alias in vega/package.json,
+ *  - udp: the Vega SDK has no UDP API, so it stays undefined and the user types the address,
+ *  - capabilities: queried from the Vega media stack by vega/platform/mediaCapabilities.ts, which
+ *    the entry point passes in (the root app cannot import the Vega-only package),
+ *  - a PlayerEngine on Vega's W3C media player: done, vega/player/VegaEngine.tsx.
+ * Without a query function the adapter reports the baseline codec set.
  */
-export function createVegaPlatform(): PlatformServices {
+export function createVegaPlatform(
+  queryCapabilities?: () => Promise<DeviceCapabilities>,
+): PlatformServices {
+  let caps: Promise<DeviceCapabilities> | undefined;
   return {
     id: 'vega',
     device: {
@@ -22,9 +37,14 @@ export function createVegaPlatform(): PlatformServices {
       isEmulator: false,
       isFireTv: true,
     },
-    storage: new MemoryStore(),
+    storage: asyncStore,
     udp: undefined,
-    capabilities: async () => BASELINE_CAPABILITIES,
+    capabilities() {
+      caps ??= (
+        queryCapabilities?.() ?? Promise.resolve(BASELINE_CAPABILITIES)
+      ).catch(() => BASELINE_CAPABILITIES);
+      return caps;
+    },
     discoveryHints: () => [],
     addressHint: () => '192.168.1.10:8096',
   };

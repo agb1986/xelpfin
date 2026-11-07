@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "esnext",
+    "module": "esnext",
+    "types": ["@amazon-devices/react-native-kepler"],
+    "lib": ["es2022"],
+    "allowJs": false,
+    "jsx": "react-native",
+    "noEmit": true,
+    "isolatedModules": true,
+    "strict": true,
+    "noFallthroughCasesInSwitch": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["AppRoot.tsx", "platform/**/*.ts", "player/**/*.tsx", "player/**/*.ts"],
+  "exclude": ["node_modules", "vendor", "build"]
+}

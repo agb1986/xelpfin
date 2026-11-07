@@ -12,7 +12,7 @@ state can be reused unchanged on Vega OS:
                  Backend / ServerConnector      PlayerEngine              PlatformServices
                     (src/backend)               (src/player)               (src/platform)
                            │                          │                          │
-            JellyfinBackend │ MockBackend   VideoEngine (react-native-video)   firetv │ vega (stub)
+            JellyfinBackend │ MockBackend   VideoEngine (react-native-video)   firetv │ vega
 ```
 
 ## Backend (`src/backend`)
@@ -122,8 +122,9 @@ and for working on the UI without a server.
   "none" when the query is missing or fails (emulator, tests).
   On the emulator it adds `10.0.2.2` as a unicast discovery hint, because broadcasts do not reach
   the host there.
-- `vega/` is the boundary stub. It keeps storage in memory, has no UDP, and reports the baseline
-  codec set. Its header comment lists what a Vega port has to supply.
+- `src/platform/vega` is the Vega boundary. Storage is Vega's AsyncStorage, there is no UDP (the
+  Vega SDK has none, so the server screen takes a typed address), and codecs come from the query
+  function the entry point passes in, falling back to the baseline codec set.
 
 Nothing outside `src/platform` imports `NativeModules`.
 
@@ -260,3 +261,52 @@ not in how the JS is loaded. Pass `-PxelpfinDev=true` for a Metro-backed debug b
 The only network peers are the Jellyfin server the user selects and the UDP broadcast used to
 find it. There is no analytics, crash reporting, update check or account service. The Android
 manifest requests only `INTERNET`. Cleartext HTTP is allowed so that LAN servers without TLS work.
+
+## Vega OS app (`vega/`)
+
+`vega/` is a second app that shares `App.tsx` and `src/` with the Fire TV app. It has its own
+`package.json` and `node_modules` because Vega needs `@amazon-devices/react-native-kepler` on
+RN 0.83 while the root uses react-native-tvos 0.81. `vega/metro.config.js` watches the repo root
+but resolves every package from `vega/node_modules` and blocks the root's `node_modules`,
+`android/`, `src/player/rnv` and `src/platform/firetv`.
+
+Each entry point registers its own adapters before rendering: `index.js` calls
+`setPlatform(createFireTvPlatform())` and `setEngine(VideoEngine)`; `vega/index.js` calls
+`setPlatform(createVegaPlatform(queryVegaCapabilities))` and `setEngine(VegaEngine)`. The `@react-native-async-storage`
+import is an npm alias to Vega's AsyncStorage package in the Vega bundle.
+
+The Vega engine (`vega/player/VegaEngine.tsx`) plays on `@amazon-devices/react-native-w3cmedia`.
+Progressive direct-play streams load from the media element's `src`; HLS transcodes go through
+Amazon's patched Shaka Player. The element cannot send request headers, so
+`src/player/vega/streamUrl.ts` moves the access token into an `api_key` query parameter for
+direct play, and the HLS path adds the headers in a Shaka request filter. Track-switch rules are
+shared with Fire TV through `src/player/trackSelection.ts`. Embedded subtitles are not rendered
+on Vega yet.
+
+Amazon's Shaka and polyfill sources are not redistributable, so they are not committed.
+`npm run shaka` (`scripts/vega-shaka.sh`) copies them from a `vega-video-sample` checkout
+(`VEGA_SAMPLE_DIR`, default `~/workspace/repos/vega-video-sample`, `npm install`ed) into the
+git-ignored `vega/vendor/`. Run it once before the first build.
+
+Build and run (needs the Vega SDK on `PATH`, `~/vega/bin`):
+
+```
+cd vega && npm install && npm run shaka
+npm run build:debug                      # .vpkg for aarch64, armv7 and x86_64
+vega virtual-device start
+vega device install-app -b Debug --dir .
+vega device start-port-forwarding -p 8081 -f false && npm start    # Metro for debug builds
+vega device launch-app --appName com.xelpfin.app
+```
+
+Device profile: `vega/platform/mediaCapabilities.ts` asks `KeplerMediaDescriptor` which video and
+audio decoders exist and whether they are hardware backed, and probes 10-bit support with
+`MediaSource.isTypeSupported`. `capabilitiesFromVega` in `src/player/capabilities.ts` turns that
+into the `DeviceCapabilities` the shared device profile is built from. The SDK has no display
+query, so HDR10 and HLG are advertised whenever a 10-bit HEVC decoder exists. Software-only AV1
+and VP9 are dropped. The query lives in `vega/` because the root app cannot import the Vega-only
+package.
+
+Status: playback of progressive MP4 and HLS works on a real Vega stick, the capability query
+runs on it, and manual server entry connects to a real Jellyfin server. Still to do: Jellyfin
+sign-in on Vega (once deployed), embedded subtitles, and syncing the manifest version.

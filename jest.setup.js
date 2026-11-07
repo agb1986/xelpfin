@@ -31,3 +31,12 @@ jest.mock('react-native-video', () => {
     },
   };
 });
+
+// The app entry point registers the platform and engine; tests get the Vega boundary stub (the
+// adapter jest's default Platform.OS used to select) and the react-native-video engine.
+const { setPlatform } = require('./src/platform');
+const { createVegaPlatform } = require('./src/platform/vega');
+const { setEngine } = require('./src/player');
+const { VideoEngine } = require('./src/player/rnv/VideoEngine');
+setPlatform(createVegaPlatform());
+setEngine(VideoEngine);

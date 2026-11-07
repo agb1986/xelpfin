@@ -3,7 +3,7 @@ import {
   audioSelection,
   canSwitchInStream,
   subtitleSelection,
-} from '../../src/player/rnv/trackSelection';
+} from '../../src/player/trackSelection';
 
 const plan: PlaybackPlan = {
   itemId: 'i',
