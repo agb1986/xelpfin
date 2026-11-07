@@ -1,4 +1,4 @@
-import type { PlaybackPlan } from '../../backend/types';
+import type { PlaybackPlan } from '../backend/types';
 
 export type TrackSelection =
   | { type: 'index'; value: number }

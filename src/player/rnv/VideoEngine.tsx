@@ -16,7 +16,7 @@ import {
   canSwitchInStream,
   subtitleSelection,
   type TrackSelection,
-} from './trackSelection';
+} from '../trackSelection';
 
 function toSelectedTrack(s: TrackSelection): SelectedTrack {
   switch (s.type) {
