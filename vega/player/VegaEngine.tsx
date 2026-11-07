@@ -129,7 +129,7 @@ const VegaView = forwardRef<PlayerViewHandle, PlayerViewProps>(
                 rebufferingGoal: 2,
                 retryParameters: { maxAttempts: 3 },
               },
-              manifest: { hls: { sequenceMode: false } },
+              manifest: { hls: { sequenceMode: true } },
               abr: { enabled: false },
             });
             const headers = plan.headers;
