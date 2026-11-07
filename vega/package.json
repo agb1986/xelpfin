@@ -4,11 +4,16 @@
   "private": true,
   "scripts": {
     "start": "react-native start",
-    "build:debug": "react-native build-kepler --build-type Debug",
-    "build:release": "react-native build-kepler --build-type Release",
-    "app:install:debug": "kepler device install-app -b Debug --dir .",
-    "app:launch": "kepler device launch-app",
+    "build:debug": "react-native build-vega --build-type Debug",
+    "build:release": "react-native build-vega --build-type Release",
+    "app:install:debug": "vega device install-app -b Debug --dir .",
+    "app:install:release": "vega device install-app -b Release --dir .",
+    "app:launch": "vega device launch-app --appName com.xelpfin.app",
     "shaka": "bash ../scripts/vega-shaka.sh"
+  },
+  "overrides": {
+    "react": "19.2.0",
+    "react-native": "0.83.0"
   },
   "dependencies": {
     "@amazon-devices/kepler-media-controls": "1.0.25",
