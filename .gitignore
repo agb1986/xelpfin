@@ -92,3 +92,4 @@ vega/vendor/
 vega/build/
 vega/kepler-build/
 vega/generated/
+vega/buildinfo.json
