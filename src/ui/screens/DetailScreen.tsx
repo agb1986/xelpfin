@@ -9,6 +9,8 @@ import {
   ErrorView,
   LoadingView,
   MediaRow,
+  OptionPicker,
+  type Option,
   describeError,
 } from '../components';
 import {
@@ -79,6 +81,7 @@ export function DetailScreen({
   const active = useIsActive();
   const detail = useAsync(() => backend.item(itemId), [backend, itemId]);
   const [actionError, setActionError] = useState<string>();
+  const [menuOpen, setMenuOpen] = useState(false);
   const randomizer = useRandomizer();
 
   const item = detail.data;
@@ -185,6 +188,25 @@ export function DetailScreen({
     }
   };
 
+  // The actions row and the long-press menu share these handlers and labels.
+  const playedLabel = item.userData?.played ? 'Mark unwatched' : 'Mark watched';
+  const randomizerLabel = randomizer.state.series.includes(item.id)
+    ? 'Remove Randomizer'
+    : 'Add Randomizer';
+  const favoriteLabel = item.userData?.favorite ? '♥ Favourite' : '♡ Favourite';
+  const togglePlayed = () =>
+    act(() => backend.setPlayed(item.id, !item.userData?.played));
+  const toggleRandomizer = () =>
+    randomizer.list.update(s => toggleSeries(s, item.id));
+  const toggleFavorite = () =>
+    act(() => backend.setFavorite(item.id, !item.userData?.favorite));
+  const menuOptions: Option<() => void>[] = [
+    { label: playedLabel, value: togglePlayed },
+    ...(isSeries ? [{ label: randomizerLabel, value: toggleRandomizer }] : []),
+    { label: favoriteLabel, value: toggleFavorite },
+  ];
+  const openMenu = () => setMenuOpen(true);
+
   const position = item.userData?.playbackPositionMs ?? 0;
   const canResume = !isSeries && position > 0 && !item.userData?.played;
   const play = (from: number) =>
@@ -257,6 +279,7 @@ export function DetailScreen({
                       hasTVPreferredFocus
                       label={`Resume ${code(resume)} · ${formatDuration(resume.userData?.playbackPositionMs)}`}
                       onPress={() => playEp(resume)}
+                      onLongPress={openMenu}
                       testID="resume-episode"
                     />
                   ) : null}
@@ -268,6 +291,7 @@ export function DetailScreen({
                       hasTVPreferredFocus={!resume}
                       label={`Play ${code(next)}`}
                       onPress={() => playEp(next)}
+                      onLongPress={openMenu}
                       testID="play-next"
                     />
                   ) : null}
@@ -279,11 +303,13 @@ export function DetailScreen({
                     hasTVPreferredFocus
                     label={`Resume from ${formatDuration(position)}`}
                     onPress={() => play(position)}
+                    onLongPress={openMenu}
                     testID="resume"
                   />
                   <Button
                     label="Play from start"
                     onPress={() => play(0)}
+                    onLongPress={openMenu}
                     testID="play-start"
                   />
                 </>
@@ -293,6 +319,7 @@ export function DetailScreen({
                   hasTVPreferredFocus
                   label="Play"
                   onPress={() => play(0)}
+                  onLongPress={openMenu}
                   testID="play"
                 />
               )}
@@ -320,33 +347,19 @@ export function DetailScreen({
               ) : null}
               {isSeries ? (
                 <Button
-                  label={
-                    randomizer.state.series.includes(item.id)
-                      ? 'Remove Randomizer'
-                      : 'Add Randomizer'
-                  }
-                  onPress={() =>
-                    randomizer.list.update(s => toggleSeries(s, item.id))
-                  }
+                  label={randomizerLabel}
+                  onPress={toggleRandomizer}
                   testID="toggle-randomizer"
                 />
               ) : null}
               <Button
-                label={
-                  item.userData?.played ? 'Mark unwatched' : 'Mark watched'
-                }
-                onPress={() =>
-                  act(() => backend.setPlayed(item.id, !item.userData?.played))
-                }
+                label={playedLabel}
+                onPress={togglePlayed}
                 testID="toggle-played"
               />
               <Button
-                label={item.userData?.favorite ? '♥ Favourite' : '♡ Favourite'}
-                onPress={() =>
-                  act(() =>
-                    backend.setFavorite(item.id, !item.userData?.favorite),
-                  )
-                }
+                label={favoriteLabel}
+                onPress={toggleFavorite}
                 testID="toggle-favorite"
               />
             </View>
@@ -425,6 +438,15 @@ export function DetailScreen({
           </View>
         ) : null}
       </ScrollView>
+      <OptionPicker
+        visible={menuOpen}
+        title={item.name}
+        options={menuOptions}
+        plain
+        onSelect={run => run()}
+        onClose={() => setMenuOpen(false)}
+        testID="detail-menu"
+      />
     </View>
   );
 }

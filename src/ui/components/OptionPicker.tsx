@@ -22,7 +22,7 @@ interface OptionPickerProps<T> {
   visible: boolean;
   title: string;
   options: Option<T>[];
-  selected: T;
+  selected?: T;
   onSelect(value: T): void;
   onClose(): void;
   testID?: string;
@@ -31,6 +31,8 @@ interface OptionPickerProps<T> {
    * focus by initial letter from there on (see letterJumpTarget), and a hint says so.
    */
   letterJumpFrom?: number;
+  /** Plain action list: no selected-value marker column. */
+  plain?: boolean;
 }
 
 const ROW_HEIGHT = 52;
@@ -48,6 +50,7 @@ export function OptionPicker<T>({
   onClose,
   testID,
   letterJumpFrom,
+  plain,
 }: OptionPickerProps<T>) {
   const selIndex = Math.max(
     0,
@@ -174,14 +177,16 @@ export function OptionPicker<T>({
                 >
                   {focused => (
                     <View style={styles.optionRow}>
-                      <Text
-                        style={[
-                          styles.check,
-                          (focused || isSel) && styles.textOn,
-                        ]}
-                      >
-                        {isSel ? '●' : '○'}
-                      </Text>
+                      {plain ? null : (
+                        <Text
+                          style={[
+                            styles.check,
+                            (focused || isSel) && styles.textOn,
+                          ]}
+                        >
+                          {isSel ? '●' : '○'}
+                        </Text>
+                      )}
                       <View style={styles.flex}>
                         <Text
                           style={[styles.label, focused && styles.textOn]}
