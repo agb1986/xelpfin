@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.4.0](https://github.com/agb1986/xelpfin/compare/v0.3.0...v0.4.0) (2026-11-08)
+
+### Features
+
+* **backend:** add library sorts, filters and filter value lookups ([f3ee154](https://github.com/agb1986/xelpfin/commit/f3ee1546d676386d18abf6f8a59dc5d86164885a)), references [#24](https://github.com/agb1986/xelpfin/issues/24)
+* **backend:** read trickplay sheet layout for seek previews ([6d56a4c](https://github.com/agb1986/xelpfin/commit/6d56a4cccde47b16fb7aa4c3211787251873ff7f))
+* **player:** offer the next episode in a countdown card with Cancel ([833ec83](https://github.com/agb1986/xelpfin/commit/833ec8310123efe0b9d28f35f2fbacd6efa94625)), closes [#27](https://github.com/agb1986/xelpfin/issues/27)
+* **player:** show trickplay or chapter thumbnail while seeking ([a3bd557](https://github.com/agb1986/xelpfin/commit/a3bd557e60981b01af63c515736b16cebc01436e))
+* **ui:** add library filter panel and remember each library's view ([66ae4f7](https://github.com/agb1986/xelpfin/commit/66ae4f7e1d25fb296be5a3f3c3ba95b977c6dd9e)), references [#24](https://github.com/agb1986/xelpfin/issues/24)
+* **vega:** add W3C media player engine ([ea7e9e7](https://github.com/agb1986/xelpfin/commit/ea7e9e794276a2126bb8909fb48333e7f8332702))
+* **vega:** query the stick's decoders for the device profile ([b7bcecf](https://github.com/agb1986/xelpfin/commit/b7bcecf90b206afc73d8a0ae10a398e8cea8ede2))
+* **vega:** show a splash screen until the app is ready ([cc46461](https://github.com/agb1986/xelpfin/commit/cc46461653ebfbd65d8145d5ab57d590f5fa7fe9))
+* **vega:** use the real Jellyfin connector with manual server entry ([c484a36](https://github.com/agb1986/xelpfin/commit/c484a364891edb4f2ef085e05eaca67030a5cb99))
+
+### Bug Fixes
+
+* **player:** crop seek preview thumbnails correctly on Android ([7db6ab6](https://github.com/agb1986/xelpfin/commit/7db6ab6bed33d6ea7840d7c1e410235ddd01bb9f))
+* **player:** go back when the next-episode card is cancelled after the end ([6cf4581](https://github.com/agb1986/xelpfin/commit/6cf4581c2b274a8e1ca1b7b70ec158a2440e35f5))
+* **player:** keep handing focus to the surface until it lands ([33cbef2](https://github.com/agb1986/xelpfin/commit/33cbef2b8296035409d0718de924dba0293528b3)), closes [#71](https://github.com/agb1986/xelpfin/issues/71)
+* **player:** retry with MPEG-TS segments when the fMP4 stream cannot be parsed ([7c8b0c9](https://github.com/agb1986/xelpfin/commit/7c8b0c9debf099a413014da329e738d4c1aaf57f))
+* **player:** stop calling a stream parse crash a network failure ([8277863](https://github.com/agb1986/xelpfin/commit/8277863e2bd1f92f348c5a06838357dc0e2b118c))
+* **ui:** key history rows by position and episode id ([bb433c8](https://github.com/agb1986/xelpfin/commit/bb433c84120ccae62a94ce8ff5def0df03912659))
+* **ui:** stop the search field taking focus back on return to the screen ([185438f](https://github.com/agb1986/xelpfin/commit/185438f5584684583276e393490d83455ce5616d))
+* **vega:** append HLS segments in sequence mode to stop boundary stutter ([b33427b](https://github.com/agb1986/xelpfin/commit/b33427bda1338a093a02d43dfc786c2d73466fc4))
+* **vega:** open the keyboard only on SELECT, not on D-pad focus ([d3f0d07](https://github.com/agb1986/xelpfin/commit/d3f0d07fd50641aff2052ecb342f1e1697d4db21))
+* **vega:** pin media packages to the versions the stick ships ([640e85a](https://github.com/agb1986/xelpfin/commit/640e85abf4a8298c39f647230e35669de2de3c6f))
+* **vega:** stream over HLS when the server is plain http ([427336d](https://github.com/agb1986/xelpfin/commit/427336d0f698c1e1685ff3a22ef63b4147aa6e63))
+
 ## [0.3.0](https://github.com/agb1986/xelpfin/compare/v0.2.0...v0.3.0) (2026-10-25)
 
 ### Features
