@@ -247,6 +247,11 @@ export class MockBackend implements Backend {
   data = mockData();
   reports: { type: 'start' | 'progress' | 'stop'; report: ProgressReport }[] =
     [];
+  /** Transcode pings and stops sent for sessions that are not reported. */
+  encodings: {
+    type: 'ping' | 'stopEncoding';
+    plan: ProgressReport['plan'];
+  }[] = [];
 
   constructor(readonly session: Session) {}
 
@@ -384,6 +389,12 @@ export class MockBackend implements Backend {
   }
   async reportStop(report: ProgressReport): Promise<void> {
     this.reports.push({ type: 'stop', report });
+  }
+  async pingPlayback(plan: ProgressReport['plan']): Promise<void> {
+    this.encodings.push({ type: 'ping', plan });
+  }
+  async stopEncoding(plan: ProgressReport['plan']): Promise<void> {
+    this.encodings.push({ type: 'stopEncoding', plan });
   }
   async mediaSegments(): Promise<MediaSegment[]> {
     return [];

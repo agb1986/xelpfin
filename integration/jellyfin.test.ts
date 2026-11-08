@@ -273,6 +273,21 @@ describe('playback', () => {
     await admin.reportStop({ plan, positionMs: 0, isPaused: false });
   });
 
+  it('keeps an unreported transcode alive and ends it without touching resume', async () => {
+    const h264Only: DeviceCapabilities = {
+      ...BASELINE_CAPABILITIES,
+      video: [BASELINE_CAPABILITIES.video[0]],
+    };
+    const item = byName('Night Grid');
+    const plan = await admin.playback({ itemId: item.id }, h264Only);
+    expect(plan.method).toBe('Transcode');
+    expect(await (await fetch(plan.url)).text()).toContain('#EXTM3U');
+    await admin.pingPlayback(plan);
+    await admin.stopEncoding(plan);
+    const resume = await admin.resume();
+    expect(resume.find(i => i.id === item.id)).toBeUndefined();
+  });
+
   it('transcodes the msmpeg4 avi', async () => {
     const plan = await admin.playback(
       { itemId: byName('Old Codec').id },

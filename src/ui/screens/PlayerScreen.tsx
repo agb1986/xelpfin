@@ -43,7 +43,8 @@ export function PlayerScreen({
   const engine = getEngine();
   const [controlsHeight, setControlsHeight] = useState(0);
 
-  const session = usePlaybackSession(itemId, startPositionMs, engine);
+  // Randomizer playback is not reported, so it stays off Continue Watching and Next Up.
+  const session = usePlaybackSession(itemId, startPositionMs, engine, shuffle);
   const { item, plan, error, paused, buffering, position, segments } = session;
   const total = session.duration || plan?.durationMs || item?.runtimeMs || 0;
   const next = useNextEpisode(item, shuffle);
@@ -60,7 +61,8 @@ export function PlayerScreen({
     active && plan && !buffering
       ? activeSegment(segments, position)
       : undefined;
-  const nextUp = useNextUpCard(next, found?.kind === 'outro');
+  // The Randomizer never offers the card; it moves on to the next draw instead.
+  const nextUp = useNextUpCard(next, !shuffle && found?.kind === 'outro');
   const keys = useRemoteKeys({
     // The card owns the remote while it is up.
     active: active && !nextUp.card,
@@ -87,21 +89,38 @@ export function PlayerScreen({
     [seekTo, showOverlay, reportProgress],
   );
 
-  // Randomizer playback jumps straight past recaps, openings and credits instead of offering a button.
+  /** Ends this item and plays the next Randomizer draw, or goes back when there is none. */
+  const { finish } = session;
+  const { playRandom } = next;
+  const nextDraw = useCallback(() => {
+    if (!finish()) {
+      return;
+    }
+    playRandom()
+      .catch(() => false)
+      .then(played => {
+        if (!played) {
+          nav.back();
+        }
+      });
+  }, [finish, playRandom, nav]);
+
+  // Randomizer playback jumps straight past recaps and openings instead of offering a button, and
+  // goes to the next draw when the credits start, whatever the autoplay setting says.
   const autoSkipped = useRef('');
   useEffect(() => {
     if (!shuffle || !active || !plan || buffering) {
       return;
     }
     const seg = activeSegment(segments, position);
-    // With autoplay on the credits stay, for the next-episode card to come up over them.
-    if (seg?.kind === 'outro' && settings.autoplayNext) {
-      return;
-    }
     const key = seg && segmentKey(seg);
     if (seg && key !== autoSkipped.current) {
       autoSkipped.current = key!;
-      skipSegment(seg);
+      if (seg.kind === 'outro') {
+        nextDraw();
+      } else {
+        skipSegment(seg);
+      }
     }
   }, [
     shuffle,
@@ -111,7 +130,7 @@ export function PlayerScreen({
     segments,
     position,
     skipSegment,
-    settings.autoplayNext,
+    nextDraw,
   ]);
 
   if (error) {
@@ -144,7 +163,9 @@ export function PlayerScreen({
           subtitleSize={settings.subtitleSize}
           {...session.viewProps}
           onEnd={() => {
-            if (session.finish()) {
+            if (shuffle) {
+              nextDraw();
+            } else if (session.finish()) {
               nextUp.onEnd();
             }
           }}

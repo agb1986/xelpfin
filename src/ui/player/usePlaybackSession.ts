@@ -27,11 +27,16 @@ export type PlaybackSession = ReturnType<typeof usePlaybackSession>;
  * One item's playback against the server: loads the item and its segments, negotiates a plan
  * with the default (or chosen) tracks, matches the display mode, and reports start, progress
  * every REPORT_EVERY_MS and stop, marking the item played when it stopped at the end.
+ *
+ * With `unreported` (Randomizer playback) nothing is reported and nothing is marked played, so
+ * the item stays off Continue Watching and Next Up; the server is only told to keep a transcode
+ * alive in place of each progress report, and to end it in place of the stop.
  */
 export function usePlaybackSession(
   itemId: string,
   startPositionMs: number,
   engine: PlayerEngine,
+  unreported = false,
 ) {
   const backend = useBackend();
   const app = useApp();
@@ -101,6 +106,12 @@ export function usePlaybackSession(
       // episode back on Continue Watching at the position it had when the call was sent.
       const finished = kind === 'stop' && isFinished(p, r.positionMs);
       const send = () => {
+        if (unreported) {
+          if (kind === 'progress') {
+            return backend.pingPlayback(p);
+          }
+          return kind === 'stop' ? backend.stopEncoding(p) : undefined;
+        }
         if (kind === 'start') {
           return backend.reportStart(r);
         }
@@ -119,7 +130,7 @@ export function usePlaybackSession(
         .then(send)
         .catch(() => undefined);
     },
-    [backend, isFinished],
+    [backend, isFinished, unreported],
   );
 
   /**

@@ -81,6 +81,16 @@ export interface Backend {
   reportStart(report: ProgressReport): Promise<void>;
   reportProgress(report: ProgressReport): Promise<void>;
   reportStop(report: ProgressReport): Promise<void>;
+  /**
+   * Keeps the server's transcode for an unreported session alive without recording progress.
+   * A no-op for direct play.
+   */
+  pingPlayback(plan: ProgressReport['plan']): Promise<void>;
+  /**
+   * Ends the server's transcode for an unreported session without recording a stop. A no-op for
+   * direct play. `reportStop` already does this for reported sessions.
+   */
+  stopEncoding(plan: ProgressReport['plan']): Promise<void>;
   /** Tagged intro/credits ranges. Resolves empty when the server has none or does not support it. */
   mediaSegments(itemId: string): Promise<MediaSegment[]>;
   /** Forgets the resume position, which takes a partly watched item off Continue Watching. */

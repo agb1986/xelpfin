@@ -193,6 +193,12 @@ export class CachedBackend implements Backend {
   reportStop(report: ProgressReport): Promise<void> {
     return this.mutate(() => this.inner.reportStop(report));
   }
+  pingPlayback(plan: ProgressReport['plan']): Promise<void> {
+    return this.inner.pingPlayback(plan);
+  }
+  stopEncoding(plan: ProgressReport['plan']): Promise<void> {
+    return this.inner.stopEncoding(plan);
+  }
   mediaSegments(itemId: string): Promise<MediaSegment[]> {
     return this.inner.mediaSegments(itemId);
   }

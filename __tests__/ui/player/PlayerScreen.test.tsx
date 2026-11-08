@@ -418,7 +418,10 @@ describe('PlayerScreen', () => {
   it('skips the intro by itself and offers a random next episode in shuffle mode', async () => {
     const { root, backend } = await open({ shuffle: true });
     await play(root);
-    expect(backend.reports.at(-1)?.report.positionMs).toBe(30_000);
+    expect(text(root, 'player-position')).toBe('0:30');
+    expect(has(root, 'player-skip-hint')).toBe(false);
+    // Nothing reaches the server's playback reports, so Continue Watching is left alone.
+    expect(backend.reports).toEqual([]);
     key('menu');
     expect(has(root, 'player-prev-episode')).toBe(false);
     await press(root, 'player-next-episode');
@@ -532,13 +535,54 @@ describe('PlayerScreen', () => {
       expect(mockNav.back).toHaveBeenCalledTimes(1);
     });
 
-    it('draws a random episode in shuffle mode and records it only when played', async () => {
-      const { root } = await open({ shuffle: true }, {}, false, true);
+  });
+
+  describe('shuffle mode', () => {
+    it('goes to the next draw when the credits start, with autoplay on and no card', async () => {
+      const { root, backend } = await open(
+        { shuffle: true },
+        { autoplayNext: true },
+        false,
+        true,
+      );
       await play(root, 36);
-      // The credits are not skipped past, so the card can come up over them.
-      expect(has(root, 'next-card')).toBe(true);
-      expect(mockRandomizer.played).toEqual([]);
-      await press(root, 'next-card-play');
+      expect(has(root, 'next-card')).toBe(false);
+      expect(mockRandomizer.played).toHaveLength(1);
+      expect(mockNav.replace).toHaveBeenCalledTimes(1);
+      expect(mockNav.replace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          itemId: mockRandomizer.played[0],
+          shuffle: true,
+        }),
+      );
+      // The end event after the credits does not draw again.
+      await end(root);
+      expect(mockNav.replace).toHaveBeenCalledTimes(1);
+      expect(mockNav.back).not.toHaveBeenCalled();
+      expect(backend.reports).toEqual([]);
+      expect(backend.encodings.map(e => e.type)).toContain('stopEncoding');
+    });
+
+    it('goes to the next draw at the credits with autoplay off too', async () => {
+      const { root } = await open(
+        { shuffle: true },
+        { autoplayNext: false },
+        false,
+        true,
+      );
+      await play(root, 36);
+      expect(has(root, 'next-card')).toBe(false);
+      expect(mockNav.replace).toHaveBeenCalledWith(
+        expect.objectContaining({ shuffle: true }),
+      );
+    });
+
+    it('plays an episode without credits to its end, then goes to the next draw', async () => {
+      const { root } = await open({ shuffle: true });
+      await play(root, 36);
+      expect(mockNav.replace).not.toHaveBeenCalled();
+      await end(root);
+      expect(has(root, 'next-card')).toBe(false);
       expect(mockRandomizer.played).toHaveLength(1);
       expect(mockNav.replace).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -548,12 +592,13 @@ describe('PlayerScreen', () => {
       );
     });
 
-    it('leaves the Randomizer cycle alone when cancelled in shuffle mode', async () => {
-      const { root } = await open({ shuffle: true }, {}, false, true);
+    it('goes back when there is nothing left to draw', async () => {
+      mockRandomizer = { series: [], played: [], history: [] };
+      const { root } = await open({ shuffle: true });
       await play(root, 36);
-      await press(root, 'next-card-cancel');
-      expect(mockRandomizer.played).toEqual([]);
+      await end(root);
       expect(mockNav.replace).not.toHaveBeenCalled();
+      expect(mockNav.back).toHaveBeenCalledTimes(1);
     });
   });
 

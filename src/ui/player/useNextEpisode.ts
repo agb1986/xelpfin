@@ -120,9 +120,13 @@ export function useNextEpisode(item: ItemDetail | undefined, shuffle: boolean) {
     });
 
   const drawing = useRef(false);
-  const playRandom = async () => {
+  /**
+   * Draws the next Randomizer episode and plays it. Resolves false when nothing could be drawn,
+   * true when it plays or another draw is already under way.
+   */
+  const playRandom = useCallback(async () => {
     if (drawing.current) {
-      return;
+      return true;
     }
     drawing.current = true;
     const next = await randomEpisode()
@@ -138,7 +142,8 @@ export function useNextEpisode(item: ItemDetail | undefined, shuffle: boolean) {
         shuffle: true,
       });
     }
-  };
+    return !!next;
+  }, [nav, randomEpisode]);
 
   return {
     upcoming,
