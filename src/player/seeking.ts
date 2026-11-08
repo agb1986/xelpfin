@@ -5,9 +5,9 @@ export const TAP_BURST_MS = 900;
 /** Fixed-offset ladder: how far one burst of 1, 2 and 3 taps jumps. */
 const LADDER_MS = [10_000, 30_000, 60_000];
 /** Every tap after the ladder adds this much. */
-const LADDER_TAIL_MS = 300_000;
+const LADDER_TAIL_MS = 60_000;
 
-/** Total distance a burst of `taps` taps jumps: 10 s, 30 s, 1 min, then 5 min more per tap. */
+/** Total distance a burst of `taps` taps jumps: 10 s, 30 s, 1 min, then 1 min more per tap. */
 export function tapOffsetMs(taps: number): number {
   if (taps <= 0) {
     return 0;

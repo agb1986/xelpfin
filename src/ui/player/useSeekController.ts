@@ -83,7 +83,7 @@ export function useSeekController({
   }, [seekTo]);
 
   /**
-   * One rewind/forward tap. Taps in quick succession escalate (10 s, 30 s, 1 min, then 5 min
+   * One rewind/forward tap. Taps in quick succession escalate (10 s, 30 s, 1 min, then 1 min
    * each) and are committed as one seek once the taps stop.
    */
   const tapSeek = useCallback(

@@ -9,9 +9,9 @@ import {
 } from '../../src/player/seeking';
 
 describe('tapOffsetMs', () => {
-  it('climbs 10 s, 30 s, 1 min, then 5 min per further tap', () => {
+  it('climbs 10 s, 30 s, 1 min, then 1 min per further tap', () => {
     expect([1, 2, 3, 4, 5].map(tapOffsetMs)).toEqual([
-      10_000, 30_000, 60_000, 360_000, 660_000,
+      10_000, 30_000, 60_000, 120_000, 180_000,
     ]);
     expect(tapOffsetMs(0)).toBe(0);
   });
