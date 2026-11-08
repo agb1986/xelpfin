@@ -4,8 +4,8 @@ schema-version = 1
 # Same id as the Fire OS app, so the two builds are one product.
 id = "com.xelpfin.app"
 title = "xelpfin"
-# Not yet synced with the root package.json version; a release step must update it (TODO).
-version = "0.3.0"
+# Follows package.json: the release step rewrites it (scripts/manifest-version.cjs).
+version = "0.4.0"
 icon = "@image/xelpfin.png"
 
 [os.version]
