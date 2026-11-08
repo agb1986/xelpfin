@@ -720,6 +720,33 @@ describe('JellyfinBackend', () => {
     });
   });
 
+  it('pings and stops a transcode without playback reports, and skips both for direct play', async () => {
+    const ok = () => ({ status: 204 });
+    const { b, f } = setup({
+      'POST /Sessions/Playing/Ping': ok,
+      'DELETE /Videos/ActiveEncodings': ok,
+    });
+    const plan = {
+      itemId: 'm1',
+      mediaSourceId: 'ms1',
+      playSessionId: 'ps',
+      method: 'Transcode' as const,
+    };
+    await b.pingPlayback(plan);
+    await b.stopEncoding(plan);
+    await b.pingPlayback({ ...plan, method: 'DirectPlay' });
+    await b.stopEncoding({ ...plan, method: 'DirectPlay' });
+    expect(f.calls.map(c => `${c.method} ${c.path}`)).toEqual([
+      'POST /Sessions/Playing/Ping',
+      'DELETE /Videos/ActiveEncodings',
+    ]);
+    expect(f.calls[0].query).toEqual({ playSessionId: 'ps' });
+    expect(f.calls[1].query).toEqual({
+      deviceId: 'dev-1',
+      playSessionId: 'ps',
+    });
+  });
+
   it('marks played/unplayed and favourites', async () => {
     const ok = () => ({ json: {} });
     const { b, f } = setup({

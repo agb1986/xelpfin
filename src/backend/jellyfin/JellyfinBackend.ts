@@ -606,15 +606,30 @@ export class JellyfinBackend implements Backend {
 
   async reportStop(p: ProgressReport): Promise<void> {
     await this.http.post('/Sessions/Playing/Stopped', this.progressBody(p));
-    if (p.plan.method !== 'DirectPlay') {
-      // Lets the server kill the ffmpeg process right away instead of after its idle timeout.
-      await this.http
-        .delete('/Videos/ActiveEncodings', {
-          deviceId: this.client.deviceId,
-          playSessionId: p.plan.playSessionId,
-        })
-        .catch(() => undefined);
+    await this.stopEncoding(p.plan);
+  }
+
+  async pingPlayback(plan: ProgressReport['plan']): Promise<void> {
+    if (plan.method === 'DirectPlay') {
+      return;
     }
+    // Pings the transcode job only; the server records no progress or user data for it.
+    await this.http.post('/Sessions/Playing/Ping', undefined, {
+      playSessionId: plan.playSessionId,
+    });
+  }
+
+  async stopEncoding(plan: ProgressReport['plan']): Promise<void> {
+    if (plan.method === 'DirectPlay') {
+      return;
+    }
+    // Lets the server kill the ffmpeg process right away instead of after its idle timeout.
+    await this.http
+      .delete('/Videos/ActiveEncodings', {
+        deviceId: this.client.deviceId,
+        playSessionId: plan.playSessionId,
+      })
+      .catch(() => undefined);
   }
 
   async mediaSegments(itemId: string): Promise<MediaSegment[]> {

@@ -90,6 +90,7 @@ function setup(
     display?: DisplayControl;
     inStream?: boolean;
     settings?: Partial<Settings>;
+    unreported?: boolean;
   } = {},
 ) {
   const backend = new FilmBackend(SESSION);
@@ -106,7 +107,12 @@ function setup(
   const out = { current: undefined as unknown as Session_ };
   const eng = engine(opts.inStream ?? true);
   function Probe() {
-    out.current = usePlaybackSession(opts.itemId ?? 'm2', 5000, eng);
+    out.current = usePlaybackSession(
+      opts.itemId ?? 'm2',
+      5000,
+      eng,
+      opts.unreported,
+    );
     return null;
   }
   let r!: ReactTestRenderer.ReactTestRenderer;
@@ -205,6 +211,68 @@ describe('usePlaybackSession', () => {
     expect(types(backend)).toEqual(['start', 'stop']);
     expect(backend.reports[1].report.positionMs).toBe(40_000);
     expect(backend.data.movies[1].userData?.played).toBe(true);
+  });
+
+  describe('unreported (Randomizer) playback', () => {
+    it('sends no playback reports and keeps the transcode alive instead', async () => {
+      jest.useFakeTimers();
+      const { out, backend, renderer } = setup({ unreported: true });
+      await settle();
+      act(() => out.current.viewProps.onLoad!({ durationMs: 40_000 }));
+      act(() => out.current.togglePaused());
+      act(() => out.current.reportProgress());
+      act(() => {
+        jest.advanceTimersByTime(REPORT_EVERY_MS);
+      });
+      act(() => renderer.unmount());
+      await settle();
+      expect(backend.reports).toEqual([]);
+      expect(backend.encodings.map(e => e.type)).toEqual([
+        'ping',
+        'ping',
+        'ping',
+        'stopEncoding',
+      ]);
+      expect(backend.encodings[3].plan).toMatchObject({
+        itemId: 'm2',
+        playSessionId: 'ps1',
+      });
+    });
+
+    it('does not mark the item played when it ends', async () => {
+      const { out, backend } = setup({ unreported: true });
+      await settle();
+      act(() => out.current.viewProps.onLoad!({ durationMs: 40_000 }));
+      act(() => {
+        out.current.finish();
+      });
+      await settle();
+      expect(backend.reports).toEqual([]);
+      expect(backend.encodings.map(e => e.type)).toEqual(['stopEncoding']);
+      expect(backend.data.movies[1].userData?.played).toBe(false);
+    });
+
+    it('ends the transcode of the old plan when a track change needs a new one', async () => {
+      const { out, backend } = setup({ unreported: true, inStream: false });
+      await settle();
+      act(() => out.current.viewProps.onLoad!({ durationMs: 40_000 }));
+      await act(async () => out.current.chooseSubtitle(3));
+      await settle();
+      expect(backend.requests).toHaveLength(2);
+      expect(backend.reports).toEqual([]);
+      expect(backend.encodings.map(e => e.type)).toEqual(['stopEncoding']);
+    });
+  });
+
+  it('reports normal playback and leaves the transcode calls to the stop report', async () => {
+    const { out, backend, renderer } = setup();
+    await settle();
+    act(() => out.current.viewProps.onLoad!({ durationMs: 40_000 }));
+    act(() => out.current.reportProgress());
+    act(() => renderer.unmount());
+    await settle();
+    expect(types(backend)).toEqual(['start', 'progress', 'stop']);
+    expect(backend.encodings).toEqual([]);
   });
 
   it('switches tracks inside the stream when the engine can', async () => {

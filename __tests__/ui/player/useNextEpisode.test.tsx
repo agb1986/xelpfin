@@ -127,7 +127,9 @@ describe('useNextEpisode', () => {
     });
     expect(mockNav.replace).toHaveBeenCalledTimes(1);
     expect(randomizer().played).toHaveLength(1);
-    await act(() => out.current.playRandom());
+    await act(async () => {
+      await out.current.playRandom();
+    });
     expect(mockNav.replace).toHaveBeenCalledTimes(2);
   });
 
