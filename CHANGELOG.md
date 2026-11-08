@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.4.1](https://github.com/agb1986/xelpfin/compare/v0.4.0...v0.4.1) (2026-11-08)
+
+### Features
+
+* **player:** cap the seek tap ladder tail at 1 minute per tap ([7d7e300](https://github.com/agb1986/xelpfin/commit/7d7e30014519c096621702a4da4c7ead87a7e13c))
+* **player:** randomizer skips credits and stays off continue watching ([4048931](https://github.com/agb1986/xelpfin/commit/404893137ffed2cd1393bac71ebb4de9f3bcbe76))
+* **ui:** long-press the main detail button for an actions menu ([3ef2859](https://github.com/agb1986/xelpfin/commit/3ef28598da830ef0ef66d5c48bdf6bf2ab8ca00b))
+
 ## [0.4.0](https://github.com/agb1986/xelpfin/compare/v0.3.0...v0.4.0) (2026-11-08)
 
 ### Features

@@ -5,7 +5,7 @@ schema-version = 1
 id = "com.xelpfin.app"
 title = "xelpfin"
 # Follows package.json: the release step rewrites it (scripts/manifest-version.cjs).
-version = "0.4.0"
+version = "0.4.1"
 icon = "@image/xelpfin.png"
 
 [os.version]
