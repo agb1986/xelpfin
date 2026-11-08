@@ -309,4 +309,5 @@ package.
 
 Status: playback of progressive MP4 and HLS works on a real Vega stick, the capability query
 runs on it, and manual server entry connects to a real Jellyfin server. Still to do: Jellyfin
-sign-in on Vega (once deployed), embedded subtitles, and syncing the manifest version.
+sign-in on Vega (once deployed) and embedded subtitles. The release step keeps the manifest
+version in step with `package.json`.

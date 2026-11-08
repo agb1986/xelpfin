@@ -3,7 +3,8 @@
   "bumpFiles": [
     { "filename": "package.json", "type": "json" },
     { "filename": "package-lock.json", "type": "json" },
-    { "filename": "src/version.ts", "updater": "scripts/version-file.cjs" }
+    { "filename": "src/version.ts", "updater": "scripts/version-file.cjs" },
+    { "filename": "vega/manifest.toml", "updater": "scripts/manifest-version.cjs" }
   ],
   "releaseCommitMessageFormat": "chore(release): {{currentTag}}"
 }
